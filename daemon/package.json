@@ -1,0 +1,30 @@
+{
+  "name": "korgd",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "spike": "tsx scripts/spike-auth.ts",
+    "spike:session": "tsx scripts/spike-session.ts",
+    "probe": "tsx scripts/probe.ts",
+    "poke": "tsx scripts/poke.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.261",
+    "@anthropic-ai/sdk": "^0.124.0",
+    "@korg/protocol": "workspace:^",
+    "better-sqlite3": "^13.0.3",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.4.1",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "korg-bot",
+  "private": true,
+  "version": "0.0.1",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --filter korgd dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

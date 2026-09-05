@@ -5,6 +5,7 @@ import { AnthropicSubscriptionAdapter } from '../providers/anthropic-subscriptio
 import type { ProviderAdapter } from '../providers/types.js'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { OpenAiApiAdapter } from '../providers/openai-api.js'
+import { COMPATIBLE_PROVIDERS, OpenAiCompatibleAdapter } from '../providers/openai-compatible.js'
 import { OpenAiSubscriptionAdapter } from '../providers/openai-subscription.js'
 import { ClaudeCli } from './claude-cli.js'
 import { CodexCli } from './codex-cli.js'
@@ -90,6 +91,14 @@ export class AuthManager {
       providers: {
         openai: await this.openAiStatus('openai'),
         'openai-codex': await this.openAiStatus('openai-codex'),
+        // Everything that speaks OpenAI's chat API: one shape, key only.
+        ...Object.fromEntries(
+          await Promise.all(
+            Object.keys(COMPATIBLE_PROVIDERS).map(
+              async (id) => [id, await this.keyOnlyStatus(id)] as const,
+            ),
+          ),
+        ),
       },
     }
   }
@@ -117,6 +126,18 @@ export class AuthManager {
     }
   }
 
+  /** A provider with no account path: an API key or nothing. */
+  private async keyOnlyStatus(provider: string): Promise<ProviderAuth> {
+    const key = await this.credentials.getApiKey(provider)
+    const mode = (this.store.getSettings()[settingModeFor(provider)] as AuthMode | undefined) ?? null
+    return {
+      configured: mode === 'api_key' && key !== null,
+      mode,
+      cli: { installed: false, version: null, loggedIn: false },
+      apiKey: { present: key !== null },
+    }
+  }
+
   /** Opens the vendor's browser sign-in for a provider configured in Settings. */
   async providerLogin(provider: string): Promise<AuthStatus> {
     if (provider !== 'openai-codex') throw new Error(`No account sign-in for provider: ${provider}`)
@@ -134,20 +155,22 @@ export class AuthManager {
     return this.status()
   }
 
-  async providerSetApiKey(provider: string, key: string): Promise<AuthStatus> {
-    if (provider !== 'openai' && provider !== 'openai-codex') {
+  async providerSetApiKey(provider: string, key: string): Promise<AuthStatus & { verified: string }> {
+    const compatible = COMPATIBLE_PROVIDERS[provider]
+    if (provider !== 'openai' && provider !== 'openai-codex' && !compatible) {
       throw new Error(`No API key slot for provider: ${provider}`)
     }
 
-    // Proven before it is stored, so a typo fails here rather than on the first
-    // message of a bot the user has already built. The key reaches OpenAI the same way
-    // whichever harness will later spend it, so one check covers both.
-    await new OpenAiApiAdapter(key).validate()
+    // Proven before it is stored, so a typo fails here rather than on the first message
+    // of a bot the user has already built.
+    const verified = await (compatible
+      ? new OpenAiCompatibleAdapter(compatible, key).validate()
+      : new OpenAiApiAdapter(key).validate())
 
     await this.credentials.setApiKey(key, provider)
     this.store.setSettings({ [settingModeFor(provider)]: 'api_key' })
     await this.applyProvider(provider)
-    return this.status()
+    return { ...(await this.status()), verified }
   }
 
   async providerSignOut(provider: string): Promise<AuthStatus> {
@@ -205,9 +228,17 @@ export class AuthManager {
     this.providers.get(provider)?.dispose()
     this.providers.delete(provider)
 
-    if (provider !== 'openai' && provider !== 'openai-codex') return
+    const compatible = COMPATIBLE_PROVIDERS[provider]
+    if (provider !== 'openai' && provider !== 'openai-codex' && !compatible) return
     const mode = this.store.getSettings()[settingModeFor(provider)] as AuthMode | undefined
     const key = await this.credentials.getApiKey(provider)
+
+    if (compatible) {
+      if (mode === 'api_key' && key) {
+        this.providers.set(provider, new OpenAiCompatibleAdapter(compatible, key, this.desktops))
+      }
+      return
+    }
 
     // Two providers rather than one with a switch, so both can be connected at once:
     // a bot on the Codex agent and a bot on a named API model are different bots, and
@@ -293,6 +324,7 @@ export class AuthManager {
     await this.migrateCodexProvider()
     await this.applyProvider('openai')
     await this.applyProvider('openai-codex')
+    for (const id of Object.keys(COMPATIBLE_PROVIDERS)) await this.applyProvider(id)
 
     const mode = this.store.getSettings()[SETTING_MODE] as AuthMode | undefined
 

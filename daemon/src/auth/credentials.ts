@@ -12,6 +12,7 @@ const ACCOUNTS: Record<string, string> = {
   anthropic: 'anthropic-api-key',
   openai: 'openai-api-key',
   'openai-codex': 'openai-codex-api-key',
+  deepseek: 'deepseek-api-key',
 }
 
 /**

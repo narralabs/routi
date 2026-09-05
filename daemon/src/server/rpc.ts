@@ -136,7 +136,8 @@ const handlers: Record<RpcMethod, Handler> = {
   'auth.providerSetApiKey': async (p, ctx) => {
     const { provider, key } = p as { provider: string; key: string }
     try {
-      return { auth: await ctx.auth.providerSetApiKey(provider, key) }
+      const { verified, ...auth } = await ctx.auth.providerSetApiKey(provider, key)
+      return { auth, verified }
     } catch (err) {
       throw new RpcError('invalid_key', err instanceof Error ? err.message : String(err))
     }

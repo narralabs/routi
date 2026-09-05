@@ -60,9 +60,14 @@ export class AnthropicApiAdapter implements ProviderAdapter {
    * tell a good key from a typo — this makes a real authenticated request instead.
    * `models.list` is the cheapest one available: it spends no tokens.
    */
-  async validate(): Promise<void> {
+  async validate(): Promise<string> {
     try {
-      await this.client.models.list({ limit: 1 })
+      await this.client.messages.create({
+        model: 'claude-haiku-4-5',
+        max_tokens: 8,
+        messages: [{ role: 'user', content: 'Reply with the single word ok.' }],
+      })
+      return 'claude-haiku-4-5 answered'
     } catch (err) {
       if (err instanceof Anthropic.AuthenticationError) {
         throw new Error('That API key was rejected by Anthropic. Check it and try again.')

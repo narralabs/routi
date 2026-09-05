@@ -353,13 +353,25 @@ final class AppModel {
         await refreshAll()
     }
 
-    func providerSetApiKey(_ provider: String, key: String) async throws {
-        let status = try await client.rpc(
-            "auth.providerSetApiKey", ["provider": provider, "key": key],
-            field: "auth", as: AuthStatus.self, timeout: 60
+    /// Connects a provider and reports what the check actually proved.
+    ///
+    /// The provider's own models are reloaded here rather than left to the next general
+    /// refresh: a key that has just been accepted should put its models in the picker
+    /// immediately, and waiting made a provider look like it offered only one.
+    @discardableResult
+    func providerSetApiKey(_ provider: String, key: String) async throws -> String? {
+        let result = try await client.rpc(
+            "auth.providerSetApiKey", ["provider": provider, "key": key], timeout: 90
         )
-        auth = status
+        if let raw = result["auth"],
+           let decoded = try? JSONDecoder().decode(
+               AuthStatus.self, from: JSONSerialization.data(withJSONObject: raw)
+           ) {
+            auth = decoded
+        }
+        await loadModels(for: provider)
         await refreshAll()
+        return result["verified"] as? String
     }
 
     func providerSignOut(_ provider: String) async {

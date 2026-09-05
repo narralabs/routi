@@ -46,6 +46,14 @@ struct ProviderInfo: Identifiable, Hashable {
             isAvailable: true
         ),
         ProviderInfo(
+            id: "deepseek",
+            name: "DeepSeek",
+            models: "DeepSeek",
+            mark: "ProviderDeepseek",
+            tint: Color(red: 0.29, green: 0.40, blue: 0.95),
+            isAvailable: true
+        ),
+        ProviderInfo(
             id: "xai",
             name: "xAI",
             models: "Grok",
@@ -114,7 +122,7 @@ struct ProviderPane: View {
     var body: some View {
         if provider.id == "anthropic" {
             AnthropicPane(provider: provider)
-        } else if provider.id == "openai" || provider.id == "openai-codex" {
+        } else if provider.id == "openai" || provider.id == "openai-codex" || provider.id == "deepseek" {
             OpenAiPane(provider: provider)
         } else {
             UnavailableProviderPane(provider: provider)
@@ -307,16 +315,31 @@ private struct OpenAiPane: View {
         provider.id == "openai-codex" ? [.account, .key] : [.key]
     }
 
+    /// Where to get a key, per provider.
+    private var keySource: String {
+        switch provider.id {
+        case "deepseek": return "platform.deepseek.com"
+        default: return "platform.openai.com"
+        }
+    }
+
     private func keyDetail(_ setup: Setup) -> String {
-        provider.id == "openai-codex"
-            ? "Billed per token, but run by the Codex agent rather than by Krog. Choose this for Codex's behaviour without a ChatGPT plan."
-            : "Billed per token. The setup where a bot can use its screen: Krog runs the tool loop and hands it the desktop."
+        switch provider.id {
+        case "openai-codex":
+            return "Billed per token, but run by the Codex agent rather than by Krog. Choose this for Codex's behaviour without a ChatGPT plan."
+        case "deepseek":
+            return "Billed per token. Krog runs the tool loop, so a bot here can use its screen — on the Chat model; Reasoner takes no tools."
+        default:
+            return "Billed per token. The setup where a bot can use its screen: Krog runs the tool loop and hands it the desktop."
+        }
     }
 
     @State private var entering: Setup?
     @State private var apiKey = ""
     @State private var isWorking = false
     @State private var failure: String?
+    /// What the connection check proved, shown once after connecting.
+    @State private var verified: String?
     @State private var showingDisconnect = false
 
     /// Which of the three is in effect, read back from mode and harness.
@@ -349,6 +372,19 @@ private struct OpenAiPane: View {
             if let failure {
                 SettingsSection {
                     SettingsRow(title: "Couldn't connect", detail: failure, isFirst: true) { EmptyView() }
+                }
+            }
+
+            if let verified {
+                SettingsSection {
+                    SettingsRow(
+                        title: "Verified",
+                        detail: "Krog sent a real request and \(verified). The key works and the account can answer.",
+                        isFirst: true
+                    ) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
                 }
             }
 
@@ -421,7 +457,7 @@ private struct OpenAiPane: View {
             SettingsSection(entering.title) {
                 SettingsRow(
                     title: "Key",
-                    detail: "From platform.openai.com. " + keyDetail(entering),
+                    detail: "From \(keySource). " + keyDetail(entering),
                     isFirst: true
                 ) {
                     SecureField("sk-…", text: $apiKey)
@@ -434,7 +470,7 @@ private struct OpenAiPane: View {
                     HStack(spacing: 8) {
                         Spacer()
                         Button("Back") { withAnimation { self.entering = nil; failure = nil } }
-                        Button("Connect") { submitKey(entering) }
+                        Button(isWorking ? "Verifying…" : "Connect") { submitKey(entering) }
                             .buttonStyle(.borderedProminent)
                             .disabled(apiKey.isEmpty || isWorking)
                     }
@@ -500,7 +536,7 @@ private struct OpenAiPane: View {
         Task {
             do {
                 _ = setup
-                try await model.providerSetApiKey(provider.id, key: apiKey)
+                verified = try await model.providerSetApiKey(provider.id, key: apiKey)
                 apiKey = ""
                 entering = nil
             } catch {

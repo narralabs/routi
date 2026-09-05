@@ -87,7 +87,11 @@ export const RpcMethods = {
       /** 'direct' or 'codex' for OpenAI; ignored by providers with one harness. */
       harness: z.string().optional(),
     }),
-    result: z.object({ auth: AuthStatus }),
+    result: z.object({
+      auth: AuthStatus,
+      /** What the check actually proved, e.g. "deepseek-chat answered". */
+      verified: z.string().optional(),
+    }),
   },
   'auth.providerSignOut': {
     params: z.object({ provider: z.string() }),

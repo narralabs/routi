@@ -64,15 +64,23 @@ export class OpenAiApiAdapter implements ProviderAdapter {
    * good key from a typo. This makes a real authenticated request that spends no
    * tokens.
    */
-  async validate(): Promise<void> {
+  async validate(): Promise<string> {
     try {
-      await this.client.models.list()
+      await this.client.responses.create({
+        model: FALLBACK_MODEL,
+        input: 'Reply with the single word ok.',
+        max_output_tokens: 16,
+      })
+      return `${FALLBACK_MODEL} answered`
     } catch (err) {
       if (err instanceof OpenAI.AuthenticationError) {
         throw new Error('That API key was rejected by OpenAI. Check it and try again.')
       }
       if (err instanceof OpenAI.PermissionDeniedError) {
         throw new Error('That key is valid but lacks permission to use the Responses API.')
+      }
+      if (err instanceof OpenAI.RateLimitError) {
+        throw new Error('OpenAI accepted the key but refused the request — usually no credit on the account.')
       }
       if (err instanceof OpenAI.APIConnectionError) {
         throw new Error("Could not reach OpenAI. Check this Mac's network connection.")

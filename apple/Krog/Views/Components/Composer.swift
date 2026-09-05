@@ -14,8 +14,6 @@ struct Composer: View {
     let onSend: () -> Void
     let onInterrupt: () -> Void
 
-    @State private var fieldHeight: CGFloat = 18
-
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -34,13 +32,6 @@ struct Composer: View {
             .buttonStyle(.plain)
             .padding(.bottom, 3)
 
-            #if os(macOS)
-            // AppKit, because Return and shift-Return are two different commands there
-            // and SwiftUI's TextField cannot tell them apart.
-            ComposerField(text: $text, placeholder: "Message \(botName)", onSend: onSend, height: $fieldHeight)
-                .frame(height: fieldHeight)
-                .padding(.vertical, 7)
-            #else
             TextField("Message \(botName)", text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...10)
@@ -48,7 +39,6 @@ struct Composer: View {
                 .focused($focused)
                 .onSubmit(onSend)
                 .padding(.vertical, 7)
-            #endif
 
             Button {
                 isBusy ? onInterrupt() : onSend()

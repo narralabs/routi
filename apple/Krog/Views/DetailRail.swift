@@ -5,15 +5,19 @@ struct DetailRail: View {
     @Environment(AppModel.self) private var model
     let bot: Bot
     @Binding var showingSettings: Bool
+    @Binding var isOpen: Bool
     @State private var isHoveringScreen = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                surfacePanel
-                routinesPanel
+        VStack(spacing: 0) {
+            header
+            ScrollView {
+                VStack(spacing: 24) {
+                    surfacePanel
+                    routinesPanel
+                }
+                .padding(16)
             }
-            .padding(16)
         }
         .background(.background.secondary)
         .overlay(alignment: .leading) {
@@ -22,6 +26,21 @@ struct DetailRail: View {
         // Only pull frames while the rail is actually on screen.
         .onAppear { model.startFrames() }
         .onDisappear { model.stopFrames() }
+    }
+
+    /// The panel's own title row. The control that closes the rail belongs to the
+    /// rail, not to the window's toolbar — it acts on this container, so it sits in
+    /// this container's top-right corner.
+    private var header: some View {
+        HStack(spacing: 4) {
+            Spacer()
+            RailIcon(systemName: "gearshape", help: "Bot Settings") { showingSettings = true }
+            RailIcon(systemName: "chevron.right.2", help: "Hide Screen") {
+                isOpen = false
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 40)
     }
 
     @ViewBuilder
@@ -118,5 +137,32 @@ struct DetailRail: View {
             Button("Create Routine") {}
                 .buttonStyle(.bordered)
         }
+    }
+}
+
+
+/// Borderless icon for the rail's header: quiet at rest, a soft fill on hover.
+private struct RailIcon: View {
+    let systemName: String
+    let help: String
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .background(
+                    isHovering ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                    in: .rect(cornerRadius: 6, style: .continuous)
+                )
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .help(help)
     }
 }

@@ -19,7 +19,7 @@ struct ChatView: View {
             content
             #if os(macOS)
             if showRail {
-                DetailRail(bot: bot, showingSettings: $showingSettings)
+                DetailRail(bot: bot, showingSettings: $showingSettings, isOpen: $showRail)
                     .frame(width: 300)
                     .transition(.move(edge: .trailing))
             }
@@ -184,19 +184,16 @@ struct ChatView: View {
         }
         .flatBackground()
 
-        // The screen toggle governs the rail on the right, so it sits on the right.
-        flexibleToolbarSpacer()
-
-        ToolbarItem(placement: .primaryAction) {
-            ToolbarIcon(
-                systemName: "desktopcomputer",
-                help: showRail ? "Hide Screen" : "Show Screen",
-                isActive: showRail
-            ) {
-                showRail.toggle()
+        // Only a way *in*. Once the rail is open it carries its own close control, so
+        // a second toggle in the window chrome would be one control too many.
+        if !showRail {
+            ToolbarItem(placement: .primaryAction) {
+                ToolbarIcon(systemName: "desktopcomputer", help: "Show Screen") {
+                    showRail = true
+                }
             }
+            .flatBackground()
         }
-        .flatBackground()
         #else
         ToolbarItem(placement: .topBarTrailing) {
             Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }

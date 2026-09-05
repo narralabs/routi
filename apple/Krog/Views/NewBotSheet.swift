@@ -6,6 +6,7 @@ struct NewBotSheet: View {
 
     @State private var name = ""
     @State private var systemPrompt = ""
+    @State private var selectedProvider = "anthropic"
     @State private var selectedModel = "default"
     @State private var isSubmitting = false
 
@@ -21,13 +22,29 @@ struct NewBotSheet: View {
                 )
                 .lineLimit(3...8)
 
+                Picker("Provider", selection: $selectedProvider) {
+                    ForEach(ProviderInfo.all) { provider in
+                        // Unavailable providers stay visible but unselectable — the
+                        // roster is the roadmap, and hiding them would imply Anthropic
+                        // is the only one ever planned.
+                        Text(provider.isAvailable ? provider.name : "\(provider.name) — Soon")
+                            .tag(provider.id)
+                    }
+                }
+
                 Picker("Model", selection: $selectedModel) {
                     ForEach(model.models) { info in
                         Text(info.displayName).tag(info.id)
                     }
                 }
+                .disabled(model.models.isEmpty)
             }
             .formStyle(.grouped)
+            .onChange(of: selectedProvider) { _, new in
+                // Only a configured provider can be chosen; snap back if the user
+                // reaches a "Soon" entry via the keyboard.
+                if !ProviderInfo.find(new).isAvailable { selectedProvider = "anthropic" }
+            }
         } onConfirm: {
             isSubmitting = true
             Task {

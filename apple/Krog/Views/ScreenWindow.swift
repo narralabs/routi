@@ -31,15 +31,6 @@ struct ScreenWindow: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Button {
-                model.isShowingScreen = false
-            } label: {
-                Label("Back", systemImage: "chevron.left")
-                    .font(.system(size: 13))
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.escape, modifiers: [])
-
             // Named for its bot: desktops are no longer shared between them.
             Text(model.selectedBot.map { "\($0.name)'s desktop" } ?? "Desktop")
                 .font(.system(size: 13, weight: .semibold))
@@ -49,9 +40,37 @@ struct ScreenWindow: View {
             Text("Click and type to drive it · Esc to leave")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
+
+            // Closing sits in the top right, the same corner the panel closes from.
+            CloseButton { model.isShowingScreen = false }
+                .keyboardShortcut(.escape, modifiers: [])
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.leading, 16)
+        .padding(.trailing, 10)
+        .padding(.vertical, 8)
         .background(.bar)
+    }
+}
+
+/// Matches the toolbar icons: nothing at rest, a soft fill under the pointer.
+private struct CloseButton: View {
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+                .background(
+                    isHovering ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                    in: .rect(cornerRadius: 6, style: .continuous)
+                )
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .help("Close")
     }
 }

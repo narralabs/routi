@@ -89,6 +89,9 @@ struct Message: Codable, Identifiable, Hashable {
     var conversationId: String
     var role: Role
     var blocks: [Block]
+    /// Which bot wrote it. Null for a person, and in a one-bot chat where the
+    /// conversation already says who is speaking.
+    var botId: String?
     var createdAt: Double
 
     init(from decoder: Decoder) throws {
@@ -97,10 +100,11 @@ struct Message: Codable, Identifiable, Hashable {
         conversationId = try c.decode(String.self, forKey: .conversationId)
         role = (try? c.decode(Role.self, forKey: .role)) ?? .assistant
         blocks = try c.decodeIfPresent([Block].self, forKey: .blocks) ?? []
+        botId = try c.decodeIfPresent(String.self, forKey: .botId)
         createdAt = try c.decodeIfPresent(Double.self, forKey: .createdAt) ?? 0
     }
 
-    private enum CodingKeys: String, CodingKey { case id, conversationId, role, blocks, createdAt }
+    private enum CodingKeys: String, CodingKey { case id, conversationId, role, blocks, createdAt, botId }
 
     /// Plain-text projection for sidebar previews and copy.
     var plainText: String {

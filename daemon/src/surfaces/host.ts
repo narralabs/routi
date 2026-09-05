@@ -142,6 +142,11 @@ export class HostSurface {
     return null
   }
 
+  /** The Mac's clipboard is the user's own; nothing to fetch across a boundary. */
+  async readClipboard(): Promise<string> {
+    return ''
+  }
+
   async send(input: DesktopInput): Promise<void> {
     const helper = await this.inputHelper()
     const args = ((): string[] => {
@@ -153,6 +158,9 @@ export class HostSurface {
         case 'type': return ['type', input.text]
         case 'key': return ['key', ...input.keys]
         case 'open': return ['open', input.url]
+        // On this Mac the clipboard is already the user's own, so pasting is the
+        // keystroke and nothing else.
+        case 'paste': return ['key', 'cmd+v']
       }
     })()
 

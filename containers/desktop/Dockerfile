@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       chromium \
       chromium-sandbox \
       xdotool \
+      xclip \
       scrot \
       imagemagick \
       fonts-liberation \

@@ -13,6 +13,11 @@ case "${1:-}" in
             btn=5; [ "${4:-0}" -lt 0 ] && btn=4
             xdotool mousemove "$2" "$3" click --repeat "${5:-3}" "$btn" ;;
   type)     shift; xdotool type --delay 12 -- "$*" ;;
+  # Clipboard, both directions. Typing a paste character by character loses newlines
+  # and tabs and takes a visible age on anything long; putting it on the X clipboard
+  # and pressing ctrl+v is what a person does.
+  clipset)  shift; printf '%s' "$*" | xclip -selection clipboard ;;
+  clipget)  xclip -selection clipboard -o 2>/dev/null || true ;;
   key)      shift; xdotool key -- "$@" ;;
   # A profile per screen: two Chromium instances cannot share one user-data-dir, and
   # a bot's logins are its own. Downloads stay shared, which is the point of one

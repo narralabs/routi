@@ -118,6 +118,11 @@ export const RpcMethods = {
       pointerY: z.number().int().nullable().default(null),
     }),
   },
+  /** Reads the desktop's clipboard, for copying out of a container screen. */
+  'surface.clipboard': {
+    params: z.object({ botId: z.string() }),
+    result: z.object({ text: z.string() }),
+  },
   'surface.input': {
     params: z.object({
       botId: z.string(),
@@ -129,6 +134,7 @@ export const RpcMethods = {
         z.object({ kind: z.literal('type'), text: z.string() }),
         z.object({ kind: z.literal('key'), keys: z.array(z.string()).min(1) }),
         z.object({ kind: z.literal('open'), url: z.string() }),
+        z.object({ kind: z.literal('paste'), text: z.string() }),
       ]),
     }),
     result: z.object({ ok: z.literal(true) }),

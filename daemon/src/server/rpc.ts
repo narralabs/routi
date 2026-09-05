@@ -178,6 +178,11 @@ const handlers: Record<RpcMethod, Handler> = {
     }
   },
 
+  'surface.clipboard': async (p, ctx) => {
+    const { botId } = p as { botId: string }
+    return { text: await ctx.desktops.for(botId).readClipboard() }
+  },
+
   'surface.input': async (p, ctx) => {
     const { botId, input } = p as { botId: string; input: DesktopInput }
     try {

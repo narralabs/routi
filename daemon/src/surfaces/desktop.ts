@@ -26,6 +26,8 @@ export type DesktopInput =
   | { kind: 'type'; text: string }
   | { kind: 'key'; keys: string[] }
   | { kind: 'open'; url: string }
+  /** Puts text on the desktop's clipboard and pastes it. */
+  | { kind: 'paste'; text: string }
 
 /**
  * The one machine every screen lives on.
@@ -312,6 +314,12 @@ export class Desktop {
     return Number.isFinite(n) ? 9222 + (n - 99) : null
   }
 
+  /** What is on the desktop's clipboard, for copying out of it. */
+  async readClipboard(): Promise<string> {
+    if (this.state !== 'running' || !this.display) return ''
+    return host.execOn(this.display, ['act', 'clipget'], 10_000).catch(() => '')
+  }
+
   async send(input: DesktopInput): Promise<void> {
     if (this.state !== 'running' || !this.display) throw new Error('This bot has no screen running.')
 
@@ -324,9 +332,17 @@ export class Desktop {
         case 'type': return ['type', input.text]
         case 'key': return ['key', ...input.keys]
         case 'open': return ['open', input.url]
+        case 'paste': return ['clipset', input.text]
       }
     })()
 
     await host.execOn(this.display, ['act', ...args])
+
+    // Pasting is two steps: the text has to be on the clipboard before the keystroke
+    // that reads it. Typing it out instead loses newlines and tabs, and takes a
+    // visible age on anything longer than a sentence.
+    if (input.kind === 'paste') {
+      await host.execOn(this.display, ['act', 'key', 'ctrl+v'])
+    }
   }
 }

@@ -277,6 +277,34 @@ final class AppModel {
         }
     }
 
+    /// Puts the Mac's clipboard on the desktop and pastes it.
+    ///
+    /// The two clipboards are separate — one lives on this Mac, the other inside a
+    /// container — so ⌘V has to carry the text across rather than being forwarded as a
+    /// keystroke that would paste whatever the desktop already held.
+    func pasteIntoSurface() async {
+        #if os(macOS)
+        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else { return }
+        await sendSurfaceInput(["kind": "paste", "text": text])
+        #endif
+    }
+
+    /// Copies from the desktop onto the Mac's clipboard.
+    ///
+    /// Presses the desktop's own copy shortcut first, then reads what landed on its
+    /// clipboard — there is no way to know what was selected without asking it to copy.
+    func copyFromSurface() async {
+        #if os(macOS)
+        guard let botID = surfaceBotID else { return }
+        await sendSurfaceInput(["kind": "key", "keys": ["ctrl+c"]])
+        try? await Task.sleep(for: .milliseconds(250))
+        guard let result = try? await client.rpc("surface.clipboard", ["botId": botID]),
+              let text = result["text"] as? String, !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        #endif
+    }
+
     func sendSurfaceInput(_ input: [String: Any]) async {
         guard let botID = surfaceBotID else { return }
         try? await client.rpc("surface.input", ["botId": botID, "input": input])

@@ -15,6 +15,8 @@ struct ScreenView: View {
     var pointer: CGPoint?
     var isInteractive = false
     var onInput: ([String: Any]) -> Void = { _ in }
+    var onPaste: () -> Void = {}
+    var onCopy: () -> Void = {}
 
     var body: some View {
         GeometryReader { proxy in
@@ -81,7 +83,7 @@ struct ScreenView: View {
         .overlay {
             #if os(macOS)
             if isInteractive {
-                DesktopInputLayer(size: size, onInput: onInput)
+                DesktopInputLayer(size: size, onInput: onInput, onPaste: onPaste, onCopy: onCopy)
             }
             #endif
         }
@@ -172,22 +174,30 @@ struct DesktopInputLayer: NSViewRepresentable {
     /// The desktop's own pixel size, for converting view points into screen pixels.
     let size: CGSize
     let onInput: ([String: Any]) -> Void
+    let onPaste: () -> Void
+    let onCopy: () -> Void
 
     func makeNSView(context: Context) -> InputView {
         let view = InputView()
         view.size = size
         view.onInput = onInput
+        view.onPaste = onPaste
+        view.onCopy = onCopy
         return view
     }
 
     func updateNSView(_ view: InputView, context: Context) {
         view.size = size
         view.onInput = onInput
+        view.onPaste = onPaste
+        view.onCopy = onCopy
     }
 
     final class InputView: NSView {
         var size: CGSize = .zero
         var onInput: ([String: Any]) -> Void = { _ in }
+        var onPaste: () -> Void = {}
+        var onCopy: () -> Void = {}
 
         private var trackingArea: NSTrackingArea?
         private var lastMoveSent = Date.distantPast
@@ -288,11 +298,30 @@ struct DesktopInputLayer: NSViewRepresentable {
         }
 
         override func keyDown(with event: NSEvent) {
+            // Copy and paste are the Mac's shortcuts on this side and the desktop's own
+            // on the other, so they are handled rather than forwarded: the clipboards
+            // are two different clipboards, and bridging them is the point.
+            if event.modifierFlags.contains(.command), let key = event.charactersIgnoringModifiers {
+                if key == "v" { onPaste(); return }
+                if key == "c" { onCopy(); return }
+            }
             if let input = KeySymbol.input(for: event) {
                 onInput(input)
             } else {
                 super.keyDown(with: event)
             }
+        }
+
+        /// A right-click has to be released as well as pressed, or menus never appear.
+        override func rightMouseUp(with event: NSEvent) {
+            // The press already sent the whole click; this stops AppKit opening a menu
+            // of its own on top of the desktop's.
+        }
+
+        override func menu(for event: NSEvent) -> NSMenu? {
+            // No Mac context menu over the desktop — the right-click belongs to whatever
+            // is on the screen, which will draw its own.
+            nil
         }
     }
 }
@@ -319,26 +348,33 @@ extension KeySymbol {
         // The Mac's Command maps to Ctrl on Linux: ⌘L in this window should focus the
         // browser's address bar, not send a Super chord nothing listens for.
         if flags.contains(.command) && !prefix.contains("ctrl") { prefix.append("ctrl") }
-        if flags.contains(.shift) { prefix.append("shift") }
 
         if let symbol = namedByKeyCode[event.keyCode] {
-            return ["kind": "key", "keys": [(prefix + [symbol]).joined(separator: "+")]]
+            let all = flags.contains(.shift) ? prefix + ["shift"] : prefix
+            return ["kind": "key", "keys": [(all + [symbol]).joined(separator: "+")]]
         }
 
-        // A chord needs the keysym form; plain text is typed as text, which handles
-        // arbitrary characters and layouts without a table.
-        if !prefix.isEmpty {
-            guard let scalar = (event.charactersIgnoringModifiers ?? "").unicodeScalars.first else {
-                return nil
-            }
-            return ["kind": "key", "keys": [(prefix + [String(scalar).lowercased()]).joined(separator: "+")]]
+        /**
+         * Shift alone is not a chord — it is how you type a character.
+         *
+         * Shift-2 was being sent as the chord "shift+2", which the desktop resolves
+         * against its own keymap and may or may not turn into "@". The Mac already
+         * knows what the key produced: `characters` is "@". Typing that is correct on
+         * every layout, and it is why the symbols row stopped working.
+         */
+        if prefix.isEmpty {
+            let characters = event.characters ?? ""
+            guard !characters.isEmpty,
+                  !characters.unicodeScalars.contains(where: { $0.value < 0x20 }) else { return nil }
+            return ["kind": "type", "text": characters]
         }
 
-        let characters = event.characters ?? ""
-        guard !characters.isEmpty, !characters.unicodeScalars.contains(where: { $0.value < 0x20 }) else {
+        // A real chord — ctrl, alt or command — needs the keysym form.
+        guard let scalar = (event.charactersIgnoringModifiers ?? "").unicodeScalars.first else {
             return nil
         }
-        return ["kind": "type", "text": characters]
+        let all = flags.contains(.shift) ? prefix + ["shift"] : prefix
+        return ["kind": "key", "keys": [(all + [String(scalar).lowercased()]).joined(separator: "+")]]
     }
 }
 #endif

@@ -51,10 +51,19 @@ cd apple && ./bootstrap.sh && open Krog.xcodeproj
 disposable). By default it builds Mac only with ad-hoc signing, so a fresh clone runs
 with no Apple account at all.
 
-**For iPhone and iPad:** sign in under Xcode > Settings > Accounts, then
-`./bootstrap.sh --ios`. That adds iOS to the target's destinations and switches to
-automatic signing against your team. The app sources are already universal — this is
-purely a provisioning switch.
+**For iPhone and iPad:** `./bootstrap.sh --ios` adds iOS to the target's destinations
+and switches to automatic signing against your team. Device builds also need an Apple
+ID signed in under Xcode > Settings > Accounts. The simulator needs neither:
+
+```bash
+./bootstrap.sh --ios
+xcodebuild -scheme Krog -destination "id=<simulator udid>" \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+Enabling iOS is why this is a switch rather than the default: a multiplatform target
+makes the *Mac* build demand a team too, so the Mac-only default is what lets a fresh
+clone build with no Apple account at all. Run plain `./bootstrap.sh` to go back.
 
 Point the app at a different daemon under Krog > Settings. Remote access over
 Tailscale lands in M2.
@@ -109,6 +118,19 @@ from a scrubbed launchd-style environment. Two consequences worth remembering:
   reach Claude.
 
 An API-key adapter is planned alongside, selectable in settings.
+
+## Settings
+
+Settings replaces the whole window rather than opening a preferences panel, reached
+from the sidebar footer or ⌘,. `NavigationSplitView` again does the adapting: a
+two-column pane on Mac and iPad, a pushed grouped list on iPhone, from one file.
+
+Panes are General (theme, send key, reasoning visibility), Krog Core (daemon endpoint
+and connection state), Claude (current credential, disconnect), and About.
+
+The rows are hand-built rather than a SwiftUI `Form`: `Form`'s grouped style puts a
+control and its description on separate lines and can't produce the two-line-label-
+plus-trailing-control shape this layout needs.
 
 ## Design notes
 

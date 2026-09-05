@@ -25,6 +25,10 @@ final class AppModel {
     var errorMessage: String?
     var isLoadingMessages = false
 
+    /// Settings replaces the whole window rather than opening a panel, so its
+    /// visibility is app state, not view state — the ⌘, menu command toggles it too.
+    var isShowingSettings = false
+
     // Onboarding
     var auth: AuthStatus = .unknown
     /// Nil until the first handshake, so the window shows neither onboarding nor an

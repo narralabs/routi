@@ -60,7 +60,7 @@ struct BotListView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            AccountFooter()
+            SettingsFooter()
         }
     }
 }
@@ -112,9 +112,9 @@ private struct BotRow: View {
     }
 }
 
-private struct AccountFooter: View {
+private struct SettingsFooter: View {
     @Environment(AppModel.self) private var model
-    @State private var showingSignOut = false
+    @State private var isHovering = false
 
     private var statusColor: Color {
         switch model.connection {
@@ -124,35 +124,40 @@ private struct AccountFooter: View {
         }
     }
 
+    private var statusHelp: String {
+        switch model.connection {
+        case .connected: return model.account?.label ?? "Connected"
+        case .connecting: return "Connecting to krogd…"
+        case .disconnected: return "krogd offline"
+        }
+    }
+
     var body: some View {
-        HStack(spacing: 9) {
-            Text(model.account?.initials ?? "?")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 22, height: 22)
-                .background(.quaternary, in: .circle)
-
-            Text(model.account?.displayName ?? "Account")
-                .font(.system(size: 13))
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-
-            Circle()
-                .fill(statusColor)
-                .frame(width: 6, height: 6)
-                .help(model.connection == .connected ? (model.account?.label ?? "Connected") : "krogd offline")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .contentShape(.rect)
-        .onTapGesture { showingSignOut = true }
-        .confirmationDialog("Disconnect Claude?", isPresented: $showingSignOut) {
-            Button("Disconnect", role: .destructive) {
-                Task { await model.signOut() }
+        Button {
+            model.isShowingSettings = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 14))
+                    .frame(width: 18)
+                Text("Settings").font(.system(size: 13))
+                Spacer(minLength: 0)
+                // Connection health stays visible here; it is the one thing worth
+                // knowing at a glance without opening settings.
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 6, height: 6)
+                    .help(statusHelp)
             }
-        } message: {
-            Text("You'll go back through setup to reconnect.")
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(isHovering ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                        in: .rect(cornerRadius: 7, style: .continuous))
+            .contentShape(.rect)
         }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
     }
 }

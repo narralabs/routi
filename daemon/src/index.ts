@@ -27,13 +27,13 @@ async function main(): Promise<void> {
 
   // Starts empty on purpose: the daemon must run with no credential so the client
   // can connect and walk the user through onboarding.
-  const providers = new Map<string, ProviderAdapter>()
-  const auth = new AuthManager(store, providers, sessionCwd, DATA_DIR)
-  await auth.applyMode()
-
   // One desktop shared by every bot: its accumulated state — logins, cookies,
   // downloads — is the point, and a container per bot would discard it each time.
   const desktop = new Desktop()
+
+  const providers = new Map<string, ProviderAdapter>()
+  const auth = new AuthManager(store, providers, sessionCwd, DATA_DIR, desktop)
+  await auth.applyMode()
 
   let server: KrogServer
   const sessions = new SessionManager(store, providers, (event) => server.broadcast(event))

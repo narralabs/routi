@@ -157,6 +157,14 @@ docker build -t krog-desktop containers/desktop
 The daemon starts it on demand and leaves it running across krogd restarts, since
 losing browser sessions to a daemon restart would defeat the point.
 
+**Bots drive it themselves.** A bot whose surface is not `none` gets the desktop as
+tools — screenshot, open_url, click, type_text, press_key, scroll — registered as an
+in-process MCP server. Its description is a standing instruction: a bot created to
+find something opens the browser and finds it rather than asking whether it should
+start. The tools are pre-approved in `allowedTools`, because a permission prompt per
+click would make any real task unusable, and the user granted this by giving the bot
+a screen.
+
 Frames are **pulled**, not pushed: the client asks for a JPEG at whatever rate it can
 draw — slower for the rail thumbnail, faster for the full-size view — so an idle window
 costs nothing and a slow link degrades to a lower frame rate instead of queueing frames
@@ -245,6 +253,7 @@ app onto web tech.
 - [x] **Onboarding** — first-run setup, both Anthropic credential paths
 - [ ] **M2** — Tailscale, device pairing, reconnect
 - [x] **M3a** — shared Linux desktop, frame streaming, input injection
+- [x] **M4** — bots drive the desktop themselves; tool cards in the transcript
 - [ ] **M3b** — WebRTC transport, the `host` (this Mac) surface
 - [ ] **M4** — bots that drive the surface; tool cards wired up
 - [ ] **M5** — OpenAI, Grok, Kimi adapters

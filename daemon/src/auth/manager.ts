@@ -3,6 +3,7 @@ import type { Store } from '../db/store.js'
 import { AnthropicApiAdapter } from '../providers/anthropic-api.js'
 import { AnthropicSubscriptionAdapter } from '../providers/anthropic-subscription.js'
 import type { ProviderAdapter } from '../providers/types.js'
+import type { Desktop } from '../surfaces/desktop.js'
 import { ClaudeCli } from './claude-cli.js'
 import { Credentials } from './credentials.js'
 
@@ -38,6 +39,7 @@ export class AuthManager {
     private readonly providers: Map<string, ProviderAdapter>,
     private readonly sessionCwd: string,
     dataDir: string,
+    private readonly desktop?: Desktop,
   ) {
     this.credentials = new Credentials(dataDir)
   }
@@ -129,7 +131,10 @@ export class AuthManager {
     if (mode === 'subscription') {
       const cliStatus = await this.cli.status()
       if (cliStatus.installed && cliStatus.loggedIn) {
-        this.providers.set('anthropic', new AnthropicSubscriptionAdapter({ cwd: this.sessionCwd }))
+        this.providers.set(
+          'anthropic',
+          new AnthropicSubscriptionAdapter({ cwd: this.sessionCwd, desktop: this.desktop }),
+        )
       }
     }
   }

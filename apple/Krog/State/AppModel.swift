@@ -272,6 +272,12 @@ final class AppModel {
             if let settings = try? await client.rpc("settings.get"),
                let values = settings["settings"] as? [String: Any] {
                 storedUserName = (values["userName"] as? String) ?? ""
+                // Self-healing: the greeting is written server-side, so a daemon that
+                // has lost the name would address nobody. The client still knows it
+                // from the Anthropic account, so push it back up.
+                if storedUserName.isEmpty, let derived = account?.firstName, !derived.isEmpty {
+                    await setUserName(derived)
+                }
             }
 
             if models.isEmpty {

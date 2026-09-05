@@ -26,6 +26,8 @@ export interface ChatRequest {
   history: Message[]
   /** The new user turn. */
   input: Block[]
+  /** Whether this bot has a desktop, and so gets the tools to drive it. */
+  hasSurface?: boolean
 }
 
 export interface ProviderAdapter {

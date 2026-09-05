@@ -3,6 +3,8 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources'
 import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
 import { PushQueue } from './push-queue.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
+import type { Desktop } from '../surfaces/desktop.js'
+import { desktopToolServer, DESKTOP_TOOL_NAMES } from '../surfaces/tools.js'
 
 /**
  * Anthropic via the user's personal Claude plan.
@@ -32,7 +34,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
   private modelCache: ModelInfo[] | null = null
   private accountCache: AccountInfo | null = null
 
-  constructor(private readonly opts: { cwd: string }) {}
+  constructor(private readonly opts: { cwd: string; desktop?: Desktop }) {}
 
   // ------------------------------------------------------------ capabilities
 
@@ -86,6 +88,8 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
     if (existing) return existing
 
     const input = new PushQueue<SDKUserMessage>()
+    // A bot with a screen gets hands; one without stays a pure chat bot.
+    const withDesktop = req.hasSurface === true && this.opts.desktop !== undefined
     const q = query({
       prompt: input,
       options: {
@@ -93,8 +97,15 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         model: req.model,
         effort: req.effort,
         // A chat bot, not a coding agent: no built-in tools, no claude_code preset.
-        systemPrompt: { type: 'custom', prompt: composeSystemPrompt(req.systemPrompt) },
-        tools: [],
+        systemPrompt: { type: 'custom', prompt: composeSystemPrompt(req.systemPrompt, withDesktop) },
+        ...(withDesktop
+          ? {
+              mcpServers: { desktop: desktopToolServer(this.opts.desktop!) },
+              // Pre-approved: the user granted this by giving the bot a screen, and
+              // a permission prompt per click would make any real task unusable.
+              allowedTools: DESKTOP_TOOL_NAMES,
+            }
+          : { tools: [] }),
         /**
          * Isolation mode. Without this the SDK loads the host's own Claude Code
          * configuration — ~/.claude/settings.json, its MCP servers, and any CLAUDE.md
@@ -244,16 +255,30 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
  * So the framing is handled where it can be: the bot is told that its description is
  * the source of its identity and that incidental tools are not.
  */
-function composeSystemPrompt(description_: string): string {
-  const description = description_.trim() || 'You are a helpful, concise assistant.'
-  return [
+function composeSystemPrompt(rawDescription: string, withDesktop: boolean): string {
+  const description = rawDescription.trim() || 'You are a helpful, concise assistant.'
+  const lines = [
     description,
     '',
-    'The description above is who you are. Any external tools, integrations or data ' +
-      'sources that happen to be available to you are incidental — never describe ' +
-      'yourself in terms of them, and do not mention them unless the user asks about ' +
-      'them directly.',
-  ].join('\n')
+    'The description above is who you are and what you are for. Any external tools, ' +
+      'integrations or data sources that happen to be available to you are incidental ' +
+      '— never describe yourself in terms of them, and do not mention them unless the ' +
+      'user asks about them directly.',
+  ]
+
+  if (withDesktop) {
+    lines.push(
+      '',
+      'You have a Linux desktop with Chromium and tools to see and use it. Treat your ' +
+        'description as a standing instruction: when it names something to do, do it — ' +
+        'open the browser, search, read the pages, and come back with what you found. ' +
+        'Do not ask whether you should begin work you were plainly created for. Ask ' +
+        'only when a choice is genuinely the user\'s to make, such as a budget, a date, ' +
+        'or which of several real options to take.',
+    )
+  }
+
+  return lines.join('\n')
 }
 
 // ------------------------------------------------------------------ mapping

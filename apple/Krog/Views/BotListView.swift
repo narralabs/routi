@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The sidebar, following the original Grok Bot layout.
+/// The left main sidebar: every bot, following the original Grok Bot layout.
 ///
 /// Deliberately plain: a search field, a row per bot with avatar, name, timestamp and
 /// preview line, then Marketplace and the account row pinned at the bottom. There is
@@ -174,6 +174,10 @@ private struct SidebarFooter: View {
     var body: some View {
 
         VStack(spacing: 0) {
+            #if DEBUG
+            BuildStamp()
+            #endif
+
             FooterRow(title: "Marketplace") {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 15))
@@ -227,3 +231,30 @@ private struct FooterRow<Leading: View>: View {
         .onHover { isHovering = $0 }
     }
 }
+
+
+#if DEBUG
+/// Which build is actually on screen.
+///
+/// Debug only. Reading it off the window beats inferring it from file timestamps,
+/// which is what we were reduced to whenever a change did not seem to have landed.
+private struct BuildStamp: View {
+    private var stamp: String {
+        let info = Bundle.main.infoDictionary
+        let time = info?["KrogBuildTime"] as? String ?? "?"
+        let commit = info?["KrogBuildCommit"] as? String ?? "?"
+        return "build \(time) · \(commit)"
+    }
+
+    var body: some View {
+        Text(stamp)
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
+            .textSelection(.enabled)
+            .help("Debug build stamp")
+    }
+}
+#endif

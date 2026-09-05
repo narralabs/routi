@@ -190,6 +190,7 @@
 			buildPhases = (
 				9D4CB8653F357639BF0BCA11 /* Sources */,
 				A9606C2C6F674B06BA0378D2 /* Resources */,
+				420998860132DC356ACC1C83 /* Stamp build identity */,
 			);
 			buildRules = (
 			);
@@ -245,6 +246,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		420998860132DC356ACC1C83 /* Stamp build identity */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Stamp build identity";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "PLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n[ -f \"$PLIST\" ] || exit 0\nSTAMP=\"$(date '+%H:%M:%S')\"\nSHA=\"$(git -C \"$SRCROOT/..\" rev-parse --short HEAD 2>/dev/null || echo '-')\"\nfor KEY in KrogBuildTime:\"$STAMP\" KrogBuildCommit:\"$SHA\"; do\n  NAME=\"${KEY%%:*}\"; VALUE=\"${KEY#*:}\"\n  /usr/libexec/PlistBuddy -c \"Add :$NAME string $VALUE\" \"$PLIST\" 2>/dev/null \\\n    || /usr/libexec/PlistBuddy -c \"Set :$NAME $VALUE\" \"$PLIST\"\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		9D4CB8653F357639BF0BCA11 /* Sources */ = {

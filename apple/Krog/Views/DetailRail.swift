@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Right-hand rail: the bot's live screen, and its routines.
+/// The bot right sidebar: this bot's live screen, and its routines.
 struct DetailRail: View {
     @Environment(AppModel.self) private var model
     let bot: Bot

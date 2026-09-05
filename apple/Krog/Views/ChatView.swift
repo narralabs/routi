@@ -8,7 +8,7 @@ import SwiftUI
 struct ChatView: View {
     @Environment(AppModel.self) private var model
     let bot: Bot
-    @Binding var showRail: Bool
+    @Binding var showBotSidebar: Bool
 
     @State private var draft = ""
     @State private var showingSettings = false
@@ -175,19 +175,27 @@ struct ChatView: View {
         }
         .flatBackground()
 
-        ToolbarItem(placement: .navigation) {
+        flexibleToolbarSpacer()
+
+        // Toggles the bot right sidebar, from the trailing end of the toolbar — the
+        // side the panel itself opens on. Full screen is still a click away once it's
+        // open, from the Open button over the preview.
+        ToolbarItem(placement: .primaryAction) {
             ToolbarIcon(
                 systemName: "desktopcomputer",
-                help: showRail ? "Hide Screen" : "Show Screen",
-                isActive: showRail
+                help: showBotSidebar ? "Hide Screen" : "Show Screen",
+                isActive: showBotSidebar
             ) {
-                showRail.toggle()
+                showBotSidebar.toggle()
             }
         }
         .flatBackground()
         #else
         ToolbarItem(placement: .topBarTrailing) {
             Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button("Screen", systemImage: "desktopcomputer") { showBotSidebar.toggle() }
         }
         #endif
     }

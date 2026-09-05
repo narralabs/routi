@@ -6,9 +6,19 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
 
+configs:
+  Debug: debug
+  Release: release
+
 settings:
   base:
     SWIFT_VERSION: "5.0"
+  configs:
+    # xcodegen does not define DEBUG on its own, so `#if DEBUG` silently compiled
+    # out — which is exactly the kind of thing the build stamp exists to catch.
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+      GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 $(inherited)"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     # Ad-hoc signing ("Sign to Run Locally"). Needs no Apple account and still
@@ -35,6 +45,22 @@ targets:
     supportedDestinations: [macOS]
     sources:
       - path: Krog
+    # Stamps each build with the time and commit it came from. Debug builds show it
+    # in the sidebar, which settles "am I looking at the new one?" without guessing
+    # from file timestamps.
+    postBuildScripts:
+      - name: Stamp build identity
+        basedOnDependencyAnalysis: false
+        script: |
+          PLIST="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          [ -f "$PLIST" ] || exit 0
+          STAMP="$(date '+%H:%M:%S')"
+          SHA="$(git -C "$SRCROOT/.." rev-parse --short HEAD 2>/dev/null || echo '-')"
+          for KEY in KrogBuildTime:"$STAMP" KrogBuildCommit:"$SHA"; do
+            NAME="${KEY%%:*}"; VALUE="${KEY#*:}"
+            /usr/libexec/PlistBuddy -c "Add :$NAME string $VALUE" "$PLIST" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Set :$NAME $VALUE" "$PLIST"
+          done
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.narralabs.krog

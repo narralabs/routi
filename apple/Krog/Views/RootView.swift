@@ -2,14 +2,30 @@ import SwiftUI
 
 /// One layout for all three devices.
 ///
-/// `NavigationSplitView` does the adapting itself: three columns on the Mac, a
-/// sidebar over content on iPad, and a push-navigation stack on iPhone. That is the
-/// whole reason to be native here — the responsive behaviour is the framework's job,
-/// not something reconstructed with width breakpoints.
+/// Three columns, in the order they read on screen:
+///
+/// - **left main sidebar** — the bot list
+/// - **main content** — the conversation
+/// - **bot right sidebar** — that bot's screen and routines, hidden until asked for
+///
+/// The first two are a `NavigationSplitView`; the third is an `.inspector`. That is
+/// not an arbitrary split. A three-column `NavigationSplitView` cannot hide its
+/// trailing column — `columnVisibility` only ever reaches the leading ones — whereas
+/// hiding and showing is exactly what an inspector is for, and it still renders as a
+/// real resizable column rather than an overlay.
+///
+/// `NavigationSplitView` does the adapting itself: columns on the Mac, a sidebar over
+/// content on iPad, and a push-navigation stack on iPhone. That is the whole reason to
+/// be native here — the responsive behaviour is the framework's job, not something
+/// reconstructed with width breakpoints.
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var showingRailSettings = false
     @State private var showingNewBot = false
+
+    /// The bot right sidebar starts closed: most conversations never need the screen,
+    /// and opening onto three columns makes the chat itself feel cramped.
+    @State private var showBotSidebar = false
 
     var body: some View {
         @Bindable var model = model
@@ -37,26 +53,21 @@ struct RootView: View {
 
         return NavigationSplitView(columnVisibility: Binding(
             get: { model.sidebarVisibility },
-            // A minimum column width alone does not stop AppKit: dragging past roughly
-            // half of it snaps the sidebar shut, and with no toolbar toggle there is
-            // then no way back. Refusing `.detailOnly` keeps the bot list present.
+            // Governs the *left main sidebar* only. Refusing `.detailOnly` keeps the
+            // bot list present — a divider dragged past it used to shut it for good.
             set: { model.sidebarVisibility = $0 == .detailOnly ? .doubleColumn : $0 }
         )) {
             BotListView(showingNewBot: $showingNewBot)
                 // A firm stop rather than a shrinking rail. The divider refuses to go
                 // below a width the sidebar is still readable at.
                 .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 360)
-        } content: {
+        } detail: {
             if let bot = model.selectedBot {
-                // The screen toggle is now a column-visibility control: `.all` shows
-                // all three, `.doubleColumn` keeps the sidebar and chat and drops the
-                // screen. That is the split view's own vocabulary rather than a view
-                // conditionally inserted into the chat pane.
-                ChatView(bot: bot, showRail: Binding(
-                    get: { model.sidebarVisibility == .all },
-                    set: { model.sidebarVisibility = $0 ? .all : .doubleColumn }
-                ))
-                .navigationSplitViewColumnWidth(min: 420, ideal: 620, max: .infinity)
+                ChatView(bot: bot, showBotSidebar: $showBotSidebar)
+                    .inspector(isPresented: $showBotSidebar) {
+                        DetailRail(bot: bot, showingSettings: $showingRailSettings)
+                            .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
+                    }
             } else {
                 ContentUnavailableView(
                     "No Bot Selected",
@@ -64,18 +75,7 @@ struct RootView: View {
                     description: Text("Pick a bot from the sidebar, or create one.")
                 )
             }
-        } detail: {
-            // The third column is the bot's screen. Three peers rather than a panel
-            // smuggled inside the chat pane: each gets its own toolbar and its own
-            // divider, which is what the two-column version kept fighting.
-            if let bot = model.selectedBot {
-                DetailRail(bot: bot, showingSettings: $showingRailSettings)
-                    .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 420)
-            } else {
-                Color.clear
-            }
         }
-        .navigationSplitViewStyle(.balanced)
         .sheet(isPresented: $showingNewBot) {
             NewBotSheet()
         }

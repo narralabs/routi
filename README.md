@@ -30,8 +30,9 @@ network path.
 - **`containers/desktop/`** — the shared Linux desktop: XFCE, Chromium, and a small
   `act` script that is the only input surface exposed to the daemon.
 
-Because clients never talk to Anthropic, adding OpenAI / Grok / Kimi later is a
-daemon-side adapter and nothing else changes.
+Because clients never talk to Anthropic, adding OpenAI / Grok / Kimi is a daemon-side
+adapter and nothing else changes. Anthropic, OpenAI, Codex, DeepSeek, xAI and Grok
+Build are wired up today; `CLAUDE.md` has the map of how an adapter is put together.
 
 ## Running it
 
@@ -74,6 +75,7 @@ Tailscale lands in M2.
 ```bash
 pnpm --filter krogd spike          # subscription auth reaches Claude at all
 pnpm --filter krogd spike:session  # warm sessions + which credential is in use
+pnpm --filter krogd spike:grok     # one real Grok turn, tools and all, on a fake screen
 pnpm --filter krogd probe          # full protocol: streaming, persistence, restart
 cd apple && xcodebuild -scheme Krog -destination 'platform=macOS' build
 ```
@@ -129,11 +131,18 @@ becomes a navigation stack that pushes into each pane.
 Panes are General (theme, send key, reasoning visibility), one per **Provider**,
 Krog Core (daemon endpoint and connection state), and About.
 
-Each provider is its own entry with a tinted monogram tile — Anthropic, OpenAI, xAI,
-Moonshot. Only Anthropic is wired up; the others are listed and marked "Soon" because
-that is the roadmap, and each is a daemon-side adapter that will appear without an app
-update. Krog Core sits in its own section: it is the daemon this app talks to, not a
-model provider, and lumping the two under one "Connections" heading blurred that.
+Each provider is its own entry with its brand mark — Anthropic, OpenAI, Codex,
+DeepSeek, xAI, Grok CLI, Moonshot. Everything but Moonshot is wired up; it is listed
+and marked "Soon" because that is the roadmap, and it is a daemon-side adapter that
+will appear without an app update. Krog Core sits in its own section: it is the daemon
+this app talks to, not a model provider, and lumping the two under one "Connections"
+heading blurred that.
+
+A vendor's agent gets its own entry beside that vendor's API — Codex beside OpenAI,
+Grok CLI beside xAI — because they are different harnesses and both can be connected
+at once. The agent entry is the one that spends a plan you already pay for: it drives
+the vendor CLI's own sign-in on the Mac running the core, so Krog never sees the
+token.
 
 The monograms are deliberately not reproductions of anyone's logo. A consistent set of
 tinted tiles reads as intentional design; hand-drawn approximations of real brand marks
@@ -256,6 +265,6 @@ app onto web tech.
 - [x] **M4** — bots drive the desktop themselves; tool cards in the transcript
 - [ ] **M3b** — WebRTC transport, the `host` (this Mac) surface
 - [ ] **M4** — bots that drive the surface; tool cards wired up
-- [ ] **M5** — OpenAI, Grok, Kimi adapters
+- [ ] **M5** — provider adapters: OpenAI, Codex, DeepSeek, xAI and Grok Build done; Kimi left
 
 Full plan: `~/.claude/plans/giggly-growing-parasol.md`.

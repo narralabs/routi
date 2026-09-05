@@ -7,8 +7,10 @@ import type { DesktopPool } from '../surfaces/pool.js'
 import { OpenAiApiAdapter } from '../providers/openai-api.js'
 import { COMPATIBLE_PROVIDERS, OpenAiCompatibleAdapter } from '../providers/openai-compatible.js'
 import { OpenAiSubscriptionAdapter } from '../providers/openai-subscription.js'
+import { XaiSubscriptionAdapter } from '../providers/xai-subscription.js'
 import { ClaudeCli } from './claude-cli.js'
 import { CodexCli } from './codex-cli.js'
+import { GrokCli } from './grok-cli.js'
 import { Credentials } from './credentials.js'
 
 export interface AuthStatus {
@@ -41,6 +43,18 @@ const settingModeFor = (provider: string) => `authMode.${provider}`
 const settingHarnessFor = (provider: string) => `authHarness.${provider}`
 
 /**
+ * Providers whose turns are run by a vendor's own CLI rather than by Krog.
+ *
+ * They are the ones that can spend a personal plan, and each is its own provider id
+ * beside the vendor's direct API — a bot on the agent and a bot on a named API model
+ * are different bots, and a person will want both alive rather than having to choose.
+ */
+const HARNESS_PROVIDERS = new Set(['openai-codex', 'xai-grok'])
+
+/** Where a harness provider's API key is proven, since the CLI cannot say. */
+const VENDOR_API_OF: Record<string, string> = { 'xai-grok': 'xai' }
+
+/**
  * Owns which credential the daemon uses and swaps the live provider when it changes.
  *
  * The daemon must start with no credentials at all — that is the whole point of
@@ -49,6 +63,7 @@ const settingHarnessFor = (provider: string) => `authHarness.${provider}`
 export class AuthManager {
   private readonly cli = new ClaudeCli()
   private readonly codex = new CodexCli()
+  private readonly grok = new GrokCli()
   private readonly credentials: Credentials
 
   constructor(
@@ -91,6 +106,7 @@ export class AuthManager {
       providers: {
         openai: await this.openAiStatus('openai'),
         'openai-codex': await this.openAiStatus('openai-codex'),
+        'xai-grok': await this.grokStatus(),
         // Everything that speaks OpenAI's chat API: one shape, key only.
         ...Object.fromEntries(
           await Promise.all(
@@ -126,6 +142,27 @@ export class AuthManager {
     }
   }
 
+  // --------------------------------------------------------------------- xAI
+
+  /** Grok Build, which reaches a personal Grok account the way Codex reaches ChatGPT. */
+  private async grokStatus(): Promise<ProviderAuth> {
+    const cli = await this.grok.status()
+    const key = await this.credentials.getApiKey('xai-grok')
+    const mode = (this.store.getSettings()[settingModeFor('xai-grok')] as AuthMode | undefined) ?? null
+
+    return {
+      configured: (mode === 'subscription' && cli.loggedIn) || (mode === 'api_key' && key !== null),
+      mode,
+      cli: {
+        installed: cli.installed,
+        version: cli.installed ? await this.grok.version() : null,
+        loggedIn: cli.loggedIn,
+        account: cli.account,
+      },
+      apiKey: { present: key !== null },
+    }
+  }
+
   /** A provider with no account path: an API key or nothing. */
   private async keyOnlyStatus(provider: string): Promise<ProviderAuth> {
     const key = await this.credentials.getApiKey(provider)
@@ -140,15 +177,25 @@ export class AuthManager {
 
   /** Opens the vendor's browser sign-in for a provider configured in Settings. */
   async providerLogin(provider: string): Promise<AuthStatus> {
-    if (provider !== 'openai-codex') throw new Error(`No account sign-in for provider: ${provider}`)
-
-    const cli = await this.codex.status()
-    if (!cli.installed) {
-      throw new Error(
-        'Codex is not installed on this Mac. Install it with `npm install -g @openai/codex`, then try again.',
-      )
+    if (provider === 'openai-codex') {
+      const cli = await this.codex.status()
+      if (!cli.installed) {
+        throw new Error(
+          'Codex is not installed on this Mac. Install it with `npm install -g @openai/codex`, then try again.',
+        )
+      }
+      if (!cli.loggedIn) await this.codex.login()
+    } else if (provider === 'xai-grok') {
+      const cli = await this.grok.status()
+      if (!cli.installed) {
+        throw new Error(
+          'Grok is not installed on this Mac. Install it from grok.com/cli, then try again.',
+        )
+      }
+      if (!cli.loggedIn) await this.grok.login()
+    } else {
+      throw new Error(`No account sign-in for provider: ${provider}`)
     }
-    if (!cli.loggedIn) await this.codex.login()
 
     this.store.setSettings({ [settingModeFor(provider)]: 'subscription' })
     await this.applyProvider(provider)
@@ -157,14 +204,17 @@ export class AuthManager {
 
   async providerSetApiKey(provider: string, key: string): Promise<AuthStatus & { verified: string }> {
     const compatible = COMPATIBLE_PROVIDERS[provider]
-    if (provider !== 'openai' && provider !== 'openai-codex' && !compatible) {
+    if (!compatible && !HARNESS_PROVIDERS.has(provider) && provider !== 'openai') {
       throw new Error(`No API key slot for provider: ${provider}`)
     }
 
     // Proven before it is stored, so a typo fails here rather than on the first message
-    // of a bot the user has already built.
-    const verified = await (compatible
-      ? new OpenAiCompatibleAdapter(compatible, key).validate()
+    // of a bot the user has already built. A harness provider spends the same key its
+    // vendor's API takes, so it is checked against that API — the CLI has no cheaper
+    // way to say whether a key is any good.
+    const checkAgainst = compatible ?? COMPATIBLE_PROVIDERS[VENDOR_API_OF[provider] ?? '']
+    const verified = await (checkAgainst
+      ? new OpenAiCompatibleAdapter(checkAgainst, key).validate()
       : new OpenAiApiAdapter(key).validate())
 
     await this.credentials.setApiKey(key, provider)
@@ -229,7 +279,7 @@ export class AuthManager {
     this.providers.delete(provider)
 
     const compatible = COMPATIBLE_PROVIDERS[provider]
-    if (provider !== 'openai' && provider !== 'openai-codex' && !compatible) return
+    if (provider !== 'openai' && !HARNESS_PROVIDERS.has(provider) && !compatible) return
     const mode = this.store.getSettings()[settingModeFor(provider)] as AuthMode | undefined
     const key = await this.credentials.getApiKey(provider)
 
@@ -240,9 +290,6 @@ export class AuthManager {
       return
     }
 
-    // Two providers rather than one with a switch, so both can be connected at once:
-    // a bot on the Codex agent and a bot on a named API model are different bots, and
-    // a person will want both alive rather than having to choose.
     if (provider === 'openai') {
       if (mode === 'api_key' && key) {
         this.providers.set('openai', new OpenAiApiAdapter(key, this.desktops))
@@ -250,31 +297,31 @@ export class AuthManager {
       return
     }
 
-    if (mode === 'api_key' && key) {
-      this.providers.set(
-        'openai-codex',
-        new OpenAiSubscriptionAdapter({
-          cwd: this.sessionCwd,
-          dataDir: this.dataDir,
-          mcpBaseUrl: this.mcpBaseUrl,
-          apiKey: key,
-        }),
-      )
-      return
+    // A harness spends either credential — the CLI holds the account login itself, and
+    // a key is handed to it in the environment — so the two modes differ only in
+    // whether a key comes along.
+    if (mode !== 'api_key' && mode !== 'subscription') return
+    if (mode === 'api_key' && !key) return
+    if (mode === 'subscription' && !(await this.harnessSignedIn(provider))) return
+
+    const opts = {
+      cwd: this.sessionCwd,
+      dataDir: this.dataDir,
+      mcpBaseUrl: this.mcpBaseUrl,
+      ...(mode === 'api_key' && key ? { apiKey: key } : {}),
     }
-    if (mode === 'subscription') {
-      const cli = await this.codex.status()
-      if (cli.installed && cli.loggedIn) {
-        this.providers.set(
-          'openai-codex',
-          new OpenAiSubscriptionAdapter({
-            cwd: this.sessionCwd,
-            dataDir: this.dataDir,
-            mcpBaseUrl: this.mcpBaseUrl,
-          }),
-        )
-      }
-    }
+    this.providers.set(
+      provider,
+      provider === 'xai-grok'
+        ? new XaiSubscriptionAdapter(opts)
+        : new OpenAiSubscriptionAdapter(opts),
+    )
+  }
+
+  /** Whether the CLI behind a harness provider still has a live account login. */
+  private async harnessSignedIn(provider: string): Promise<boolean> {
+    const cli = provider === 'xai-grok' ? await this.grok.status() : await this.codex.status()
+    return cli.installed && cli.loggedIn
   }
 
   /** Opens the browser sign-in on this machine and selects subscription mode. */
@@ -323,7 +370,7 @@ export class AuthManager {
   async applyMode(): Promise<void> {
     await this.migrateCodexProvider()
     await this.applyProvider('openai')
-    await this.applyProvider('openai-codex')
+    for (const id of HARNESS_PROVIDERS) await this.applyProvider(id)
     for (const id of Object.keys(COMPATIBLE_PROVIDERS)) await this.applyProvider(id)
 
     const mode = this.store.getSettings()[SETTING_MODE] as AuthMode | undefined

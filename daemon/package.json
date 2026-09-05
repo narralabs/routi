@@ -13,6 +13,7 @@
     "probe": "tsx scripts/probe.ts",
     "poke": "tsx scripts/poke.ts",
     "spike:isolation": "tsx scripts/spike-isolation.ts",
+    "spike:grok": "tsx scripts/spike-grok.ts",
     "parity": "tsx scripts/parity.ts"
   },
   "dependencies": {

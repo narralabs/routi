@@ -193,7 +193,23 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
 
       case 'result': {
         if (msg.subtype !== 'success') {
-          return { type: 'error', code: msg.subtype, message: `Turn ended: ${msg.subtype}` }
+          /**
+           * Said in words rather than in the SDK's vocabulary.
+           *
+           * "Turn ended: error_during_execution" tells a user nothing they can act on,
+           * and it is the phrasing that made a failed turn look like a state rather
+           * than a failure. Whatever detail the SDK offers is carried through, since
+           * that is the part with any chance of being specific.
+           */
+          const detail =
+            'result' in msg && typeof msg.result === 'string' && msg.result.trim()
+              ? msg.result.trim()
+              : null
+          const message =
+            msg.subtype === 'error_max_turns'
+              ? 'That took more steps than allowed, so it stopped partway.'
+              : `Something went wrong partway through${detail ? `: ${detail}` : '.'}`
+          return { type: 'error', code: msg.subtype, message }
         }
         const meta: Record<string, unknown> = {
           sessionId: session.sessionId,

@@ -2,10 +2,10 @@ import SwiftUI
 
 /// The provider roster shown in Settings.
 ///
-/// Anthropic and OpenAI are wired up; the rest are listed because they are the planned
-/// adapters and it is more honest to show them marked "Not yet available" than to
-/// pretend the list is complete. Each is a daemon-side adapter, so none of them will
-/// need an app update to arrive.
+/// Everything here is wired up except Moonshot, which is listed because it is the next
+/// planned adapter and it is more honest to show it marked "Not yet available" than to
+/// pretend the list is complete. Each is a daemon-side adapter, so the ones still to
+/// come arrive without an app update.
 struct ProviderInfo: Identifiable, Hashable {
     let id: String
     let name: String
@@ -59,7 +59,19 @@ struct ProviderInfo: Identifiable, Hashable {
             models: "Grok",
             mark: "ProviderXai",
             tint: Color(red: 0.13, green: 0.14, blue: 0.16),
-            isAvailable: false
+            isAvailable: true
+        ),
+        // Grok Build stands beside xAI for the same reason Codex stands beside OpenAI:
+        // it is a different harness, and it is the one a Grok plan can be spent
+        // through. The mark is xAI's own, because the company is the same one — only
+        // the tile is lighter, so the two are told apart at a glance.
+        ProviderInfo(
+            id: "xai-grok",
+            name: "Grok CLI",
+            models: "Grok via the CLI",
+            mark: "ProviderXai",
+            tint: Color(red: 0.28, green: 0.29, blue: 0.32),
+            isAvailable: true
         ),
         ProviderInfo(
             id: "moonshot",
@@ -122,8 +134,8 @@ struct ProviderPane: View {
     var body: some View {
         if provider.id == "anthropic" {
             AnthropicPane(provider: provider)
-        } else if provider.id == "openai" || provider.id == "openai-codex" || provider.id == "deepseek" {
-            OpenAiPane(provider: provider)
+        } else if provider.isAvailable {
+            ProviderConnectPane(provider: provider)
         } else {
             UnavailableProviderPane(provider: provider)
         }
@@ -279,46 +291,60 @@ private struct StatusPill: View {
 
 // MARK: - OpenAI
 
-/// Connect OpenAI with either a ChatGPT account or an API key.
+/// Connect a provider with either the vendor's own account or an API key.
 ///
 /// The same two paths as Anthropic, for the same reason: a plan someone already pays
 /// for should be spendable without a second, metered bill. The account path runs
-/// through the Codex CLI's own browser sign-in on the machine hosting the core, so
-/// Krog never sees the credential — it only asks the CLI whether one exists.
-private struct OpenAiPane: View {
+/// through the vendor CLI's own sign-in on the machine hosting the core, so Krog never
+/// sees the credential — it only asks the CLI whether one exists.
+///
+/// One pane for every provider that isn't Anthropic: they differ in where a key comes
+/// from and whose account it is, which is copy, not structure.
+private struct ProviderConnectPane: View {
     @Environment(AppModel.self) private var model
     let provider: ProviderInfo
 
-    /// The three ways to reach OpenAI.
+    /// The ways to reach a provider.
     ///
-    /// Credential and harness vary independently, but not freely: a ChatGPT plan has
-    /// no API of its own, so an account can only be spent through Codex. That is why
-    /// this is one list of three rather than two questions — the fourth combination
+    /// Credential and harness vary independently, but not freely: a consumer plan has
+    /// no API of its own, so an account can only be spent through the vendor's agent.
+    /// That is why this is one list rather than two questions — the fourth combination
     /// does not exist.
     private enum Setup: String, Identifiable {
-        case account          // ChatGPT plan, through Codex
+        case account          // a personal plan, through the vendor's CLI
         case key              // an API key, spent by whichever harness this pane is
 
         var id: String { rawValue }
+    }
 
-        var title: String {
-            switch self {
-            case .account: return "Use my ChatGPT account"
-            case .key: return "Use an API key"
-            }
+    /// What the account is called where the user would recognise it.
+    private var accountName: String {
+        provider.id == "xai-grok" ? "Grok" : "ChatGPT"
+    }
+
+    private func title(_ setup: Setup) -> String {
+        switch setup {
+        case .account: return "Use my \(accountName) account"
+        case .key: return "Use an API key"
         }
     }
 
-    /// A ChatGPT plan has no API of its own, so an account is only spendable through
-    /// Codex. The direct provider therefore offers one way in, and Codex offers two.
+    /// A consumer plan has no API of its own, so an account is only spendable through
+    /// the agent that holds the login. The direct providers offer one way in.
     private var setups: [Setup] {
-        provider.id == "openai-codex" ? [.account, .key] : [.key]
+        isHarness ? [.account, .key] : [.key]
+    }
+
+    /// Providers whose turns are run by a vendor CLI rather than by Krog.
+    private var isHarness: Bool {
+        provider.id == "openai-codex" || provider.id == "xai-grok"
     }
 
     /// Where to get a key, per provider.
     private var keySource: String {
         switch provider.id {
         case "deepseek": return "platform.deepseek.com"
+        case "xai", "xai-grok": return "console.x.ai"
         default: return "platform.openai.com"
         }
     }
@@ -327,7 +353,9 @@ private struct OpenAiPane: View {
         switch provider.id {
         case "openai-codex":
             return "Billed per token, but run by the Codex agent rather than by Krog. Choose this for Codex's behaviour without a ChatGPT plan."
-        case "deepseek":
+        case "xai-grok":
+            return "Billed per token, but run by the Grok agent rather than by Krog. Choose this for Grok's behaviour without a Grok plan."
+        case "deepseek", "xai":
             return "Billed per token. Krog runs the tool loop, so a bot here can use its screen."
         default:
             return "Billed per token. The setup where a bot can use its screen: Krog runs the tool loop and hands it the desktop."
@@ -353,7 +381,7 @@ private struct OpenAiPane: View {
 
     private var methodLabel: String {
         switch current {
-        case .account: return auth?.cli.account.map { "\($0) account" } ?? "ChatGPT account"
+        case .account: return auth?.cli.account.map { "\($0) account" } ?? "\(accountName) account"
         case .key: return "API key"
         case nil: return "Not connected"
         }
@@ -424,12 +452,12 @@ private struct OpenAiPane: View {
         SettingsSection("Credential") {
             SettingsRow(title: "Method", isFirst: true) { SettingsValue(text: methodLabel) }
 
-            if provider.id == "openai-codex", let version = auth?.cli.version {
+            if isHarness, let version = auth?.cli.version {
                 SettingsRow(
                     title: "Signed in through",
                     detail: current == .account
-                        ? "Krog drives the Codex CLI's browser sign-in; the token stays with it."
-                        : "Turns are run by the Codex agent on this Mac, using its own config, not yours."
+                        ? "Krog drives the \(cliName) CLI's own sign-in; the token stays with it."
+                        : "Turns are run by the \(cliName) agent on this Mac, using its own config, not yours."
                 ) {
                     SettingsValue(text: version)
                 }
@@ -454,7 +482,7 @@ private struct OpenAiPane: View {
     @ViewBuilder
     private var choices: some View {
         if let entering {
-            SettingsSection(entering.title) {
+            SettingsSection(title(entering)) {
                 SettingsRow(
                     title: "Key",
                     detail: "From \(keySource). " + keyDetail(entering),
@@ -480,7 +508,7 @@ private struct OpenAiPane: View {
             SettingsSection("Connect") {
                 ForEach(Array(setups.enumerated()), id: \.element.id) { index, setup in
                     SettingsRow(
-                        title: setup.title,
+                        title: title(setup),
                         detail: setup == .account ? cliDetail : keyDetail(setup),
                         isFirst: index == 0
                     ) {
@@ -497,15 +525,26 @@ private struct OpenAiPane: View {
         }
     }
 
+    /// The CLI that holds this provider's account login.
+    private var cliName: String {
+        provider.id == "xai-grok" ? "Grok" : "Codex"
+    }
+
+    private var installHint: String {
+        provider.id == "xai-grok"
+            ? "Install it from grok.com/cli."
+            : "Install it with `npm install -g @openai/codex`."
+    }
+
     private var cliDetail: String {
-        guard let cli = auth?.cli else { return "Checking for the Codex CLI…" }
+        guard let cli = auth?.cli else { return "Checking for the \(cliName) CLI…" }
         if !cli.installed {
-            return "Needs the Codex CLI on the Mac running Krog Core. Install it with `npm install -g @openai/codex`."
+            return "Needs the \(cliName) CLI on the Mac running Krog Core. \(installHint)"
         }
         if cli.loggedIn {
-            return "Already signed in on that Mac\(cli.account.map { " using \($0)" } ?? ""). No per-token billing."
+            return "Already signed in on that Mac\(cli.account.map { " as \($0)" } ?? ""). No per-token billing."
         }
-        return "Opens OpenAI in the browser on the Mac running Krog Core. No per-token billing."
+        return "Opens \(provider.name) in the browser on the Mac running Krog Core. No per-token billing."
     }
 
     /// Bots currently built on a given model. Answers "which of these is it?" by

@@ -188,8 +188,14 @@ final class AppModel {
     // MARK: - Handovers
 
     /// Answers a bot that is waiting. `done` resumes it; `skipped` tells it to go on without.
+    ///
+    /// Handing the screen back also leaves it. Answering is the end of the user's turn
+    /// at the desktop — the bot picks it up from here and the reply lands in the
+    /// transcript — so staying in the full-window view left people watching a still
+    /// picture with the answer happening behind it.
     func resolveHandover(_ botId: String, outcome: String) async {
         handovers[botId] = nil
+        isShowingScreen = false
         _ = try? await client.rpc("handover.resolve", ["botId": botId, "outcome": outcome])
     }
 

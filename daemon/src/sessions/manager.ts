@@ -368,7 +368,17 @@ export class SessionManager {
       const saidNothing = finalBlocks.every(
         (block) => block.type !== 'text' || block.text.trim().length === 0,
       )
-      if (channel && saidNothing) {
+      /**
+       * A turn that failed before saying anything leaves nothing behind.
+       *
+       * It used to leave the row it had reserved — often holding a single empty
+       * thinking block — so a failed turn showed as a blank bubble sitting under an
+       * error, which reads as a bot still working rather than one that stopped.
+       */
+      if (saidNothing && stopReason === 'error') {
+        this.store.deleteMessage(messageId)
+        this.emit({ e: 'message.deleted', conversationId, messageId })
+      } else if (channel && saidNothing) {
         this.store.deleteMessage(messageId)
         this.emit({ e: 'message.deleted', conversationId, messageId })
       } else {

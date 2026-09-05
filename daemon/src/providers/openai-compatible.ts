@@ -290,6 +290,11 @@ function safeParse(raw: string): Record<string, unknown> {
  * provider itself, so adding the next one is these three lines and a credential slot.
  */
 export const COMPATIBLE_PROVIDERS: Record<string, CompatibleProvider> = {
+  xai: {
+    id: 'xai',
+    baseURL: 'https://api.x.ai/v1',
+    keySource: 'console.x.ai',
+  },
   deepseek: {
     id: 'deepseek',
     baseURL: 'https://api.deepseek.com/v1',

@@ -13,6 +13,8 @@ const ACCOUNTS: Record<string, string> = {
   openai: 'openai-api-key',
   'openai-codex': 'openai-codex-api-key',
   deepseek: 'deepseek-api-key',
+  xai: 'xai-api-key',
+  'xai-grok': 'xai-grok-api-key',
 }
 
 /**

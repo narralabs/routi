@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:
 import { homedir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { Codex, type Thread, type ThreadEvent, type ThreadItem } from '@openai/codex-sdk'
-import type { AccountInfo, ModelInfo } from '@krog/protocol'
+import { CodexAppServer, type AppServerEvent } from './codex-app-server.js'
+import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 
 /**
@@ -74,6 +74,21 @@ const GUARDRAIL = [
 ].join('\n')
 
 /**
+ * Said only to bots that have a screen.
+ *
+ * Codex arrives with web search and will reach for it by reflex, which answers the
+ * question but not the way the user asked — a bot given a browser and told to look at
+ * a page should look at the page. It also matters for anything search cannot reach: a
+ * signed-in account, a form, a price behind a session.
+ */
+const SCREEN_RULE = [
+  'You have your own screen with a browser on it. Use open_url and read_page to look at',
+  'pages yourself. Prefer that over web search whenever the user points you at a site,',
+  'asks what a page says, or wants something only visible once signed in — and say what',
+  'you actually saw rather than what a search result claimed.',
+].join('\n')
+
+/**
  * A Codex home belonging to Krog rather than to whoever owns this Mac.
  *
  * Codex reads ~/.codex/config.toml, and a person who uses Codex has a lot in there:
@@ -117,61 +132,32 @@ function isolatedCodexHome(dataDir: string): string {
   return home
 }
 
-/**
- * The CLI this SDK was written against, rather than whichever one is on PATH.
- *
- * The SDK drives a separate CLI binary, and the two are versioned together — this
- * machine had 0.153 of the SDK spawning 0.133 from Homebrew, twenty versions apart,
- * which is the kind of gap where a config key the SDK sends is simply not understood
- * by the process reading it. Pinning the bundled one also means a user's own Codex can
- * be any version, or absent, without changing how bots behave.
- */
-function codexBinary(): { codexPathOverride?: string } {
-  try {
-    const require = createRequire(import.meta.url)
-    return { codexPathOverride: require.resolve('@openai/codex/bin/codex.js') }
-  } catch {
-    // Falls back to whatever `codex` is on PATH, which is how it worked before.
-    return {}
-  }
-}
-
-interface Session {
-  thread: Thread
-  threadId: string | null
-}
-
 export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   readonly id = 'openai'
   readonly supportsSurface = true
-  private readonly codex: Codex
-  private readonly sessions = new Map<string, Session>()
-  /** One Codex client per bot, each declaring that bot's screen as an MCP server. */
-  private readonly withTools = new Map<string, Codex>()
+
+  private server: CodexAppServer | null = null
   private readonly env: Record<string, string>
+  /** Conversation to Codex thread, so a reply continues where the last one stopped. */
+  private readonly threads = new Map<string, string>()
+  /** The reverse, for routing an event back to the turn that is waiting on it. */
+  private readonly threadOwners = new Map<string, string>()
+  private readonly listeners = new Map<string, (event: AppServerEvent) => void>()
 
   constructor(
     private readonly opts: { cwd: string; dataDir: string; mcpBaseUrl: string; apiKey?: string },
   ) {
     const home = isolatedCodexHome(opts.dataDir)
-    // Without an apiKey Codex spends the signed-in ChatGPT account; with one it bills
-    // per token instead. The harness is the same either way, which is the point of
-    // offering both.
-    //
-    // `env` is given in full because supplying it stops the SDK inheriting
-    // process.env — which is the point. CODEX_HOME moves the agent off the operator's
-    // personal Codex setup and onto Krog's own.
+    // Given in full because supplying env stops the child inheriting process.env —
+    // which is the point. CODEX_HOME moves the agent off the operator's personal Codex
+    // setup and onto Krog's own.
     this.env = {
       CODEX_HOME: home,
       PATH: process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin',
       HOME: process.env['HOME'] ?? homedir(),
+      ...(opts.apiKey ? { OPENAI_API_KEY: opts.apiKey } : {}),
       ...(process.env['TMPDIR'] ? { TMPDIR: process.env['TMPDIR'] } : {}),
     }
-    this.codex = new Codex({
-      ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
-      ...codexBinary(),
-      env: this.env,
-    })
   }
 
   async listModels(): Promise<ModelInfo[]> {
@@ -183,8 +169,6 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   }
 
   async *stream(req: ChatRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {
-    const session = this.session(req)
-
     const prompt = req.input
       .filter((block) => block.type === 'text')
       .map((block) => (block.type === 'text' ? block.text : ''))
@@ -195,164 +179,250 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       return
     }
 
-    const framed = [req.systemPrompt.trim(), '', GUARDRAIL, '', prompt]
-      .filter(Boolean)
-      .join('\n')
+    const rules = req.hasSurface === true ? `${GUARDRAIL}\n\n${SCREEN_RULE}` : GUARDRAIL
+    const framed = [req.systemPrompt.trim(), '', rules, '', prompt].filter(Boolean).join('\n')
+
+    // Events arrive on the server's own schedule, so they queue here and the generator
+    // drains them. Without this, anything emitted while the consumer is awaiting would
+    // be dropped.
+    const queue: ProviderEvent[] = []
+    let wake: (() => void) | null = null
+    const push = (event: ProviderEvent) => {
+      queue.push(event)
+      wake?.()
+      wake = null
+    }
 
     let index = 0
-    const openBlocks = new Map<string, number>()
+    const open = new Map<string, { at: number; kind: string }>()
     const meta: Record<string, unknown> = {}
+    let finished = false
 
-    try {
-      const turn = await session.thread.runStreamed(framed)
+    const server = await this.serverFor(req, (event) => {
+      const item = (event.params['item'] ?? {}) as Record<string, any>
 
-      for await (const event of turn.events as AsyncIterable<ThreadEvent>) {
-        if (signal.aborted) {
-          yield { type: 'done', stopReason: 'interrupted', meta }
-          return
+      switch (event.method) {
+        case 'item/started': {
+          const block = startBlock(item)
+          if (!block) break
+          const at = index++
+          open.set(String(item['id']), { at, kind: block.type })
+          push({ type: 'block_start', index: at, block })
+          break
         }
 
-        switch (event.type) {
-          case 'thread.started':
-            session.threadId = event.thread_id
-            meta['threadId'] = event.thread_id
-            break
-
-          case 'item.started': {
-            const block = itemToBlock(event.item)
-            if (!block) break
-            const at = index++
-            openBlocks.set(event.item.id, at)
-            yield { type: 'block_start', index: at, block }
-            break
+        case 'item/agentMessage/delta': {
+          const entry = open.get(String(event.params['itemId']))
+          if (entry?.kind === 'text') {
+            push({ type: 'text_delta', index: entry.at, text: String(event.params['delta'] ?? '') })
           }
+          break
+        }
 
-          case 'item.completed': {
-            const at = openBlocks.get(event.item.id) ?? index++
-            const block = itemToBlock(event.item, true)
-            if (!block) break
-            // Codex reports whole items rather than token deltas, so the text arrives
-            // at completion; emitting it as one delta keeps the client's block-index
-            // addressing identical to the streaming providers.
-            if (block.type === 'text' && block.text) {
-              yield { type: 'text_delta', index: at, text: block.text }
-            } else if (block.type === 'thinking' && block.text) {
-              yield { type: 'thinking_delta', index: at, text: block.text }
-            }
-            yield { type: 'block_end', index: at, block }
-            break
+        case 'item/reasoning/textDelta':
+        case 'item/reasoning/summaryTextDelta': {
+          const entry = open.get(String(event.params['itemId']))
+          if (entry?.kind === 'thinking') {
+            push({ type: 'thinking_delta', index: entry.at, text: String(event.params['delta'] ?? '') })
           }
+          break
+        }
 
-          case 'turn.completed':
-            if (event.usage) meta['usage'] = event.usage
-            break
+        case 'item/completed': {
+          const entry = open.get(String(item['id']))
+          if (!entry) break
+          const block = completeBlock(item)
+          if (block) push({ type: 'block_end', index: entry.at, block })
+          break
+        }
 
-          case 'turn.failed':
-            yield {
-              type: 'error',
-              code: 'turn_failed',
-              message: event.error?.message ?? 'The turn failed.',
-            }
-            return
+        case 'turn/completed': {
+          const turn = (event.params['turn'] ?? {}) as Record<string, any>
+          if (turn['usage']) meta['usage'] = turn['usage']
+          finished = true
+          push({ type: 'done', stopReason: 'end_turn', meta })
+          break
+        }
 
-          case 'error':
-            yield { type: 'error', code: 'stream_failed', message: event.message }
-            return
+        case 'turn/failed': {
+          finished = true
+          const error = (event.params['error'] ?? {}) as Record<string, any>
+          push({ type: 'error', code: 'turn_failed', message: String(error['message'] ?? 'The turn failed.') })
+          break
         }
       }
+    })
 
-      yield { type: 'done', stopReason: 'end_turn', meta }
-    } catch (err) {
+    const threadId = await this.threadFor(req, server)
+    void server
+      .request('turn/start', { threadId, input: [{ type: 'text', text: framed }] })
+      .catch((err: unknown) => {
+        finished = true
+        push({
+          type: 'error',
+          code: 'stream_failed',
+          message: err instanceof Error ? err.message : String(err),
+        })
+      })
+
+    while (!finished || queue.length > 0) {
       if (signal.aborted) {
+        void server.request('turn/interrupt', { threadId }).catch(() => {})
         yield { type: 'done', stopReason: 'interrupted', meta }
         return
       }
-      yield {
-        type: 'error',
-        code: 'stream_failed',
-        message: err instanceof Error ? err.message : String(err),
+      if (queue.length === 0) {
+        await new Promise<void>((resolve) => {
+          wake = resolve
+          setTimeout(resolve, 200)
+        })
+        continue
       }
+      yield queue.shift()!
     }
   }
 
-  private session(req: ChatRequest): Session {
-    const existing = this.sessions.get(req.conversationId)
+  /** One app-server process for the adapter, shared by every conversation on it. */
+  private async serverFor(
+    req: ChatRequest,
+    onEvent: (event: AppServerEvent) => void,
+  ): Promise<CodexAppServer> {
+    this.listeners.set(req.conversationId, onEvent)
+
+    this.server ??= new CodexAppServer({
+      binary: codexBinary(),
+      env: this.env,
+      // Fanned out by thread: one process serves every conversation, and a turn's
+      // events must reach only the turn waiting on them.
+      onEvent: (event) => {
+        const threadId = String(event.params['threadId'] ?? '')
+        const conversationId = this.threadOwners.get(threadId)
+        const listener = conversationId ? this.listeners.get(conversationId) : undefined
+        listener?.(event)
+      },
+    })
+    await this.server.ready()
+    return this.server
+  }
+
+  private async threadFor(req: ChatRequest, server: CodexAppServer): Promise<string> {
+    const existing = this.threads.get(req.conversationId)
     if (existing) return existing
 
-    // Codex takes custom tools only from MCP servers it launches itself, so the bot's
-    // screen is registered as one — the same verbs the other providers get, delivered
-    // the one way this harness accepts. Per bot, because the server is bound to a bot's
-    // own screen.
-    if (req.hasSurface === true) {
-      this.codexWithTools(req.botId)
-    }
-
-    const options = {
-      workingDirectory: this.opts.cwd,
-      skipGitRepoCheck: true,
-      // These bots research and answer; they are not here to edit this machine's
-      // files. Read-only is the honest sandbox for that, and it is also the setting
-      // that lets a turn run without stopping to ask permission.
-      sandboxMode: 'read-only' as const,
-      approvalPolicy: 'never' as const,
-      webSearchEnabled: true,
+    const started = await server.request('thread/start', {
+      cwd: this.opts.cwd,
+      // Codex asks before calling a tool it did not bring itself, and "never" denies
+      // rather than allows. The policy has to permit asking; this client answers,
+      // approving Krog's own tools and nothing else.
+      approvalPolicy: 'on-request',
+      sandbox: 'read-only',
       ...(req.model && req.model !== 'default' ? { model: req.model } : {}),
-      ...(req.effort ? { modelReasoningEffort: normaliseEffort(req.effort) } : {}),
-    }
+      ...(req.effort ? { effort: normaliseEffort(req.effort) } : {}),
+      config: {
+        mcp_servers: { krog: { url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}` } },
+      },
+    })
 
-    // Threads stay warm in memory for the life of the daemon. Codex persists them
-    // under ~/.codex/sessions and `resumeThread` could pick one up after a restart —
-    // that is a thread id we now record in `meta`, and the same unfinished business
-    // as on the Claude side, where resume is wired but never yet asked for.
-    const client = (req.hasSurface === true ? this.withTools.get(req.botId) : undefined) ?? this.codex
-    const thread = client.startThread(options)
-
-    const session: Session = { thread, threadId: null }
-    this.sessions.set(req.conversationId, session)
-    return session
-  }
-
-  /**
-   * A Codex client whose config declares this bot's screen.
-   *
-   * Config overrides rather than a written file: `mcp_servers` is per-run here, and a
-   * file would have to be rewritten for every bot and would race between them.
-   */
-  private codexWithTools(botId: string): void {
-    if (this.withTools.has(botId)) return
-    this.withTools.set(
-      botId,
-      new Codex({
-        ...(this.opts.apiKey ? { apiKey: this.opts.apiKey } : {}),
-        ...codexBinary(),
-        env: this.env,
-        config: {
-          mcp_servers: {
-            // A URL rather than a command. Codex sandboxes the processes it launches,
-            // and a stdio server inheriting that sandbox can reach neither the Docker
-            // socket nor the browser's port — every call failed, and the model reported
-            // it as being refused permission to browse. Served over HTTP the work
-            // happens in the daemon, which owns the containers and is not sandboxed.
-            krog: {
-              url: `${this.opts.mcpBaseUrl}/mcp/${botId}`,
-              // Codex asks before every MCP call, and an approval policy of "never"
-              // denies rather than allows — there is nobody at a prompt here. "auto"
-              // is the per-server setting that lets them through. The permission being
-              // granted is narrow: these tools reach one bot's screen and nothing else.
-              default_tools_approval_mode: 'auto',
-            },
-          },
-        },
-      }),
-    )
+    const thread = (started['thread'] ?? {}) as Record<string, unknown>
+    const threadId = String(thread['id'] ?? '')
+    if (!threadId) throw new Error('Codex did not return a thread.')
+    this.threads.set(req.conversationId, threadId)
+    this.threadOwners.set(threadId, req.conversationId)
+    return threadId
   }
 
   release(conversationId: string): void {
-    this.sessions.delete(conversationId)
+    const threadId = this.threads.get(conversationId)
+    if (threadId) this.threadOwners.delete(threadId)
+    this.threads.delete(conversationId)
+    this.listeners.delete(conversationId)
   }
 
   dispose(): void {
-    this.sessions.clear()
+    this.server?.dispose()
+    this.server = null
+    this.threads.clear()
+    this.threadOwners.clear()
+    this.listeners.clear()
+  }
+}
+
+/**
+ * The CLI this SDK was written against, rather than whichever one is on PATH.
+ *
+ * The SDK drives a separate CLI binary, and the two are versioned together — this
+ * machine had 0.153 of the SDK spawning 0.133 from Homebrew, twenty versions apart,
+ * which is the kind of gap where a config key the SDK sends is simply not understood
+ * by the process reading it. Pinning the bundled one also means a user's own Codex can
+ * be any version, or absent, without changing how bots behave.
+ */
+function codexBinary(): string {
+  try {
+    return createRequire(import.meta.url).resolve('@openai/codex/bin/codex.js')
+  } catch {
+    // Falls back to whatever `codex` is on PATH, which is how it worked before.
+    return 'codex'
+  }
+}
+
+/** A thread item that has just appeared, as one of Krog's blocks. */
+function startBlock(item: Record<string, any>): Block | null {
+  switch (item['type']) {
+    case 'agentMessage':
+      return { type: 'text', text: '' }
+    case 'reasoning':
+      return { type: 'thinking', text: '' }
+    case 'mcpToolCall':
+      return {
+        type: 'tool_use',
+        id: String(item['id'] ?? ''),
+        name: String(item['tool'] ?? 'tool'),
+        input: item['arguments'],
+        status: 'running',
+      }
+    case 'webSearch':
+      return {
+        type: 'tool_use',
+        id: String(item['id'] ?? ''),
+        name: 'WebSearch',
+        input: { query: item['query'] },
+        status: 'running',
+      }
+    // Codex's own coding-agent work — commands, plans, file edits — is not chat.
+    default:
+      return null
+  }
+}
+
+/** The same item once it has finished. */
+function completeBlock(item: Record<string, any>): Block | null {
+  const status = String(item['status'] ?? '')
+  const done = status === 'failed' ? 'error' : 'done'
+
+  switch (item['type']) {
+    case 'agentMessage':
+      return { type: 'text', text: String(item['text'] ?? '') }
+    case 'reasoning':
+      return { type: 'thinking', text: String(item['text'] ?? '') }
+    case 'mcpToolCall':
+      return {
+        type: 'tool_use',
+        id: String(item['id'] ?? ''),
+        name: String(item['tool'] ?? 'tool'),
+        input: item['arguments'],
+        status: done,
+      }
+    case 'webSearch':
+      return {
+        type: 'tool_use',
+        id: String(item['id'] ?? ''),
+        name: 'WebSearch',
+        input: { query: item['query'] },
+        status: done,
+        title: String(item['query'] ?? ''),
+      }
+    default:
+      return null
   }
 }
 
@@ -361,56 +431,4 @@ function normaliseEffort(effort: string): 'low' | 'medium' | 'high' | 'xhigh' {
   if (effort === 'medium') return 'medium'
   if (effort === 'max') return 'xhigh'
   return effort === 'xhigh' ? 'xhigh' : 'high'
-}
-
-/** Maps a Codex item onto one of Krog's blocks, or nothing when it has no place. */
-function itemToBlock(item: ThreadItem, completed = false):
-  | { type: 'text'; text: string }
-  | { type: 'thinking'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: unknown; status: 'running' | 'done' | 'error'; title?: string }
-  | null {
-  switch (item.type) {
-    case 'agent_message':
-      return { type: 'text', text: completed ? item.text : '' }
-
-    case 'reasoning':
-      return { type: 'thinking', text: completed ? item.text : '' }
-
-    case 'web_search':
-      return {
-        type: 'tool_use',
-        id: item.id,
-        name: 'WebSearch',
-        input: { query: item.query },
-        status: completed ? 'done' : 'running',
-        title: item.query,
-      }
-
-    // Codex's own coding-agent work does not belong in a chat transcript.
-    //
-    // A bot here is told this machine is not its subject, so a shell command is either
-    // noise or something it should not be doing — and either way a wall of
-    // `/bin/bash -lc` is not what the person asked to see. Dropping it keeps one
-    // transcript vocabulary across every provider: prose, thinking, and tools the user
-    // recognises. Web search stays, because it maps onto the same WebSearch card a
-    // Claude bot produces.
-    case 'command_execution':
-      return null
-
-    case 'mcp_tool_call':
-      return {
-        type: 'tool_use',
-        id: item.id,
-        name: item.tool,
-        input: item.arguments,
-        status: item.status === 'failed' ? 'error' : item.status === 'completed' ? 'done' : 'running',
-      }
-
-    case 'error':
-      return { type: 'text', text: item.message }
-
-    // File changes and to-do lists belong to Codex's coding life, not to a chat.
-    default:
-      return null
-  }
 }

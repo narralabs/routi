@@ -1,4 +1,3 @@
-import { appendFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { TOOL_INSTRUCTIONS, desktopToolSpecs, runDesktopTool } from '../surfaces/tools.js'
@@ -29,7 +28,6 @@ export class McpHttp {
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    appendFileSync('/tmp/krog-mcp-http.log', `${new Date().toISOString()} ${req.method} ${req.url}\n`)
     const botId = decodeURIComponent((req.url ?? '').slice('/mcp/'.length).split('?')[0] ?? '')
     if (!botId) return this.fail(res, 400, 'No bot in the URL.')
 

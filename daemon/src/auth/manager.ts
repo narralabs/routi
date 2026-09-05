@@ -29,6 +29,7 @@ export interface AuthStatus {
 export interface ProviderAuth {
   configured: boolean
   mode: AuthMode | null
+  harness: string | null
   cli: { installed: boolean; version: string | null; loggedIn: boolean; account?: string }
   apiKey: { present: boolean }
 }
@@ -36,6 +37,8 @@ export interface ProviderAuth {
 const SETTING_MODE = 'authMode'
 /** Per-provider mode, for providers configured after onboarding. */
 const settingModeFor = (provider: string) => `authMode.${provider}`
+/** Which harness runs the turn, where a provider offers a choice. */
+const settingHarnessFor = (provider: string) => `authHarness.${provider}`
 
 /**
  * Owns which credential the daemon uses and swaps the live provider when it changes.
@@ -98,6 +101,15 @@ export class AuthManager {
       // As with Anthropic, a stored mode only counts while its credential still works.
       configured: (mode === 'subscription' && cli.loggedIn) || (mode === 'api_key' && key !== null),
       mode,
+      // Derived rather than merely read back: a ChatGPT plan is only spendable
+      // through Codex, and a connection made before this setting existed has nothing
+      // stored. Reporting null there would show a configured provider as having no
+      // harness at all.
+      harness: mode === 'subscription'
+        ? 'codex'
+        : mode === 'api_key'
+          ? ((this.store.getSettings()[settingHarnessFor('openai')] as string | undefined) ?? 'direct')
+          : null,
       cli: {
         installed: cli.installed,
         version: cli.installed ? await this.codex.version() : null,
@@ -120,27 +132,35 @@ export class AuthManager {
     }
     if (!cli.loggedIn) await this.codex.login()
 
-    this.store.setSettings({ [settingModeFor(provider)]: 'subscription' })
+    this.store.setSettings({
+      [settingModeFor(provider)]: 'subscription',
+      // A ChatGPT plan has no API of its own; Codex is the only way to spend one.
+      [settingHarnessFor(provider)]: 'codex',
+    })
     await this.applyProvider(provider)
     return this.status()
   }
 
-  async providerSetApiKey(provider: string, key: string): Promise<AuthStatus> {
+  async providerSetApiKey(provider: string, key: string, harness = 'direct'): Promise<AuthStatus> {
     if (provider !== 'openai') throw new Error(`No API key slot for provider: ${provider}`)
 
     // Proven before it is stored, so a typo fails here rather than on the first
-    // message of a bot the user has already built.
+    // message of a bot the user has already built. The key reaches OpenAI the same way
+    // whichever harness will later spend it, so one check covers both.
     await new OpenAiApiAdapter(key).validate()
 
     await this.credentials.setApiKey(key, provider)
-    this.store.setSettings({ [settingModeFor(provider)]: 'api_key' })
+    this.store.setSettings({
+      [settingModeFor(provider)]: 'api_key',
+      [settingHarnessFor(provider)]: harness === 'codex' ? 'codex' : 'direct',
+    })
     await this.applyProvider(provider)
     return this.status()
   }
 
   async providerSignOut(provider: string): Promise<AuthStatus> {
     await this.credentials.clearApiKey(provider)
-    this.store.setSettings({ [settingModeFor(provider)]: null })
+    this.store.setSettings({ [settingModeFor(provider)]: null, [settingHarnessFor(provider)]: null })
     this.providers.get(provider)?.dispose()
     this.providers.delete(provider)
     return this.status()
@@ -154,9 +174,17 @@ export class AuthManager {
     if (provider !== 'openai') return
     const mode = this.store.getSettings()[settingModeFor(provider)] as AuthMode | undefined
 
+    const harness = this.store.getSettings()[settingHarnessFor(provider)] as string | undefined
+
     if (mode === 'api_key') {
       const key = await this.credentials.getApiKey('openai')
-      if (key) this.providers.set('openai', new OpenAiApiAdapter(key, this.desktops))
+      if (!key) return
+      this.providers.set(
+        'openai',
+        harness === 'codex'
+          ? new OpenAiSubscriptionAdapter({ cwd: this.sessionCwd, dataDir: this.dataDir, apiKey: key })
+          : new OpenAiApiAdapter(key, this.desktops),
+      )
       return
     }
 

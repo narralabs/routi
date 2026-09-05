@@ -321,9 +321,9 @@ final class AppModel {
         await refreshAll()
     }
 
-    func providerSetApiKey(_ provider: String, key: String) async throws {
+    func providerSetApiKey(_ provider: String, key: String, harness: String = "direct") async throws {
         let status = try await client.rpc(
-            "auth.providerSetApiKey", ["provider": provider, "key": key],
+            "auth.providerSetApiKey", ["provider": provider, "key": key, "harness": harness],
             field: "auth", as: AuthStatus.self, timeout: 60
         )
         auth = status

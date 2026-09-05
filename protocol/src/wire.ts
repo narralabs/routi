@@ -81,7 +81,12 @@ export const RpcMethods = {
     result: z.object({ auth: AuthStatus }),
   },
   'auth.providerSetApiKey': {
-    params: z.object({ provider: z.string(), key: z.string().min(1) }),
+    params: z.object({
+      provider: z.string(),
+      key: z.string().min(1),
+      /** 'direct' or 'codex' for OpenAI; ignored by providers with one harness. */
+      harness: z.string().optional(),
+    }),
     result: z.object({ auth: AuthStatus }),
   },
   'auth.providerSignOut': {

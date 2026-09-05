@@ -266,20 +266,63 @@ private struct OpenAiPane: View {
     @Environment(AppModel.self) private var model
     let provider: ProviderInfo
 
-    @State private var isEnteringKey = false
+    /// The three ways to reach OpenAI.
+    ///
+    /// Credential and harness vary independently, but not freely: a ChatGPT plan has
+    /// no API of its own, so an account can only be spent through Codex. That is why
+    /// this is one list of three rather than two questions — the fourth combination
+    /// does not exist.
+    private enum Setup: String, CaseIterable, Identifiable {
+        case account          // ChatGPT plan, through Codex
+        case keyDirect        // API key, straight to the Responses API
+        case keyCodex         // API key, through Codex
+
+        var id: String { rawValue }
+        var needsKey: Bool { self != .account }
+        var harness: String { self == .keyDirect ? "direct" : "codex" }
+
+        var title: String {
+            switch self {
+            case .account: return "Use my ChatGPT account"
+            case .keyDirect: return "Use an API key"
+            case .keyCodex: return "Use an API key, through Codex"
+            }
+        }
+
+        var detail: String {
+            switch self {
+            case .account:
+                return "No per-token billing — it spends the plan you already have. Runs through the Codex agent, which has its own tools and cannot drive a bot's screen yet."
+            case .keyDirect:
+                return "Billed per token. The only setup where a bot can use its screen: Krog runs the tool loop and hands it the desktop."
+            case .keyCodex:
+                return "Billed per token, but run by the Codex agent rather than by Krog. Choose this to get Codex's behaviour without a ChatGPT plan."
+            }
+        }
+    }
+
+    @State private var entering: Setup?
     @State private var apiKey = ""
     @State private var isWorking = false
     @State private var failure: String?
     @State private var showingDisconnect = false
 
+    /// Which of the three is in effect, read back from mode and harness.
+    private var current: Setup? {
+        guard let auth, auth.configured else { return nil }
+        if auth.mode == "subscription" { return .account }
+        return auth.harness == "codex" ? .keyCodex : .keyDirect
+    }
+
     private var auth: AuthStatus.ProviderAuth? { model.auth.provider(provider.id) }
     private var isConnected: Bool { auth?.configured ?? false }
 
     private var methodLabel: String {
-        switch auth?.mode {
-        case "api_key": return "API key"
-        case "subscription": return auth?.cli.account.map { "\($0) account" } ?? "ChatGPT account"
-        default: return "Not connected"
+        switch current {
+        case .account: return auth?.cli.account.map { "\($0) account" } ?? "ChatGPT account"
+        case .keyDirect: return "API key"
+        case .keyCodex: return "API key, through Codex"
+        case nil: return "Not connected"
         }
     }
 
@@ -334,10 +377,12 @@ private struct OpenAiPane: View {
         SettingsSection("Credential") {
             SettingsRow(title: "Method", isFirst: true) { SettingsValue(text: methodLabel) }
 
-            if auth?.mode == "subscription", let version = auth?.cli.version {
+            if current != .keyDirect, let version = auth?.cli.version {
                 SettingsRow(
                     title: "Signed in through",
-                    detail: "Krog drives the Codex CLI's browser sign-in; the token stays with it."
+                    detail: current == .account
+                        ? "Krog drives the Codex CLI's browser sign-in; the token stays with it."
+                        : "Turns are run by the Codex agent on this Mac, using its own config, not yours."
                 ) {
                     SettingsValue(text: version)
                 }
@@ -361,24 +406,24 @@ private struct OpenAiPane: View {
 
     @ViewBuilder
     private var choices: some View {
-        if isEnteringKey {
-            SettingsSection("API key") {
+        if let entering {
+            SettingsSection(entering.title) {
                 SettingsRow(
                     title: "Key",
-                    detail: "From platform.openai.com. Billed per token against your OpenAI account.",
+                    detail: "From platform.openai.com. " + entering.detail,
                     isFirst: true
                 ) {
                     SecureField("sk-…", text: $apiKey)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 12, design: .monospaced))
                         .frame(width: 220)
-                        .onSubmit(submitKey)
+                        .onSubmit { submitKey(entering) }
                 }
                 SettingsRow(title: "") {
                     HStack(spacing: 8) {
                         Spacer()
-                        Button("Cancel") { withAnimation { isEnteringKey = false; failure = nil } }
-                        Button("Connect", action: submitKey)
+                        Button("Back") { withAnimation { self.entering = nil; failure = nil } }
+                        Button("Connect") { submitKey(entering) }
                             .buttonStyle(.borderedProminent)
                             .disabled(apiKey.isEmpty || isWorking)
                     }
@@ -386,20 +431,20 @@ private struct OpenAiPane: View {
             }
         } else {
             SettingsSection("Connect") {
-                SettingsRow(
-                    title: "Use my ChatGPT account",
-                    detail: cliDetail,
-                    isFirst: true
-                ) {
-                    Button(isWorking ? "Connecting…" : "Connect") { connectAccount() }
-                        .disabled(isWorking || !(auth?.cli.installed ?? false))
-                }
-                SettingsRow(
-                    title: "Use an API key",
-                    detail: "Billed per token. Good if you don't have a ChatGPT plan."
-                ) {
-                    Button("Enter Key") { withAnimation { isEnteringKey = true; failure = nil } }
-                        .disabled(isWorking)
+                ForEach(Array(Setup.allCases.enumerated()), id: \.element.id) { index, setup in
+                    SettingsRow(
+                        title: setup.title,
+                        detail: setup == .account ? cliDetail : setup.detail,
+                        isFirst: index == 0
+                    ) {
+                        if setup == .account {
+                            Button(isWorking ? "Connecting…" : "Connect") { connectAccount() }
+                                .disabled(isWorking || !(auth?.cli.installed ?? false))
+                        } else {
+                            Button("Enter Key") { withAnimation { entering = setup; failure = nil } }
+                                .disabled(isWorking)
+                        }
+                    }
                 }
             }
         }
@@ -429,15 +474,15 @@ private struct OpenAiPane: View {
         }
     }
 
-    private func submitKey() {
+    private func submitKey(_ setup: Setup) {
         guard !apiKey.isEmpty else { return }
         failure = nil
         isWorking = true
         Task {
             do {
-                try await model.providerSetApiKey(provider.id, key: apiKey)
+                try await model.providerSetApiKey(provider.id, key: apiKey, harness: setup.harness)
                 apiKey = ""
-                isEnteringKey = false
+                entering = nil
             } catch {
                 failure = error.localizedDescription
             }

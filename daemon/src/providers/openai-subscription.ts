@@ -119,15 +119,17 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   private readonly codex: Codex
   private readonly sessions = new Map<string, Session>()
 
-  constructor(private readonly opts: { cwd: string; dataDir: string }) {
+  constructor(private readonly opts: { cwd: string; dataDir: string; apiKey?: string }) {
     const home = isolatedCodexHome(opts.dataDir)
-    // No apiKey: that is what makes it use the signed-in ChatGPT account rather than
-    // billing an organisation per token.
+    // Without an apiKey Codex spends the signed-in ChatGPT account; with one it bills
+    // per token instead. The harness is the same either way, which is the point of
+    // offering both.
     //
     // `env` is given in full because supplying it stops the SDK inheriting
     // process.env — which is the point. CODEX_HOME moves the agent off the operator's
     // personal Codex setup and onto Krog's own.
     this.codex = new Codex({
+      ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
       env: {
         CODEX_HOME: home,
         PATH: process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin',
@@ -142,7 +144,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   }
 
   async accountInfo(): Promise<AccountInfo> {
-    return { authMode: 'subscription' }
+    return { authMode: this.opts.apiKey ? 'api_key' : 'subscription' }
   }
 
   async *stream(req: ChatRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {

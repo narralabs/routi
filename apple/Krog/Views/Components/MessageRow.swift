@@ -92,6 +92,8 @@ private struct Bubble: View {
         }
             .lineSpacing(2)
             .foregroundStyle(isUser ? AnyShapeStyle(outgoingText) : AnyShapeStyle(.primary))
+            // Selection is enabled on the text itself: a run of prose is one Text view,
+            // and that is the unit a selection can cover.
             .textSelection(.enabled)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

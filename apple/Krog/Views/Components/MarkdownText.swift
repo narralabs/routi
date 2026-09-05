@@ -15,11 +15,104 @@ struct MarkdownText: View {
     let text: String
     var textColor: AnyShapeStyle = AnyShapeStyle(.primary)
 
+    /**
+     * Runs of ordinary prose become one Text, not one per block.
+     *
+     * Selection lives inside a single Text view, so drawing every paragraph and list
+     * item as its own made a message selectable only one paragraph at a time — which
+     * looked like a bug in the bubble rather than in the renderer, because the bubble
+     * is one bubble. Headings, paragraphs, lists and quotes are all expressible as
+     * attributed text, so they are joined into one; only tables and code blocks, which
+     * genuinely cannot live inside a Text, break the run.
+     */
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(MarkdownBlock.parse(text).enumerated()), id: \.offset) { _, block in
-                view(for: block)
+            ForEach(Array(runs(of: MarkdownBlock.parse(text)).enumerated()), id: \.offset) { _, run in
+                switch run {
+                case .prose(let attributed):
+                    Text(attributed)
+                        .lineSpacing(2)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                case .block(let block):
+                    view(for: block)
+                }
             }
+        }
+    }
+
+    private enum Run {
+        case prose(AttributedString)
+        case block(MarkdownBlock)
+    }
+
+    /// Groups everything that can be attributed text, leaving the rest standing alone.
+    private func runs(of blocks: [MarkdownBlock]) -> [Run] {
+        var out: [Run] = []
+        var pending: [AttributedString] = []
+
+        func flush() {
+            guard !pending.isEmpty else { return }
+            var joined = AttributedString()
+            for (index, piece) in pending.enumerated() {
+                if index > 0 { joined += AttributedString("\n\n") }
+                joined += piece
+            }
+            out.append(.prose(joined))
+            pending = []
+        }
+
+        for block in blocks {
+            switch block {
+            case .table, .code:
+                flush()
+                out.append(.block(block))
+            default:
+                if let piece = attributed(for: block) { pending.append(piece) }
+            }
+        }
+        flush()
+        return out
+    }
+
+    /// One block as attributed text, carrying its own size and weight.
+    private func attributed(for block: MarkdownBlock) -> AttributedString? {
+        switch block {
+        case .paragraph(let text):
+            var piece = Self.attributed(text)
+            piece.font = .system(size: 14.5)
+            return piece
+
+        case .heading(let level, let text):
+            var piece = Self.attributed(text)
+            piece.font = .system(size: headingSize(level), weight: .semibold)
+            return piece
+
+        case .quote(let text):
+            var piece = Self.attributed(text)
+            piece.font = .system(size: 14.5).italic()
+            return piece
+
+        case .list(let items, let ordered):
+            var piece = AttributedString()
+            for (index, item) in items.enumerated() {
+                if index > 0 { piece += AttributedString("\n") }
+                var marker = AttributedString(ordered ? "\(index + 1). " : "•  ")
+                marker.foregroundColor = .secondary
+                piece += marker
+                piece += Self.attributed(item)
+            }
+            piece.font = .system(size: 14.5)
+            return piece
+
+        case .rule:
+            var piece = AttributedString("———")
+            piece.foregroundColor = .secondary
+            return piece
+
+        case .table, .code:
+            return nil
         }
     }
 

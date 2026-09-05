@@ -176,12 +176,16 @@ struct ChatView: View {
         }
         .flatBackground()
 
-        ToolbarItem(placement: .primaryAction) {
+        // Bot settings stays beside the name it belongs to.
+        ToolbarItem(placement: .navigation) {
             ToolbarIcon(systemName: "slider.horizontal.3", help: "Bot Settings") {
                 showingSettings = true
             }
         }
         .flatBackground()
+
+        // The screen toggle governs the rail on the right, so it sits on the right.
+        flexibleToolbarSpacer()
 
         ToolbarItem(placement: .primaryAction) {
             ToolbarIcon(

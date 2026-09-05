@@ -74,12 +74,24 @@ final class AppModel {
 
     var account: AccountInfo? { client.account }
 
-    /// Shown in the sidebar footer. Asked for during onboarding and pre-filled from
-    /// the Anthropic account, so it is a real preference rather than a derivation.
+    /// Shown in the sidebar footer, and used by the daemon to greet the user by name
+    /// when a bot is created.
+    ///
+    /// Stored on the daemon rather than in local defaults: the greeting is written
+    /// server-side, and a name that lived only on this Mac would leave the phone — and
+    /// every bot it created — addressing a stranger.
     var userName: String {
-        let stored = UserDefaults.standard.string(forKey: "displayName") ?? ""
-        if !stored.isEmpty { return stored }
+        if !storedUserName.isEmpty { return storedUserName }
         return account?.firstName ?? "Account"
+    }
+
+    private(set) var storedUserName = ""
+
+    func setUserName(_ name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != storedUserName else { return }
+        storedUserName = trimmed
+        try? await client.rpc("settings.set", ["patch": ["userName": trimmed]])
     }
 
     var userInitials: String {
@@ -168,6 +180,11 @@ final class AppModel {
             let list = try await client.rpc("conversations.list", field: "conversations", as: [Conversation].self)
             conversations = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             errorMessage = nil
+
+            if let settings = try? await client.rpc("settings.get"),
+               let values = settings["settings"] as? [String: Any] {
+                storedUserName = (values["userName"] as? String) ?? ""
+            }
 
             if models.isEmpty {
                 models = (try? await client.rpc(

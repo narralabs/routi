@@ -140,20 +140,35 @@ struct ChatView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         #if os(macOS)
-        // Avatar + name at the leading edge, matching the reference header.
+        // macOS 26 wraps every toolbar item in its own capsule, which makes the bot's
+        // name read as a button and groups the two icons into one pill.
+        // `sharedBackgroundVisibility(.hidden)` drops that chrome so the header sits
+        // flat on the window; the buttons draw their own hover state instead.
         ToolbarItem(placement: .navigation) {
             HStack(spacing: 8) {
                 BotAvatar(color: bot.color, size: 20)
                 Text(bot.name).font(.system(size: 13, weight: .semibold))
             }
         }
+        .flatBackground()
+
         ToolbarItem(placement: .primaryAction) {
-            Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
+            ToolbarIcon(systemName: "slider.horizontal.3", help: "Bot Settings") {
+                showingSettings = true
+            }
         }
+        .flatBackground()
+
         ToolbarItem(placement: .primaryAction) {
-            Button("Screen", systemImage: "desktopcomputer") { showRail.toggle() }
-                .symbolVariant(showRail ? .fill : .none)
+            ToolbarIcon(
+                systemName: "desktopcomputer",
+                help: showRail ? "Hide Screen" : "Show Screen",
+                isActive: showRail
+            ) {
+                showRail.toggle()
+            }
         }
+        .flatBackground()
         #else
         ToolbarItem(placement: .topBarTrailing) {
             Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
@@ -167,6 +182,33 @@ struct ChatView: View {
         draft = ""
         composerFocused = true
         Task { await model.send(text) }
+    }
+}
+
+/// Flat toolbar icon: no chrome at rest, a soft fill on hover, tinted when active.
+private struct ToolbarIcon: View {
+    let systemName: String
+    let help: String
+    var isActive = false
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 15))
+                .foregroundStyle(isActive ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                .frame(width: 26, height: 26)
+                .background(
+                    isHovering ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+                    in: .rect(cornerRadius: 6, style: .continuous)
+                )
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .help(help)
     }
 }
 

@@ -207,12 +207,11 @@ struct GeneralPane: View {
     @AppStorage("appearance") private var appearance = AppearanceMode.system.rawValue
     @AppStorage("sendBehavior") private var sendBehavior = SendBehavior.returnKey.rawValue
     @AppStorage("showThinking") private var showThinking = true
-    @AppStorage("displayName") private var displayName = ""
 
     var body: some View {
         SettingsPane(title: "General") {
             SettingsSection("Account") {
-                AccountCard(displayName: $displayName)
+                AccountCard()
             }
 
             SettingsSection("Appearance") {
@@ -257,7 +256,7 @@ struct GeneralPane: View {
 /// Avatar, editable name, account email, and sign-out — the card from the reference.
 private struct AccountCard: View {
     @Environment(AppModel.self) private var model
-    @Binding var displayName: String
+    @State private var draftName = ""
     @State private var showingDisconnect = false
 
     var body: some View {
@@ -269,9 +268,10 @@ private struct AccountCard: View {
                 .background(.quaternary, in: .circle)
 
             VStack(alignment: .leading, spacing: 3) {
-                TextField("Your name", text: $displayName)
+                TextField("Your name", text: $draftName)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14, weight: .medium))
+                    .onSubmit { Task { await model.setUserName(draftName) } }
                 if let email = model.auth.subscription.email {
                     Text(email)
                         .font(.system(size: 12))
@@ -286,6 +286,10 @@ private struct AccountCard: View {
                 .disabled(!model.auth.configured)
         }
         .padding(14)
+        .onAppear { draftName = model.userName }
+        // Commit on focus loss as well as Return; a name typed and abandoned should
+        // still stick, the way every other settings field behaves.
+        .onDisappear { Task { await model.setUserName(draftName) } }
         .confirmationDialog("Sign out of Claude?", isPresented: $showingDisconnect) {
             Button("Sign Out", role: .destructive) {
                 Task {

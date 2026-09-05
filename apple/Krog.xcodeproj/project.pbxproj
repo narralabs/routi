@@ -23,6 +23,7 @@
 		B2A0E5602304462975CED032 /* OnboardingSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C049368396CD14AB35A3532 /* OnboardingSteps.swift */; };
 		C674793AACF4E1F3072E7832 /* KrogClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF7ACF3AE8BBF1CE95ED9759 /* KrogClient.swift */; };
 		C674CB9D6178B9844D49C413 /* MessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E420CB5CFEF7066DD24C4C7A /* MessageRow.swift */; };
+		CE0D605CD72592D5E66AD20B /* ToolbarStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F032C09AD590AF32BF76346E /* ToolbarStyle.swift */; };
 		D7237D07593FF4EC7820D7B8 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DCF205E969ACC97A3C8222E /* Entities.swift */; };
 		E0EB05BB4C805E388C2D3B55 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 733D8BCC64AF0C2524ED521E /* OnboardingView.swift */; };
 		F60D240F3014485F52F3B126 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D091E4F14BC8B08335A02596 /* ChatView.swift */; };
@@ -52,6 +53,7 @@
 		E420CB5CFEF7066DD24C4C7A /* MessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRow.swift; sourceTree = "<group>"; };
 		E435C8AAE185181BA4C260CA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EF7ACF3AE8BBF1CE95ED9759 /* KrogClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KrogClient.swift; sourceTree = "<group>"; };
+		F032C09AD590AF32BF76346E /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -77,6 +79,7 @@
 				6DDFF0B0A9289DEE414C498C /* BotAvatar.swift */,
 				55E221D6034194D8F4BDB884 /* Composer.swift */,
 				E420CB5CFEF7066DD24C4C7A /* MessageRow.swift */,
+				F032C09AD590AF32BF76346E /* ToolbarStyle.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -252,6 +255,7 @@
 				7C8F8A1D3819CF8B8F0C2953 /* RootView.swift in Sources */,
 				9A326FC4B73F8B4ECCE2D762 /* SettingsComponents.swift in Sources */,
 				8C4A300C44130F442E752D47 /* SettingsScreen.swift in Sources */,
+				CE0D605CD72592D5E66AD20B /* ToolbarStyle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

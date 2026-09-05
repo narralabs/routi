@@ -58,6 +58,9 @@ struct BotListView: View {
             ToolbarItem {
                 Button("New Bot", systemImage: "plus") { showingNewBot = true }
             }
+            #if os(macOS)
+            .flatBackground()
+            #endif
         }
         .overlay {
             if model.bots.isEmpty {

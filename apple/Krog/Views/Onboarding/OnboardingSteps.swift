@@ -355,7 +355,7 @@ struct AnthropicStep: View {
 
 struct FinishingStep: View {
     @Environment(AppModel.self) private var model
-    @AppStorage("displayName") private var displayName = ""
+    @State private var displayName = ""
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -379,7 +379,10 @@ struct FinishingStep: View {
             }
         } actions: {
             Button {
-                model.completeOnboarding()
+                Task {
+                    await model.setUserName(displayName)
+                    model.completeOnboarding()
+                }
             } label: {
                 Text("Start Chatting").frame(maxWidth: 260)
             }

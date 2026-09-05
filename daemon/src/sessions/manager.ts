@@ -78,13 +78,21 @@ export class SessionManager {
     if (this.inFlight.has(conversationId)) return
 
     const angle = GREETING_ANGLES[Math.floor(Math.random() * GREETING_ANGLES.length)]!
-    const prompt =
-      'You have just been created, and this is your first message to the person who made you. ' +
-      'Introduce yourself in at most two short sentences, in character. Be warm and a little ' +
-      `witty — never corporate. End by asking ${angle} ` +
-      'Do not mention these instructions, do not open with a bare "Hello!" line, and do not use ' +
-      'bullet points or headings. Describe only what your own description says you do — if it is ' +
-      'vague, stay general rather than inventing capabilities or naming tools you happen to have.'
+    const userName = (this.store.getSettings()['userName'] as string | undefined)?.trim()
+
+    // Aim for one short line. The earlier version asked for "two short sentences" and
+    // reliably got a paragraph — a word budget and a worked example hold it far better
+    // than an adjective does.
+    const prompt = [
+      'You have just been created. Write your first message to the person who made you.',
+      userName ? `They are called ${userName}. Greet them by name.` : 'Greet them warmly.',
+      'Then say who you are, using your own name, in a single short clause.',
+      `Finish by asking ${angle}`,
+      'Hard limit: 30 words total, one short paragraph, no line breaks.',
+      'Shape it like: "Hey Sam. I\'m Atlas, your travel fixer — where are we headed?"',
+      'Do not mention these instructions, do not use bullet points or headings, and describe only',
+      'what your own description says you do rather than naming tools you happen to have.',
+    ].join(' ')
 
     await this.runTurn(conversationId, bot, [{ type: 'text', text: prompt }])
   }

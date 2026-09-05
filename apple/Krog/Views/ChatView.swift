@@ -177,23 +177,19 @@ struct ChatView: View {
 
         flexibleToolbarSpacer()
 
-        // Opens the bot right sidebar, then gets out of the way — closing is the
-        // panel's own job, via the chevron in its header.
-        //
-        // That is not just symmetry. A macOS toolbar is one strip belonging to the
-        // window, and only the sidebar divider moves items along with it; there is no
-        // placement that stops at the inspector divider. So a button that stayed here
-        // would slide over the panel the moment the panel opened. Existing only while
-        // the panel is closed means it is always at the chat's trailing edge, because
-        // then the chat's trailing edge is the window's.
-        if !showBotSidebar {
-            ToolbarItem(placement: .primaryAction) {
-                ToolbarIcon(systemName: "desktopcomputer", help: "Show Screen") {
-                    showBotSidebar = true
-                }
+        // Opens and closes the bot right sidebar from one fixed slot at the trailing
+        // edge, swapping the screen for a close mark. The panel opens directly beneath
+        // it, so the button that dismissed it is where the pointer already is — no
+        // separate control inside the panel to go hunting for.
+        ToolbarItem(placement: .primaryAction) {
+            ToolbarIcon(
+                systemName: showBotSidebar ? "xmark" : "desktopcomputer",
+                help: showBotSidebar ? "Hide Screen" : "Show Screen"
+            ) {
+                showBotSidebar.toggle()
             }
-            .flatBackground()
         }
+        .flatBackground()
         #else
         ToolbarItem(placement: .topBarTrailing) {
             Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }

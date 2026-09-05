@@ -74,9 +74,7 @@ struct RootView: View {
                         // keeps its promise to start closed.
                         set: { if !$0 { showBotSidebar = false } }
                     )) {
-                        DetailRail(bot: bot, showingSettings: $showingRailSettings) {
-                            showBotSidebar = false
-                        }
+                        DetailRail(bot: bot, showingSettings: $showingRailSettings)
                             .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
                     }
             } else {

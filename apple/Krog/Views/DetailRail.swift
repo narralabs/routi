@@ -5,19 +5,15 @@ struct DetailRail: View {
     @Environment(AppModel.self) private var model
     let bot: Bot
     @Binding var showingSettings: Bool
-    let onHide: () -> Void
     @State private var isHoveringScreen = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            ScrollView {
-                VStack(spacing: 24) {
-                    surfacePanel
-                    routinesPanel
-                }
-                .padding(16)
+        ScrollView {
+            VStack(spacing: 24) {
+                surfacePanel
+                routinesPanel
             }
+            .padding(16)
         }
         .background(.background.secondary)
         .overlay(alignment: .leading) {
@@ -26,21 +22,6 @@ struct DetailRail: View {
         // Only pull frames while the rail is actually on screen.
         .onAppear { model.startFrames() }
         .onDisappear { model.stopFrames() }
-    }
-
-    /// Closes the panel from inside it.
-    ///
-    /// Sits at the panel's top right, directly under where the toolbar icon that
-    /// opened it was — so open and close happen in the same corner rather than the
-    /// pointer having to cross the window.
-    private var header: some View {
-        HStack {
-            Spacer(minLength: 0)
-            HideButton(action: onHide)
-        }
-        // Lines the button up with the toolbar icons above it.
-        .padding(.trailing, 21)
-        .padding(.top, 10)
     }
 
     @ViewBuilder
@@ -137,29 +118,5 @@ struct DetailRail: View {
             Button("Create Routine") {}
                 .buttonStyle(.bordered)
         }
-    }
-}
-
-/// Matches the toolbar icons: nothing at rest, a soft fill under the pointer.
-private struct HideButton: View {
-    let action: () -> Void
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            // The system's own icon for putting a trailing sidebar away.
-            Image(systemName: "sidebar.right")
-                .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(.secondary)
-                .frame(width: 26, height: 26)
-                .background(
-                    isHovering ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
-                    in: .rect(cornerRadius: 6, style: .continuous)
-                )
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .help("Hide Screen")
     }
 }

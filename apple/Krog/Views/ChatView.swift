@@ -175,12 +175,14 @@ struct ChatView: View {
         }
         .flatBackground()
 
-        flexibleToolbarSpacer()
-
-        // Toggles the bot right sidebar, from the trailing end of the toolbar — the
-        // side the panel itself opens on. Full screen is still a click away once it's
-        // open, from the Open button over the preview.
-        ToolbarItem(placement: .primaryAction) {
+        // Toggles the bot right sidebar.
+        //
+        // Kept beside the bot's name rather than opposite the panel it opens. A
+        // toolbar on macOS spans the window, not a single column, so a trailing item
+        // sits at the window's right edge — meaning it would drift over the sidebar
+        // as soon as the sidebar appeared, instead of holding the chat's right edge.
+        // Somewhere fixed beats somewhere that moves.
+        ToolbarItem(placement: .navigation) {
             ToolbarIcon(
                 systemName: "desktopcomputer",
                 help: showBotSidebar ? "Hide Screen" : "Show Screen",

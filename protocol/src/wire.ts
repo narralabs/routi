@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Block } from './blocks.js'
 import {
-  AccountInfo, AuthStatus, Bot, Conversation, Message, ModelInfo, SurfaceMode, SurfaceStatus,
+  AccountInfo, AuthStatus, Bot, Conversation, Handover, Message, ModelInfo, SurfaceMode, SurfaceStatus,
 } from './entities.js'
 
 /**
@@ -119,6 +119,13 @@ export const RpcMethods = {
     }),
   },
   /** Reads the desktop's clipboard, for copying out of a container screen. */
+  /** Answers a bot that is waiting for you to sign in or finish something. */
+  'handover.resolve': {
+    params: z.object({ botId: z.string(), outcome: z.enum(['done', 'skipped']) }),
+    result: z.object({ ok: z.boolean() }),
+  },
+  'handover.list': { params: z.object({}), result: z.object({ handovers: z.array(Handover) }) },
+
   'surface.clipboard': {
     params: z.object({ botId: z.string() }),
     result: z.object({ text: z.string() }),
@@ -235,6 +242,13 @@ export const ServerEvent = z.discriminatedUnion('e', [
   z.object({ e: z.literal('surface.state'), botId: z.string(), surface: SurfaceStatus }),
   // A room message that was never written: a bot chose silence.
   z.object({ e: z.literal('message.deleted'), conversationId: z.string(), messageId: z.string() }),
+  z.object({ e: z.literal('handover.requested'), handover: Handover }),
+  z.object({
+    e: z.literal('handover.resolved'),
+    botId: z.string(),
+    id: z.string(),
+    outcome: z.enum(['done', 'skipped', 'timeout']),
+  }),
   /** Drives the typing indicator and the interrupt button. */
   z.object({ e: z.literal('conversation.busy'), conversationId: z.string(), busy: z.boolean() }),
   z.object({ e: z.literal('error'), conversationId: z.string().nullable().default(null), code: z.string(), message: z.string() }),

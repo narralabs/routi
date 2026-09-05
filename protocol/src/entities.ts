@@ -148,3 +148,13 @@ export type Conversation = z.infer<typeof Conversation>
 export type Message = z.infer<typeof Message>
 export type ModelInfo = z.infer<typeof ModelInfo>
 export type AccountInfo = z.infer<typeof AccountInfo>
+
+/** A bot waiting for the person to do something on its screen. */
+export const Handover = z.object({
+  id: z.string(),
+  botId: z.string(),
+  conversationId: z.string(),
+  reason: z.string(),
+  askedAt: z.number(),
+})
+export type Handover = z.infer<typeof Handover>

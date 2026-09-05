@@ -4,6 +4,7 @@ import type { ProviderAdapter } from '../providers/types.js'
 import type { SessionManager } from '../sessions/manager.js'
 import type { AuthManager } from '../auth/manager.js'
 import type { DesktopInput } from '../surfaces/desktop.js'
+import type { Handovers } from '../surfaces/handover.js'
 import type { DesktopPool } from '../surfaces/pool.js'
 
 export interface RpcContext {
@@ -12,6 +13,7 @@ export interface RpcContext {
   providers: Map<string, ProviderAdapter>
   auth: AuthManager
   desktops: DesktopPool
+  handovers: Handovers
 }
 
 export class RpcError extends Error {
@@ -177,6 +179,13 @@ const handlers: Record<RpcMethod, Handler> = {
       pointerY: frame?.pointer?.y ?? null,
     }
   },
+
+  'handover.resolve': async (p, ctx) => {
+    const { botId, outcome } = p as { botId: string; outcome: 'done' | 'skipped' }
+    return { ok: ctx.handovers.resolve(botId, outcome) }
+  },
+
+  'handover.list': async (_p, ctx) => ({ handovers: ctx.handovers.all() }),
 
   'surface.clipboard': async (p, ctx) => {
     const { botId } = p as { botId: string }

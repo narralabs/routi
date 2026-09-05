@@ -86,6 +86,8 @@ private struct BotRow: View {
     let isBusy: Bool
 
     private var provider: ProviderInfo { ProviderInfo.find(bot.provider) }
+    /// A bot paused on an ask says so here, so it is visible without opening it.
+    private var waiting: Handover? { model.handover(for: bot.id) }
 
     /// The last thing said, as in the reference — falling back to the chat's title,
     /// then to a placeholder for a bot that has not spoken yet.
@@ -105,7 +107,9 @@ private struct BotRow: View {
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    if isBusy {
+                    if waiting != nil {
+                        Circle().fill(.orange).frame(width: 7, height: 7)
+                    } else if isBusy {
                         WorkingDots()
                     } else if let stamp = conversation?.lastMessageAt {
                         Text(Self.relative(stamp))
@@ -113,9 +117,9 @@ private struct BotRow: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
-                Text(isBusy ? "Thinking…" : subtitle)
+                Text(waiting != nil ? "Waiting for you: \(waiting!.reason)" : (isBusy ? "Thinking…" : subtitle))
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(waiting != nil ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 

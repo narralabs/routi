@@ -134,9 +134,11 @@ const SCREEN = [
   'only until the page changes; click_ref and fill_ref hand back the page as it is',
   'afterwards, so use those refs and discard older ones.',
   '',
-  'If you reach a sign-in, a two-factor prompt, a captcha or a payment step: stop and',
-  'say so. Do not invent credentials or try to defeat a captcha. The person can open',
-  'this same screen and do it themselves, then tell you to carry on.',
+  'If you reach a sign-in, a two-factor prompt, a captcha or a payment step, call',
+  'ask_to_take_over with one line saying what you need done. That hands them this exact',
+  'screen — same session, same cookies — and pauses you until they are finished. Do not',
+  'invent credentials, do not try to defeat a captcha, and do not simply give up and',
+  'describe the problem: asking is the way through.',
 ].join('\n')
 
 const NO_SCREEN = [

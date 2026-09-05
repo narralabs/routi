@@ -3,6 +3,7 @@ import type { Block, Bot, Message, ServerEvent } from '@krog/protocol'
 import type { Routine, Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import { wakeFor } from './channel.js'
+import type { Handovers } from '../surfaces/handover.js'
 import { standingInstructions } from './policy.js'
 import { routineTools } from './routine-tools.js'
 import type { DesktopPool, Surface } from '../surfaces/pool.js'
@@ -27,6 +28,7 @@ export class SessionManager {
     private readonly providers: Map<string, ProviderAdapter>,
     private readonly emit: Emit,
     private readonly desktops?: DesktopPool,
+    private readonly handovers?: Handovers,
   ) {}
 
   isBusy(conversationId: string): boolean {
@@ -277,7 +279,16 @@ export class SessionManager {
             channel,
           }),
           // A bot schedules work for itself, in the conversation it is speaking in.
-          toolContext: { routines: routineTools(this.store, bot.id, conversationId) },
+          toolContext: {
+            routines: routineTools(this.store, bot.id, conversationId),
+            // Only offered where there is a screen to hand over.
+            ...(bot.surfaceMode !== 'none' && provider.supportsSurface && this.handovers
+              ? {
+                  handover: (reason: string) =>
+                    this.handovers!.request({ botId: bot.id, conversationId, reason }),
+                }
+              : {}),
+          },
           model: bot.model,
           effort: bot.effort,
           history,

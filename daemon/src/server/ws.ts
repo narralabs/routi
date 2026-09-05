@@ -21,7 +21,7 @@ export class KrogServer {
   private readonly clients = new Set<Client>()
 
   constructor(private readonly ctx: RpcContext) {
-    const mcp = new McpHttp(ctx.desktops, ctx.store)
+    const mcp = new McpHttp(ctx.desktops, ctx.store, ctx.handovers)
 
     this.http = createServer((req, res) => {
       // Tools over HTTP, for harnesses that sandbox the processes they launch.

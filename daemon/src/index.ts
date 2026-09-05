@@ -8,6 +8,7 @@ import type { ProviderAdapter } from './providers/types.js'
 import { SessionManager } from './sessions/manager.js'
 import { KrogServer } from './server/ws.js'
 import { Scheduler } from './sessions/scheduler.js'
+import { Handovers } from './surfaces/handover.js'
 import { DesktopPool } from './surfaces/pool.js'
 
 const DATA_DIR = process.env['KROG_DATA_DIR'] ?? join(homedir(), '.krog')
@@ -44,8 +45,15 @@ async function main(): Promise<void> {
   await auth.applyMode()
 
   let server: KrogServer
-  const sessions = new SessionManager(store, providers, (event) => server.broadcast(event), desktops)
-  server = new KrogServer({ store, sessions, providers, auth, desktops })
+  const handovers = new Handovers((event) => server.broadcast(event))
+  const sessions = new SessionManager(
+    store,
+    providers,
+    (event) => server.broadcast(event),
+    desktops,
+    handovers,
+  )
+  server = new KrogServer({ store, sessions, providers, auth, desktops, handovers })
 
   // Routines are saved by bots during ordinary turns; this only fires what is due.
   const scheduler = new Scheduler(store, sessions)

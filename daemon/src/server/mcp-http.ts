@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Store } from '../db/store.js'
 import { routineTools } from '../sessions/routine-tools.js'
+import type { Handovers } from '../surfaces/handover.js'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { TOOL_INSTRUCTIONS, desktopToolSpecs, runDesktopTool } from '../surfaces/tools.js'
 
@@ -25,6 +26,7 @@ export class McpHttp {
   constructor(
     private readonly desktops: DesktopPool,
     private readonly store: Store,
+    private readonly handovers: Handovers,
   ) {}
 
   /** True when this request is ours to answer. */
@@ -42,7 +44,13 @@ export class McpHttp {
    * were simply never offered down this path.
    */
   private contextFor(botId: string, conversationId: string) {
-    return { routines: routineTools(this.store, botId, conversationId) }
+    const bot = this.store.getBot(botId)
+    return {
+      routines: routineTools(this.store, botId, conversationId),
+      ...(bot && bot.surfaceMode !== 'none'
+        ? { handover: (reason: string) => this.handovers.request({ botId, conversationId, reason }) }
+        : {}),
+    }
   }
 
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {

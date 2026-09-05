@@ -205,7 +205,23 @@ export function desktopToolSpecs(ctx: ToolContext = {}): DesktopToolSpec[] {
       ]
     : []
 
+  const handoverTool: DesktopToolSpec[] = ctx.handover
+    ? [
+        {
+          name: 'ask_to_take_over',
+          description:
+            'Hand your screen to the person and wait for them. Use this the moment you ' +
+            'hit a sign-in, a two-factor prompt, a captcha or a payment step — anything ' +
+            'only they can do. Say plainly what you need done, in one line, as they will ' +
+            'see it on a button. This pauses you until they say they are finished, so do ' +
+            'not call it for anything you could do yourself.',
+          parameters: object({ reason: { type: 'string' } }, ['reason']),
+        },
+      ]
+    : []
+
   return [
+    ...handoverTool,
     ...routineTools,
     {
       name: 'read_page',
@@ -291,6 +307,8 @@ export function desktopToolSpecs(ctx: ToolContext = {}): DesktopToolSpec[] {
  * be saved, not how routines are stored or when they fire.
  */
 export interface ToolContext {
+  /** Hands the screen to the person and waits for them. */
+  handover?: (reason: string) => Promise<'done' | 'skipped' | 'timeout'>
   routines?: {
     create(name: string, prompt: string, schedule: unknown): { ok: true; described: string } | { ok: false; why: string }
     list(): { name: string; described: string; enabled: boolean }[]
@@ -341,6 +359,21 @@ export async function runDesktopTool(
   // otherwise saving one would start a container for no reason.
   if (ctx.routines && (name === 'create_routine' || name === 'list_routines' || name === 'delete_routine')) {
     return runRoutineTool(ctx.routines, name, args)
+  }
+
+  if (ctx.handover && name === 'ask_to_take_over') {
+    const reason = String(args['reason'] ?? '').trim() || 'Take over the screen'
+    const outcome = await ctx.handover(reason)
+    return {
+      ok: outcome !== 'timeout',
+      summary: reason,
+      output:
+        outcome === 'done'
+          ? 'They say they are finished. Take a fresh look at the screen before carrying on — it has changed since you last saw it.'
+          : outcome === 'skipped'
+            ? 'They chose to skip this. Carry on without it, and say what you cannot do as a result.'
+            : 'Nobody answered. Stop here and tell them what you were waiting for.',
+    }
   }
 
   try {

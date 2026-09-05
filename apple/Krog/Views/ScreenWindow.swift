@@ -12,6 +12,9 @@ struct ScreenWindow: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if let handover = model.handover(for: model.selectedBot?.id) {
+                HandoverBanner(handover: handover)
+            }
             Divider()
             ScreenView(
                 frame: model.surfaceFrame,

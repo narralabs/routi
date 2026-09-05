@@ -11,6 +11,9 @@ struct DetailRail: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                if let handover = model.handover(for: bot.id) {
+                    HandoverCard(handover: handover)
+                }
                 surfacePanel
                 routinesPanel
             }

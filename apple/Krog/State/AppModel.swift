@@ -51,6 +51,8 @@ final class AppModel {
     var surface: SurfaceStatus = .unknown
     /// Latest frame as JPEG bytes. Nil until the first capture arrives.
     var surfaceFrame: Data?
+    /// Bots waiting on you, by bot id. A bot with one is paused until it is answered.
+    var handovers: [String: Handover] = [:]
     /// Where the desktop's own pointer is, in its pixels. Absent until a frame says.
     var surfacePointer: CGPoint?
     @ObservationIgnored private var frameTask: Task<Void, Never>?
@@ -164,6 +166,19 @@ final class AppModel {
 
     func updateEndpoint(host: String, port: Int) {
         client.updateEndpoint(host: host, port: port)
+    }
+
+    // MARK: - Handovers
+
+    /// Answers a bot that is waiting. `done` resumes it; `skipped` tells it to go on without.
+    func resolveHandover(_ botId: String, outcome: String) async {
+        handovers[botId] = nil
+        _ = try? await client.rpc("handover.resolve", ["botId": botId, "outcome": outcome])
+    }
+
+    func handover(for botId: String?) -> Handover? {
+        guard let botId else { return nil }
+        return handovers[botId]
     }
 
     // MARK: - Desktop
@@ -445,6 +460,11 @@ final class AppModel {
                 }
             }
 
+            // A client that connects late still needs to see what is being waited on.
+            if let pending = try? await client.rpc("handover.list", field: "handovers", as: [Handover].self) {
+                handovers = Dictionary(uniqueKeysWithValues: pending.map { ($0.botId, $0) })
+            }
+
             if models.isEmpty { await loadModels(for: "anthropic") }
             // Only providers with a working credential: the daemon answers with an
             // empty list otherwise, and an empty picker is worse than no picker.
@@ -657,6 +677,16 @@ final class AppModel {
                   let data = try? JSONSerialization.data(withJSONObject: raw),
                   let bot = try? JSONDecoder().decode(Bot.self, from: data) else { return }
             if let index = bots.firstIndex(where: { $0.id == bot.id }) { bots[index] = bot }
+
+        case "handover.requested":
+            if let raw = event.payload["handover"],
+               let data = try? JSONSerialization.data(withJSONObject: raw),
+               let handover = try? JSONDecoder().decode(Handover.self, from: data) {
+                handovers[handover.botId] = handover
+            }
+
+        case "handover.resolved":
+            if let botId = event.payload["botId"] as? String { handovers[botId] = nil }
 
         case "surface.state":
             // Desktops are per-bot and this event is broadcast, so anything about a

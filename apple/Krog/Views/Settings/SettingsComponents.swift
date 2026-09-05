@@ -10,10 +10,13 @@ import SwiftUI
 
 struct SettingsSection<Content: View>: View {
     let title: String?
+    /// A line under the group, for saying what the rows are rather than what they say.
+    let footnote: String?
     @ViewBuilder let content: Content
 
-    init(_ title: String? = nil, @ViewBuilder content: () -> Content) {
+    init(_ title: String? = nil, footnote: String? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.footnote = footnote
         self.content = content()
     }
 
@@ -32,6 +35,13 @@ struct SettingsSection<Content: View>: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(.separator.opacity(0.5), lineWidth: 0.5)
+            }
+            if let footnote {
+                Text(footnote)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 2)
             }
         }
     }

@@ -163,7 +163,10 @@ private struct AnthropicPane: View {
                 }
             }
 
-            SettingsSection("Models") {
+            SettingsSection(
+                "Models you can choose",
+                footnote: "What a new bot can be built on. A bot's model is fixed when you create it."
+            ) {
                 if model.models.isEmpty {
                     SettingsRow(title: "None available", isFirst: true) { EmptyView() }
                 } else {
@@ -343,7 +346,10 @@ private struct OpenAiPane: View {
             }
 
             if isConnected {
-                SettingsSection("Models") {
+                SettingsSection(
+                    "Models you can choose",
+                    footnote: "What a new bot can be built on. A bot's model is fixed when you create it."
+                ) {
                     let list = model.models(for: provider.id)
                     if list.isEmpty {
                         SettingsRow(title: "None available", isFirst: true) { EmptyView() }

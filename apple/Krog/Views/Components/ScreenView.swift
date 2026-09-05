@@ -52,6 +52,14 @@ struct ScreenView: View {
         .clipShape(.rect(cornerRadius: isInteractive ? 6 : 0, style: .continuous))
         .shadow(color: .black.opacity(isInteractive ? 0.5 : 0), radius: 18, y: 6)
         .contentShape(.rect)
+        #if os(macOS)
+        // The thumbnail is a single click target that opens the desktop, so it says so.
+        // `.pointerStyle` is macOS 15 and the target is 14, hence pushing the cursor.
+        .onHover { inside in
+            guard !isInteractive else { return }
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+        #endif
         // The desktop's cursor, drawn rather than captured.
         //
         // X screenshots contain no pointer — the server composites it above the root
@@ -196,8 +204,13 @@ struct DesktopInputLayer: NSViewRepresentable {
             window?.makeFirstResponder(self)
         }
 
+        /// A plain arrow, not the pointing hand the thumbnail uses.
+        ///
+        /// The thumbnail is one big button, so a hand is right there. This is the
+        /// desktop itself — something you point into rather than click on — and a hand
+        /// over all of it makes every part of the screen look like a link.
         override func resetCursorRects() {
-            addCursorRect(bounds, cursor: .pointingHand)
+            addCursorRect(bounds, cursor: .arrow)
         }
 
         /// Movement has to be asked for; an NSView gets `mouseMoved` only inside a

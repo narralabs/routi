@@ -2,6 +2,7 @@ import { query, type Query, type SDKMessage, type SDKUserMessage } from '@anthro
 import type { MessageParam } from '@anthropic-ai/sdk/resources'
 import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
 import { PushQueue } from './push-queue.js'
+import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { desktopToolServer, DESKTOP_TOOL_NAMES } from '../surfaces/tools.js'
@@ -85,7 +86,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
   // ---------------------------------------------------------------- sessions
 
   private ensureSession(req: ChatRequest, resumeId: string | null): WarmSession {
-    const existing = this.sessions.get(req.conversationId)
+    const existing = this.sessions.get(sessionKey(req))
     if (existing) return existing
 
     const input = new PushQueue<SDKUserMessage>()
@@ -128,7 +129,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
     // One consumer drains the query for the life of the session and routes each event
     // to whichever turn is in flight.
     session.pump = this.pump(session)
-    this.sessions.set(req.conversationId, session)
+    this.sessions.set(sessionKey(req), session)
     return session
   }
 

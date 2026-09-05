@@ -50,3 +50,15 @@ export interface ProviderAdapter {
   release(conversationId: string): void
   dispose(): void
 }
+
+/**
+ * What a runtime's per-conversation state is filed under.
+ *
+ * Conversation alone was enough while every conversation had exactly one bot. A room
+ * has several, and they would collide on it — the second bot to speak would inherit
+ * the first one's warm session and answer as though it had said those things. A
+ * session belongs to a bot in a conversation, not to a conversation.
+ */
+export function sessionKey(req: Pick<ChatRequest, 'conversationId' | 'botId'>): string {
+  return `${req.conversationId}:${req.botId}`
+}

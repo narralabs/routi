@@ -13,12 +13,14 @@ type BotRow = {
   created_at: number; updated_at: number; archived_at: number | null
 }
 type ConvRow = {
+  kind?: string
   id: string; bot_id: string; title: string
   created_at: number; updated_at: number; last_message_at: number | null
   provider_session_id: string | null
   last_blocks: string | null
 }
 type MsgRow = {
+  bot_id?: string | null
   id: string; conversation_id: string; role: string
   blocks_json: string; provider_meta_json: string | null; created_at: number
 }
@@ -38,6 +40,7 @@ const toBot = (r: BotRow): Bot => ({
 })
 
 const toConv = (r: ConvRow): Conversation => ({
+  kind: (r.kind ?? 'direct') as Conversation['kind'],
   id: r.id,
   botId: r.bot_id,
   title: r.title,
@@ -77,6 +80,7 @@ const CONV_SELECT = `SELECT c.*, (
 const toMsg = (r: MsgRow): Message => ({
   id: r.id,
   conversationId: r.conversation_id,
+  botId: r.bot_id ?? null,
   role: r.role as Role,
   blocks: JSON.parse(r.blocks_json) as Block[],
   providerMeta: r.provider_meta_json ? (JSON.parse(r.provider_meta_json) as Record<string, unknown>) : null,
@@ -98,6 +102,75 @@ export class Store {
   getBot(id: string): Bot | null {
     const r = this.db.prepare('SELECT * FROM bots WHERE id = ?').get(id) as BotRow | undefined
     return r ? toBot(r) : null
+  }
+
+  // ------------------------------------------------------------------ channels
+
+  /**
+   * A room: one conversation, several bots.
+   *
+   * Capped at six members, which is not arbitrary — every member is a model turn
+   * waiting to happen, and the cost of a room is the number of bots woken rather than
+   * the number of words said.
+   */
+  createChannel(name: string, botIds: string[]): Conversation {
+    const members = [...new Set(botIds)].slice(0, 6)
+    if (members.length === 0) throw new Error('A channel needs at least one bot.')
+
+    const t = now()
+    const id = randomUUID()
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO conversations (id, bot_id, title, created_at, updated_at, last_message_at, kind)
+           VALUES (@id, NULL, @title, @t, @t, NULL, 'channel')`,
+        )
+        .run({ id, title: name, t })
+      const insert = this.db.prepare(
+        'INSERT INTO channel_members (conversation_id, bot_id, joined_at) VALUES (?, ?, ?)',
+      )
+      for (const botId of members) insert.run(id, botId, t)
+    })()
+
+    return this.getConversation(id)!
+  }
+
+  channelMembers(conversationId: string): Bot[] {
+    const rows = this.db
+      .prepare(
+        `SELECT b.* FROM channel_members m
+         JOIN bots b ON b.id = m.bot_id
+         WHERE m.conversation_id = ? AND b.archived_at IS NULL
+         ORDER BY m.joined_at`,
+      )
+      .all(conversationId) as BotRow[]
+    return rows.map(toBot)
+  }
+
+  /** Adds and removes in one step. A channel is never left empty. */
+  updateChannelMembers(conversationId: string, add: string[] = [], remove: string[] = []): Bot[] {
+    this.db.transaction(() => {
+      const insert = this.db.prepare(
+        'INSERT OR IGNORE INTO channel_members (conversation_id, bot_id, joined_at) VALUES (?, ?, ?)',
+      )
+      for (const botId of add.slice(0, 6)) insert.run(conversationId, botId, now())
+
+      const drop = this.db.prepare(
+        'DELETE FROM channel_members WHERE conversation_id = ? AND bot_id = ?',
+      )
+      for (const botId of remove) drop.run(conversationId, botId)
+    })()
+
+    const left = this.channelMembers(conversationId)
+    if (left.length === 0) throw new Error('A channel must keep at least one bot.')
+    return left
+  }
+
+  listChannels(): Conversation[] {
+    const rows = this.db
+      .prepare("SELECT * FROM conversations WHERE kind = 'channel' ORDER BY last_message_at DESC, created_at DESC")
+      .all() as ConvRow[]
+    return rows.map(toConv)
   }
 
   /** Repoints every bot on one provider at another. Returns how many moved. */
@@ -185,7 +258,8 @@ export class Store {
   createConversation(botId: string, title = 'New chat'): Conversation {
     const t = now()
     const conv: Conversation = {
-      id: randomUUID(), botId, title, preview: '', createdAt: t, updatedAt: t, lastMessageAt: null,
+      id: randomUUID(), botId, title, preview: '', createdAt: t, updatedAt: t,
+      lastMessageAt: null, kind: 'direct',
     }
     this.db
       .prepare(
@@ -226,8 +300,21 @@ export class Store {
     return rows.map(toMsg).reverse() // query is newest-first; the UI wants oldest-first
   }
 
+  getMessage(id: string): Message | null {
+    const r = this.db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as MsgRow | undefined
+    return r ? toMsg(r) : null
+  }
+
+  /** Used when a bot in a room chooses to say nothing. */
+  deleteMessage(id: string): void {
+    this.db.prepare('DELETE FROM messages WHERE id = ?').run(id)
+  }
+
   insertMessage(input: {
-    id?: string; conversationId: string; role: Role; blocks: Block[]; providerMeta?: Record<string, unknown> | null
+    id?: string; conversationId: string; role: Role; blocks: Block[]
+    providerMeta?: Record<string, unknown> | null
+    /** Which bot wrote it. Null for a person, and for a one-bot chat. */
+    botId?: string | null
   }): Message {
     const msg: Message = {
       id: input.id ?? randomUUID(),
@@ -235,13 +322,14 @@ export class Store {
       role: input.role,
       blocks: input.blocks,
       providerMeta: input.providerMeta ?? null,
+      botId: input.botId ?? null,
       createdAt: now(),
     }
     this.db.transaction(() => {
       this.db
         .prepare(
-          `INSERT INTO messages (id,conversation_id,role,blocks_json,provider_meta_json,created_at)
-           VALUES (?,?,?,?,?,?)`,
+          `INSERT INTO messages (id,conversation_id,role,blocks_json,provider_meta_json,created_at,bot_id)
+           VALUES (?,?,?,?,?,?,?)`,
         )
         .run(
           msg.id,
@@ -250,6 +338,7 @@ export class Store {
           JSON.stringify(msg.blocks),
           msg.providerMeta ? JSON.stringify(msg.providerMeta) : null,
           msg.createdAt,
+          msg.botId,
         )
       this.db
         .prepare('UPDATE conversations SET last_message_at = ?, updated_at = ? WHERE id = ?')

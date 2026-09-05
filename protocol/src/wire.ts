@@ -130,6 +130,24 @@ export const RpcMethods = {
     result: z.object({ ok: z.literal(true) }),
   },
 
+  'channels.create': {
+    params: z.object({ name: z.string().min(1), botIds: z.array(z.string()).min(1).max(6) }),
+    result: z.object({ conversation: Conversation, members: z.array(Bot) }),
+  },
+  'channels.list': { params: z.object({}), result: z.object({ conversations: z.array(Conversation) }) },
+  'channels.members': {
+    params: z.object({ conversationId: z.string() }),
+    result: z.object({ members: z.array(Bot) }),
+  },
+  'channels.updateMembers': {
+    params: z.object({
+      conversationId: z.string(),
+      add: z.array(z.string()).default([]),
+      remove: z.array(z.string()).default([]),
+    }),
+    result: z.object({ members: z.array(Bot) }),
+  },
+
   'models.list': {
     params: z.object({ provider: z.string().default('anthropic') }),
     result: z.object({
@@ -205,6 +223,8 @@ export const ServerEvent = z.discriminatedUnion('e', [
   z.object({ e: z.literal('bot.updated'), bot: Bot }),
   z.object({ e: z.literal('bot.deleted'), botId: z.string() }),
   z.object({ e: z.literal('surface.state'), botId: z.string(), surface: SurfaceStatus }),
+  // A room message that was never written: a bot chose silence.
+  z.object({ e: z.literal('message.deleted'), conversationId: z.string(), messageId: z.string() }),
   /** Drives the typing indicator and the interrupt button. */
   z.object({ e: z.literal('conversation.busy'), conversationId: z.string(), busy: z.boolean() }),
   z.object({ e: z.literal('error'), conversationId: z.string().nullable().default(null), code: z.string(), message: z.string() }),

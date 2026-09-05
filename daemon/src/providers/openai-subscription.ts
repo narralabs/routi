@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { CodexAppServer, type AppServerEvent } from './codex-app-server.js'
 import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
+import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 
 /**
@@ -287,7 +288,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     req: ChatRequest,
     onEvent: (event: AppServerEvent) => void,
   ): Promise<CodexAppServer> {
-    this.listeners.set(req.conversationId, onEvent)
+    this.listeners.set(sessionKey(req), onEvent)
 
     this.server ??= new CodexAppServer({
       binary: codexBinary(),
@@ -306,7 +307,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   }
 
   private async threadFor(req: ChatRequest, server: CodexAppServer): Promise<string> {
-    const existing = this.threads.get(req.conversationId)
+    const existing = this.threads.get(sessionKey(req))
     if (existing) return existing
 
     const started = await server.request('thread/start', {
@@ -326,8 +327,8 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     const thread = (started['thread'] ?? {}) as Record<string, unknown>
     const threadId = String(thread['id'] ?? '')
     if (!threadId) throw new Error('Codex did not return a thread.')
-    this.threads.set(req.conversationId, threadId)
-    this.threadOwners.set(threadId, req.conversationId)
+    this.threads.set(sessionKey(req), threadId)
+    this.threadOwners.set(threadId, sessionKey(req))
     return threadId
   }
 

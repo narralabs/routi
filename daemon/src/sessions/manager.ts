@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import type { Block, Message, ServerEvent } from '@krog/protocol'
+import type { Block, Bot, Message, ServerEvent } from '@krog/protocol'
 import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
+import { channelInstructions, wakeFor } from './channel.js'
 import type { DesktopPool, Surface } from '../surfaces/pool.js'
 
 type Emit = (event: ServerEvent) => void
@@ -42,9 +43,14 @@ export class SessionManager {
   async send(conversationId: string, blocks: Block[]): Promise<Message> {
     const conv = this.store.getConversation(conversationId)
     if (!conv) throw new Error(`No such conversation: ${conversationId}`)
-    const bot = this.store.getBot(conv.botId)
-    if (!bot) throw new Error(`No such bot: ${conv.botId}`)
-    if (this.inFlight.has(conversationId)) throw new Error('This conversation is already generating a reply.')
+
+    const isChannel = conv.kind === 'channel'
+    const bot = isChannel ? null : this.store.getBot(conv.botId ?? '')
+    if (!isChannel && !bot) throw new Error(`No such bot: ${conv.botId}`)
+    // A room is many turns at once, so "already replying" is only a limit on a 1:1.
+    if (!isChannel && this.inFlight.has(conversationId)) {
+      throw new Error('This conversation is already generating a reply.')
+    }
 
     const userMessage = this.store.insertMessage({ conversationId, role: 'user', blocks })
     this.emit({ e: 'message.created', message: userMessage })
@@ -59,8 +65,45 @@ export class SessionManager {
       }
     }
 
-    void this.runTurn(conversationId, bot, userMessage.blocks)
+    if (isChannel) {
+      void this.runChannelTurn(conversationId, userMessage, null)
+    } else {
+      void this.runTurn(conversationId, bot!, userMessage.blocks)
+    }
     return userMessage
+  }
+
+  /**
+   * Fans a room message out to whoever it woke.
+   *
+   * The wake rules are the whole design: a person can address the room, a bot can only
+   * address someone by name. Everything expensive about a room — and everything
+   * recursive — follows from who gets scheduled, not from what gets said.
+   *
+   * Woken bots run in parallel against the transcript as it stood, rather than queuing
+   * to read each other's replies. Serialising them would make a room of four take four
+   * turns to answer one question, and the next message shows everyone what was said
+   * anyway.
+   */
+  private async runChannelTurn(
+    conversationId: string,
+    message: Message,
+    authorBotId: string | null,
+  ): Promise<void> {
+    const members = this.store.channelMembers(conversationId)
+    const text = message.blocks
+      .filter((b): b is Extract<Block, { type: 'text' }> => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n')
+
+    const wake = wakeFor(text, members, authorBotId)
+    if (wake.bots.length === 0) return
+
+    await Promise.all(
+      wake.bots.map((member: Bot) =>
+        this.runTurn(conversationId, member, message.blocks, { members }).catch(() => {}),
+      ),
+    )
   }
 
   /**
@@ -75,6 +118,9 @@ export class SessionManager {
   async greet(conversationId: string): Promise<void> {
     const conv = this.store.getConversation(conversationId)
     if (!conv) return
+    // Rooms are not greeted: a bot introducing itself to four others the moment a
+    // channel exists is four introductions nobody asked for.
+    if (conv.kind === 'channel' || !conv.botId) return
     const bot = this.store.getBot(conv.botId)
     if (!bot) return
     if (this.inFlight.has(conversationId)) return
@@ -122,6 +168,7 @@ export class SessionManager {
     conversationId: string,
     bot: NonNullable<ReturnType<Store['getBot']>>,
     input: Block[],
+    channel?: { members: Bot[] },
   ): Promise<void> {
     const provider = this.providers.get(bot.provider)
     if (!provider) {
@@ -145,8 +192,11 @@ export class SessionManager {
     let stopReason: string | null = null
     let meta: Record<string, unknown> | null = null
 
-    // Persist empty first, so a mid-turn reconnect finds the row.
-    const assistantMessage = this.store.insertMessage({ id: messageId, conversationId, role: 'assistant', blocks: [] })
+    // Persist empty first, so a mid-turn reconnect finds the row. In a room the author
+    // matters: four bots all write as "assistant" and the transcript needs to say which.
+    const assistantMessage = this.store.insertMessage({
+      id: messageId, conversationId, role: 'assistant', blocks: [], botId: bot.id,
+    })
     this.emit({ e: 'message.created', message: assistantMessage })
 
     const history = this.store.listMessages(conversationId, 200).filter((m) => m.id !== messageId)
@@ -157,7 +207,11 @@ export class SessionManager {
           conversationId,
           // The bot's name belongs in its prompt: without it a bot introduces itself
           // as "Claude" rather than as the thing the user just named and created.
-          systemPrompt: [`Your name is ${bot.name}.`, bot.systemPrompt.trim()]
+          systemPrompt: [
+            `Your name is ${bot.name}.`,
+            bot.systemPrompt.trim(),
+            channel ? channelInstructions(bot, channel.members) : '',
+          ]
             .filter(Boolean)
             .join('\n\n'),
           model: bot.model,
@@ -221,7 +275,23 @@ export class SessionManager {
       stopReason = 'error'
     } finally {
       const finalBlocks = blocks.filter(Boolean)
-      this.store.updateMessageBlocks(messageId, finalBlocks, meta)
+      /**
+       * Silence is an outcome, not a failure.
+       *
+       * A bot in a room is told it may say nothing, and a room where every member
+       * answers every remark never settles. An empty turn leaves no message rather
+       * than an empty bubble — but only in a room, because a 1:1 that answers nothing
+       * looks broken.
+       */
+      const saidNothing = finalBlocks.every(
+        (block) => block.type !== 'text' || block.text.trim().length === 0,
+      )
+      if (channel && saidNothing) {
+        this.store.deleteMessage(messageId)
+        this.emit({ e: 'message.deleted', conversationId, messageId })
+      } else {
+        this.store.updateMessageBlocks(messageId, finalBlocks, meta)
+      }
 
       // Remember the provider's session id so a restart can resume this thread.
       const sid = (meta?.['sessionId'] as string | undefined) ?? null
@@ -229,6 +299,13 @@ export class SessionManager {
 
       this.inFlight.delete(conversationId)
       this.emit({ e: 'message.completed', conversationId, messageId, stopReason, providerMeta: meta })
+
+      // What a bot said can wake a teammate — but only one it named. This is the loop
+      // rule doing its work: a statement reaches nobody, an @mention reaches one bot.
+      if (channel && !saidNothing) {
+        const posted = this.store.getMessage(messageId)
+        if (posted) void this.runChannelTurn(conversationId, posted, bot.id)
+      }
       this.emit({ e: 'conversation.busy', conversationId, busy: false })
 
       const conv = this.store.getConversation(conversationId)

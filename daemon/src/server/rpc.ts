@@ -187,6 +187,30 @@ const handlers: Record<RpcMethod, Handler> = {
     }
   },
 
+  'channels.create': async (p, ctx) => {
+    const { name, botIds } = p as { name: string; botIds: string[] }
+    const conversation = ctx.store.createChannel(name, botIds)
+    return { conversation, members: ctx.store.channelMembers(conversation.id) }
+  },
+
+  'channels.list': async (_p, ctx) => ({ conversations: ctx.store.listChannels() }),
+
+  'channels.members': async (p, ctx) => {
+    const { conversationId } = p as { conversationId: string }
+    return { members: ctx.store.channelMembers(conversationId) }
+  },
+
+  'channels.updateMembers': async (p, ctx) => {
+    const { conversationId, add, remove } = p as {
+      conversationId: string; add: string[]; remove: string[]
+    }
+    try {
+      return { members: ctx.store.updateChannelMembers(conversationId, add, remove) }
+    } catch (err) {
+      throw new RpcError('bad_membership', err instanceof Error ? err.message : String(err))
+    }
+  },
+
   'models.list': async (p, ctx) => {
     const { provider } = p as { provider: string }
     const adapter = ctx.providers.get(provider)

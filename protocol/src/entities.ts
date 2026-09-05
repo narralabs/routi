@@ -30,19 +30,23 @@ export const Bot = z.object({
 
 export const Conversation = z.object({
   id: z.string(),
-  botId: z.string(),
+  botId: z.string().nullable().default(null),
   title: z.string(),
   /** First line of the most recent message — what the sidebar shows under the name. */
   preview: z.string().default(''),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
   lastMessageAt: z.number().int().nullable().default(null),
+  /** 'direct' is one bot; 'channel' is a room with members. */
+  kind: z.enum(['direct', 'channel']).default('direct'),
 })
 
 export const Role = z.enum(['user', 'assistant', 'system'])
 export type Role = z.infer<typeof Role>
 
 export const Message = z.object({
+  /** Which bot wrote it, in a room. Null for a person or a one-bot chat. */
+  botId: z.string().nullable().default(null),
   id: z.string(),
   conversationId: z.string(),
   role: Role,

@@ -72,6 +72,49 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE conversations ADD COLUMN provider_session_id TEXT;
   `,
+  /**
+   * Rooms: several bots and a person in one transcript.
+   *
+   * A channel is a conversation with more than one bot in it, so it reuses the
+   * conversations table rather than duplicating messages and ordering. `bot_id`
+   * becomes nullable — a room belongs to its members, not to one bot — and members
+   * live in their own table.
+   *
+   * Messages gain an author. `role` only ever said user or assistant, which is enough
+   * for a 1:1 and useless in a room: four bots all write as "assistant".
+   */
+  `
+  CREATE TABLE channel_members (
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    bot_id          TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE,
+    joined_at       INTEGER NOT NULL,
+    PRIMARY KEY (conversation_id, bot_id)
+  );
+  CREATE INDEX idx_channel_members_bot ON channel_members(bot_id);
+
+  ALTER TABLE messages ADD COLUMN bot_id TEXT REFERENCES bots(id) ON DELETE SET NULL;
+  ALTER TABLE conversations ADD COLUMN kind TEXT NOT NULL DEFAULT 'direct';
+
+  -- SQLite cannot drop a NOT NULL, so the table is rebuilt to let a room have no
+  -- single owner. Everything else is carried across unchanged.
+  CREATE TABLE conversations_new (
+    id              TEXT PRIMARY KEY,
+    bot_id          TEXT REFERENCES bots(id) ON DELETE CASCADE,
+    title           TEXT NOT NULL DEFAULT '',
+    created_at      INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    last_message_at INTEGER,
+    provider_session_id TEXT,
+    kind            TEXT NOT NULL DEFAULT 'direct'
+  );
+  INSERT INTO conversations_new
+    SELECT id, bot_id, title, created_at, updated_at, last_message_at, provider_session_id, kind
+    FROM conversations;
+  DROP TABLE conversations;
+  ALTER TABLE conversations_new RENAME TO conversations;
+  CREATE INDEX idx_conversations_bot ON conversations(bot_id, last_message_at DESC);
+  `,
+
 ]
 
 export function openDb(path: string): Database.Database {

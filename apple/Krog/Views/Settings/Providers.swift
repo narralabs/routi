@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The provider roster shown in Settings.
 ///
-/// Only Anthropic is wired up; the rest are listed because they are the planned
+/// Anthropic and OpenAI are wired up; the rest are listed because they are the planned
 /// adapters and it is more honest to show them marked "Not yet available" than to
 /// pretend the list is complete. Each is a daemon-side adapter, so none of them will
 /// need an app update to arrive.
@@ -11,7 +11,8 @@ struct ProviderInfo: Identifiable, Hashable {
     let name: String
     /// What the provider is called in conversation, if different from the company.
     let models: String
-    let monogram: String
+    /// Asset name of the brand mark. See `ProviderIcon`.
+    let mark: String
     let tint: Color
     let isAvailable: Bool
 
@@ -20,7 +21,7 @@ struct ProviderInfo: Identifiable, Hashable {
             id: "anthropic",
             name: "Anthropic",
             models: "Claude",
-            monogram: "A",
+            mark: "ProviderAnthropic",
             tint: Color(red: 0.85, green: 0.47, blue: 0.34),
             isAvailable: true
         ),
@@ -28,23 +29,23 @@ struct ProviderInfo: Identifiable, Hashable {
             id: "openai",
             name: "OpenAI",
             models: "GPT",
-            monogram: "O",
-            tint: Color(red: 0.06, green: 0.64, blue: 0.50),
+            mark: "ProviderOpenai",
+            tint: Color(red: 0.07, green: 0.07, blue: 0.08),
             isAvailable: true
         ),
         ProviderInfo(
             id: "xai",
             name: "xAI",
             models: "Grok",
-            monogram: "G",
-            tint: Color(red: 0.20, green: 0.22, blue: 0.26),
+            mark: "ProviderXai",
+            tint: Color(red: 0.13, green: 0.14, blue: 0.16),
             isAvailable: false
         ),
         ProviderInfo(
             id: "moonshot",
             name: "Moonshot",
             models: "Kimi",
-            monogram: "K",
+            mark: "ProviderMoonshot",
             tint: Color(red: 0.42, green: 0.34, blue: 0.85),
             isAvailable: false
         ),
@@ -55,24 +56,38 @@ struct ProviderInfo: Identifiable, Hashable {
     }
 }
 
-/// Rounded-square monogram tile.
+/// Rounded-square tile carrying the provider's own mark.
 ///
-/// Deliberately not a reproduction of anyone's logo: a consistent set of tinted
-/// monograms reads as intentional design, where hand-drawn approximations of real
-/// brand marks would just look wrong next to the genuine article.
+/// The marks are the real ones, from LobeHub's MIT-licensed set — used to identify
+/// which company answers a bot, which is what they are for. They replace the tinted
+/// monograms that stood in while there was nothing better: a letter in a box says
+/// nothing a reader recognises, and a hand-drawn approximation of a real logo looks
+/// wrong beside the genuine article.
+///
+/// Each is a single-path template image, so it takes the tile's foreground colour and
+/// stays crisp at any size rather than needing a bitmap per scale.
 struct ProviderIcon: View {
     let provider: ProviderInfo
     var size: CGFloat = 22
 
-    var body: some View {
+    private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+    }
+
+    var body: some View {
+        shape
             .fill(provider.tint.gradient)
             .frame(width: size, height: size)
             .overlay {
-                Text(provider.monogram)
-                    .font(.system(size: size * 0.55, weight: .semibold, design: .rounded))
+                Image(provider.mark)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
                     .foregroundStyle(.white)
+                    .padding(size * 0.24)
             }
+            // Near-black tiles would otherwise vanish into a dark window.
+            .overlay { shape.strokeBorder(.white.opacity(0.12), lineWidth: 0.5) }
             .opacity(provider.isAvailable ? 1 : 0.45)
             .saturation(provider.isAvailable ? 1 : 0.3)
     }

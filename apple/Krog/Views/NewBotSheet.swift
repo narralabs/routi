@@ -195,7 +195,7 @@ struct BotSettingsSheet: View {
 /// A single row of provider chips: drawn icon beside the name.
 ///
 /// A `Picker` menu can't show these — macOS menu items render only `Text` and `Image`,
-/// so the monogram tiles (a filled shape with a label) would be dropped. Chips also
+/// so the provider tiles (a filled shape with a mark) would be dropped. Chips also
 /// keep every option visible at a glance, which is the point of showing the roster.
 private struct ProviderChips: View {
     /// Which providers have a working credential right now. A provider that exists as

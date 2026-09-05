@@ -173,7 +173,7 @@ struct SettingsScreen: View {
     #endif
 }
 
-/// One sidebar row. Providers render their tinted monogram; everything else uses an
+/// One sidebar row. Providers render their brand mark on a tinted tile; everything else uses an
 /// SF Symbol, sized to line up with it.
 private struct PaneRow: View {
     let pane: SettingsScreen.Pane

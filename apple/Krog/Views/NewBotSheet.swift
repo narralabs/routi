@@ -12,34 +12,53 @@ struct NewBotSheet: View {
 
     var body: some View {
         SheetScaffold(title: "New Bot", confirmLabel: "Create", canConfirm: !name.isEmpty && !isSubmitting) {
-            Form {
-                TextField("Name", text: $name, prompt: Text("Research Bot"))
-                TextField(
-                    "Personality",
-                    text: $systemPrompt,
-                    prompt: Text("You are a sharp research assistant. Be concise."),
-                    axis: .vertical
-                )
-                .lineLimit(3...8)
+            VStack(alignment: .leading, spacing: 18) {
+                FormField("Name") {
+                    TextField("", text: $name, prompt: Text("Research Bot"))
+                        .textFieldStyle(.roundedBorder)
+                }
 
-                Picker("Provider", selection: $selectedProvider) {
-                    ForEach(ProviderInfo.all) { provider in
-                        // Unavailable providers stay visible but unselectable — the
-                        // roster is the roadmap, and hiding them would imply Anthropic
-                        // is the only one ever planned.
-                        Text(provider.isAvailable ? provider.name : "\(provider.name) — Soon")
-                            .tag(provider.id)
+                FormField("Personality") {
+                    TextField(
+                        "",
+                        text: $systemPrompt,
+                        prompt: Text("You are a sharp research assistant. Be concise."),
+                        axis: .vertical
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(3...8)
+                }
+
+                HStack(alignment: .top, spacing: 14) {
+                    FormField("Provider") {
+                        Picker("", selection: $selectedProvider) {
+                            ForEach(ProviderInfo.all) { provider in
+                                // Unavailable providers stay visible but unselectable —
+                                // the roster is the roadmap, and hiding them would imply
+                                // Anthropic is the only one ever planned.
+                                Text(provider.isAvailable ? provider.name : "\(provider.name) — Soon")
+                                    .tag(provider.id)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+
+                    FormField("Model", footnote: "Fixed once the bot is created.") {
+                        Picker("", selection: $selectedModel) {
+                            ForEach(model.models) { info in
+                                Text(info.displayName).tag(info.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .disabled(model.models.isEmpty)
                     }
                 }
 
-                Picker("Model", selection: $selectedModel) {
-                    ForEach(model.models) { info in
-                        Text(info.displayName).tag(info.id)
-                    }
-                }
-                .disabled(model.models.isEmpty)
+                Spacer(minLength: 0)
             }
-            .formStyle(.grouped)
+            .padding(.horizontal, 22)
+            .padding(.top, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .onChange(of: selectedProvider) { _, new in
                 // Only a configured provider can be chosen; snap back if the user
                 // reaches a "Soon" entry via the keyboard.
@@ -80,27 +99,33 @@ struct BotSettingsSheet: View {
 
     var body: some View {
         SheetScaffold(title: "Bot Settings", confirmLabel: "Save", canConfirm: !name.isEmpty) {
-            Form {
-                Section {
-                    TextField("Name", text: $name)
-                    TextField("Personality", text: $systemPrompt, axis: .vertical)
+            VStack(alignment: .leading, spacing: 18) {
+                FormField("Name") {
+                    TextField("", text: $name)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                FormField("Personality") {
+                    TextField("", text: $systemPrompt, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
                         .lineLimit(4...10)
                 }
 
-                Section {
-                    Picker("Screen", selection: $surfaceMode) {
+                FormField("Screen", footnote: surfaceMode.explanation) {
+                    Picker("", selection: $surfaceMode) {
                         ForEach(SurfaceMode.allCases) { mode in
                             Text(mode.label).tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
-                } footer: {
-                    Text(surfaceMode.explanation)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                    .labelsHidden()
                 }
+
+                Spacer(minLength: 0)
             }
-            .formStyle(.grouped)
+            .padding(.horizontal, 22)
+            .padding(.top, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
         } onConfirm: {
             Task {
                 await model.updateBot(bot.id, patch: [
@@ -113,6 +138,39 @@ struct BotSettingsSheet: View {
         } onCancel: {
             dismiss()
         }
+    }
+}
+
+/// Label above its control, both left aligned.
+///
+/// macOS `Form` puts the label in a right-aligned leading column and the control
+/// beside it, which reads as a settings inspector rather than a creation form. Stacking
+/// gives every field the full sheet width and one consistent left edge.
+struct FormField<Content: View>: View {
+    let title: String
+    var footnote: String?
+    @ViewBuilder let content: Content
+
+    init(_ title: String, footnote: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.footnote = footnote
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+            content
+            if let footnote {
+                Text(footnote)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -130,9 +188,11 @@ struct SheetScaffold<Content: View>: View {
         #if os(macOS)
         VStack(spacing: 0) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .padding(.top, 16)
-                .padding(.bottom, 8)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 10)
             content
             Divider()
             HStack {

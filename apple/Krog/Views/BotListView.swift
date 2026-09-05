@@ -91,7 +91,7 @@ struct BotListView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            SidebarFooter(isCompact: isCompact)
+            SidebarFooter(isCompact: isCompact, onNewBot: { showingNewBot = true })
         }
     }
 }
@@ -180,6 +180,7 @@ private struct BotRow: View {
 private struct SidebarFooter: View {
     @Environment(AppModel.self) private var model
     var isCompact = false
+    var onNewBot: () -> Void = {}
 
     private var statusColor: Color {
         switch model.connection {
@@ -198,7 +199,18 @@ private struct SidebarFooter: View {
     }
 
     private var compact: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
+            // The toolbar "+" is hidden with the rest of the sidebar chrome at this
+            // width, so New Bot moves down here beside the account circle.
+            Button(action: onNewBot) {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .help("New Bot")
+
             Image(systemName: "square.grid.2x2")
                 .font(.system(size: 15))
                 .foregroundStyle(.secondary)

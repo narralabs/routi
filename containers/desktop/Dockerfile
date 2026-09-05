@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       thunar \
       dbus-x11 \
       chromium \
+      chromium-sandbox \
       xdotool \
       scrot \
       imagemagick \
@@ -30,8 +31,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# A real user: Chromium refuses to run as root without --no-sandbox, and running a
-# browser as root inside a container the model can drive is a bad default.
+# A real user plus chromium-sandbox: Debian ships the setuid sandbox separately, and
+# without it Chromium exits with "No usable sandbox!". The alternative — passing
+# --no-sandbox — turns off the isolation that makes it safe to point a model at the
+# open web, so the package is the right fix.
 RUN useradd -ms /bin/bash krog
 WORKDIR /home/krog
 

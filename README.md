@@ -27,7 +27,8 @@ network path.
   about model providers; it only speaks krogd's protocol.
 - **`protocol/`** — zod schemas defining the wire format. `apple/Krog/Models/` holds
   the hand-written Swift mirror; the two change in the same commit.
-- **`containers/`** — the Xvfb + Chromium sandbox a bot drives (M3).
+- **`containers/desktop/`** — the shared Linux desktop: XFCE, Chromium, and a small
+  `act` script that is the only input surface exposed to the daemon.
 
 Because clients never talk to Anthropic, adding OpenAI / Grok / Kimi later is a
 daemon-side adapter and nothing else changes.
@@ -142,6 +143,35 @@ The rows are hand-built rather than a SwiftUI `Form`: `Form`'s grouped style put
 control and its description on separate lines and can't produce the two-line-label-
 plus-trailing-control shape this layout needs.
 
+## The desktop
+
+One container, shared by every bot. The value of a desktop is its accumulated state —
+a signed-in Booking.com, a browser profile, downloaded files — and a container per bot
+would discard that on every bot you create. Bots take turns instead: turns are already
+serialised per conversation, and a claim on the pointer extends that to the screen.
+
+```bash
+docker build -t krog-desktop containers/desktop
+```
+
+The daemon starts it on demand and leaves it running across krogd restarts, since
+losing browser sessions to a daemon restart would defeat the point.
+
+Frames are **pulled**, not pushed: the client asks for a JPEG at whatever rate it can
+draw — slower for the rail thumbnail, faster for the full-size view — so an idle window
+costs nothing and a slow link degrades to a lower frame rate instead of queueing frames
+it will never show. WebRTC belongs here eventually; this is the transport that makes
+the panel work now.
+
+Two container flags are load-bearing, both discovered by watching it fail:
+
+- `--shm-size=1g`. Chromium crashes on any real page with Docker's default 64MB.
+- `--security-opt seccomp=unconfined`. Chromium's sandbox creates user namespaces,
+  which Docker's default seccomp denies ("Failed to move to new namespace"). The
+  alternative is `--no-sandbox`, which switches Chromium's isolation off entirely;
+  this keeps it and leans on the container as the boundary instead. Debian also ships
+  the setuid helper separately, hence `chromium-sandbox` in the image.
+
 ## Design notes
 
 **A new bot speaks first.** Creating a bot immediately runs a turn whose prompt is
@@ -214,7 +244,8 @@ app onto web tech.
 - [x] **UI** — native SwiftUI client replacing the Flutter one
 - [x] **Onboarding** — first-run setup, both Anthropic credential paths
 - [ ] **M2** — Tailscale, device pairing, reconnect
-- [ ] **M3** — container surface, WebRTC video, input injection, host surface
+- [x] **M3a** — shared Linux desktop, frame streaming, input injection
+- [ ] **M3b** — WebRTC transport, the `host` (this Mac) surface
 - [ ] **M4** — bots that drive the surface; tool cards wired up
 - [ ] **M5** — OpenAI, Grok, Kimi adapters
 

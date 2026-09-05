@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { Block } from './blocks.js'
-import { AccountInfo, AuthStatus, Bot, Conversation, Message, ModelInfo, SurfaceMode } from './entities.js'
+import {
+  AccountInfo, AuthStatus, Bot, Conversation, Message, ModelInfo, SurfaceMode, SurfaceStatus,
+} from './entities.js'
 
 /**
  * The krogd wire protocol: one WebSocket carrying request/response RPCs and
@@ -70,6 +72,36 @@ export const RpcMethods = {
   'auth.setApiKey': { params: z.object({ key: z.string().min(1) }), result: z.object({ auth: AuthStatus }) },
   'auth.signOut': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
 
+  'surface.status': { params: z.object({}), result: z.object({ surface: SurfaceStatus }) },
+  'surface.start': { params: z.object({}), result: z.object({ surface: SurfaceStatus }) },
+  'surface.stop': { params: z.object({}), result: z.object({ surface: SurfaceStatus }) },
+  /**
+   * One frame, pulled. The client asks at whatever rate it can draw, so an idle
+   * window costs nothing and no stream runs with nobody watching.
+   */
+  'surface.frame': {
+    params: z.object({ quality: z.number().int().min(1).max(10).default(6) }),
+    result: z.object({
+      jpeg: z.string().nullable(),
+      width: z.number().int(),
+      height: z.number().int(),
+    }),
+  },
+  'surface.input': {
+    params: z.object({
+      input: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('click'), x: z.number(), y: z.number(), button: z.number().int().min(1).max(3).optional() }),
+        z.object({ kind: z.literal('doubleClick'), x: z.number(), y: z.number() }),
+        z.object({ kind: z.literal('move'), x: z.number(), y: z.number() }),
+        z.object({ kind: z.literal('scroll'), x: z.number(), y: z.number(), amount: z.number() }),
+        z.object({ kind: z.literal('type'), text: z.string() }),
+        z.object({ kind: z.literal('key'), keys: z.array(z.string()).min(1) }),
+        z.object({ kind: z.literal('open'), url: z.string() }),
+      ]),
+    }),
+    result: z.object({ ok: z.literal(true) }),
+  },
+
   'models.list': { params: z.object({ provider: z.string().default('anthropic') }), result: z.object({ models: z.array(ModelInfo) }) },
   'account.info': { params: z.object({}), result: z.object({ account: AccountInfo }) },
 
@@ -137,6 +169,7 @@ export const ServerEvent = z.discriminatedUnion('e', [
   z.object({ e: z.literal('conversation.updated'), conversation: Conversation }),
   z.object({ e: z.literal('bot.updated'), bot: Bot }),
   z.object({ e: z.literal('bot.deleted'), botId: z.string() }),
+  z.object({ e: z.literal('surface.state'), surface: SurfaceStatus }),
   /** Drives the typing indicator and the interrupt button. */
   z.object({ e: z.literal('conversation.busy'), conversationId: z.string(), busy: z.boolean() }),
   z.object({ e: z.literal('error'), conversationId: z.string().nullable().default(null), code: z.string(), message: z.string() }),

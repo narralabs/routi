@@ -3,12 +3,14 @@ import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import type { SessionManager } from '../sessions/manager.js'
 import type { AuthManager } from '../auth/manager.js'
+import type { Desktop, DesktopInput } from '../surfaces/desktop.js'
 
 export interface RpcContext {
   store: Store
   sessions: SessionManager
   providers: Map<string, ProviderAdapter>
   auth: AuthManager
+  desktop: Desktop
 }
 
 export class RpcError extends Error {
@@ -110,6 +112,40 @@ const handlers: Record<RpcMethod, Handler> = {
   },
 
   'auth.signOut': async (_p, ctx) => ({ auth: await ctx.auth.signOut() }),
+
+  'surface.status': async (_p, ctx) => ({
+    surface: { ...(await ctx.desktop.status()), heldBy: ctx.desktop.holder },
+  }),
+
+  'surface.start': async (_p, ctx) => ({
+    surface: { ...(await ctx.desktop.start()), heldBy: ctx.desktop.holder },
+  }),
+
+  'surface.stop': async (_p, ctx) => {
+    await ctx.desktop.stop()
+    return { surface: { ...(await ctx.desktop.status()), heldBy: ctx.desktop.holder } }
+  },
+
+  'surface.frame': async (p, ctx) => {
+    const { quality } = p as { quality: number }
+    const status = await ctx.desktop.status()
+    const frame = await ctx.desktop.captureFrame(quality)
+    return {
+      jpeg: frame ? frame.toString('base64') : null,
+      width: status.width,
+      height: status.height,
+    }
+  },
+
+  'surface.input': async (p, ctx) => {
+    const { input } = p as { input: DesktopInput }
+    try {
+      await ctx.desktop.send(input)
+      return { ok: true as const }
+    } catch (err) {
+      throw new RpcError('surface_input_failed', err instanceof Error ? err.message : String(err))
+    }
+  },
 
   'models.list': async (p, ctx) => {
     const { provider } = p as { provider: string }

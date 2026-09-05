@@ -34,13 +34,17 @@ struct RootView: View {
 
         return NavigationSplitView(columnVisibility: Binding(
             get: { model.sidebarVisibility },
-            set: { model.sidebarVisibility = $0 }
+            // A minimum column width alone does not stop AppKit: dragging past roughly
+            // half of it snaps the sidebar shut, and with no toolbar toggle there is
+            // then no way back. Refusing `.detailOnly` makes the icon rail the real
+            // floor rather than a suggestion.
+            set: { model.sidebarVisibility = $0 == .detailOnly ? .all : $0 }
         )) {
             BotListView(showingNewBot: $showingNewBot)
                 // The floor is an icon rail, not nothing: dragging the divider in
                 // collapses the sidebar to avatars rather than closing it, so there is
                 // always something left to grab and click.
-                .navigationSplitViewColumnWidth(min: 68, ideal: 268, max: 360)
+                .navigationSplitViewColumnWidth(min: 78, ideal: 268, max: 360)
         } detail: {
             if let bot = model.selectedBot {
                 ChatView(bot: bot, showRail: $showRail)

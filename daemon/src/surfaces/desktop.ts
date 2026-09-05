@@ -121,6 +121,15 @@ export class Desktop {
         // Chromium needs more than the default 64MB of /dev/shm or it crashes on
         // any real page.
         '--shm-size=1g',
+        /**
+         * Chromium's own sandbox creates user namespaces, which Docker's default
+         * seccomp profile denies — it fails with "Failed to move to new namespace".
+         * The alternative is launching with --no-sandbox, which disables Chromium's
+         * isolation outright; this keeps it, and leans on the container as the
+         * boundary instead. The container is disposable and holds nothing but the
+         * desktop, which is what makes that trade acceptable here.
+         */
+        '--security-opt', 'seccomp=unconfined',
         IMAGE,
       ], { timeout: 60_000 })
     } catch (err) {

@@ -84,6 +84,18 @@ export const AuthStatus = z.object({
 })
 export type AuthStatus = z.infer<typeof AuthStatus>
 
+/** The shared Linux desktop every bot drives. */
+export const SurfaceStatus = z.object({
+  state: z.enum(['stopped', 'starting', 'running', 'unavailable']),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  /** Why it cannot run, when it cannot. */
+  detail: z.string().optional(),
+  /** Conversation currently holding the pointer, if any. */
+  heldBy: z.string().nullable().default(null),
+})
+export type SurfaceStatus = z.infer<typeof SurfaceStatus>
+
 export type Bot = z.infer<typeof Bot>
 export type Conversation = z.infer<typeof Conversation>
 export type Message = z.infer<typeof Message>

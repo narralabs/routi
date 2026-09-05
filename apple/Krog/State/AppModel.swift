@@ -34,6 +34,12 @@ final class AppModel {
     /// user has dragged shut — without a toolbar toggle there is otherwise no way back.
     var sidebarVisibility: NavigationSplitViewVisibility = .all
 
+    // Shared desktop
+    var surface: SurfaceStatus = .unknown
+    /// Latest frame as JPEG bytes. Nil until the first capture arrives.
+    var surfaceFrame: Data?
+    @ObservationIgnored private var frameTask: Task<Void, Never>?
+
     // Onboarding
     var auth: AuthStatus = .unknown
     /// Nil until the first handshake, so the window shows neither onboarding nor an
@@ -135,6 +141,64 @@ final class AppModel {
         client.updateEndpoint(host: host, port: port)
     }
 
+    // MARK: - Desktop
+
+    func refreshSurface() async {
+        guard let status = try? await client.rpc("surface.status", field: "surface", as: SurfaceStatus.self) else { return }
+        surface = status
+    }
+
+    func startSurface() async {
+        surface = SurfaceStatus(state: .starting, width: surface.width, height: surface.height)
+        // Starting pulls an image and waits for X, so allow well past the default.
+        guard let status = try? await client.rpc(
+            "surface.start", field: "surface", as: SurfaceStatus.self, timeout: 180
+        ) else {
+            await refreshSurface()
+            return
+        }
+        surface = status
+    }
+
+    func stopSurface() async {
+        surfaceFrame = nil
+        guard let status = try? await client.rpc(
+            "surface.stop", field: "surface", as: SurfaceStatus.self, timeout: 60
+        ) else { return }
+        surface = status
+    }
+
+    /// Pulls frames while a viewer is on screen.
+    ///
+    /// Pull rather than push, and only while something is watching: a preview nobody
+    /// is looking at should cost nothing, and the client asks again only once it has
+    /// drawn the previous frame, so a slow link degrades to a lower rate instead of
+    /// queueing frames it will never show.
+    func startFrames(interval: Duration = .milliseconds(500)) {
+        guard frameTask == nil else { return }
+        frameTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                if self.surface.state == .running,
+                   let result = try? await self.client.rpc("surface.frame", ["quality": 6]),
+                   let base64 = result["jpeg"] as? String,
+                   let data = Data(base64Encoded: base64) {
+                    self.surfaceFrame = data
+                }
+                try? await Task.sleep(for: interval)
+            }
+        }
+    }
+
+    func stopFrames() {
+        frameTask?.cancel()
+        frameTask = nil
+    }
+
+    func sendSurfaceInput(_ input: [String: Any]) async {
+        try? await client.rpc("surface.input", ["input": input])
+    }
+
     // MARK: - Auth
 
     func refreshAuth() async {
@@ -185,6 +249,8 @@ final class AppModel {
             let list = try await client.rpc("conversations.list", field: "conversations", as: [Conversation].self)
             conversations = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             errorMessage = nil
+
+            await refreshSurface()
 
             if let settings = try? await client.rpc("settings.get"),
                let values = settings["settings"] as? [String: Any] {
@@ -389,6 +455,13 @@ final class AppModel {
                   let data = try? JSONSerialization.data(withJSONObject: raw),
                   let bot = try? JSONDecoder().decode(Bot.self, from: data) else { return }
             if let index = bots.firstIndex(where: { $0.id == bot.id }) { bots[index] = bot }
+
+        case "surface.state":
+            if let raw = event.payload["surface"],
+               let data = try? JSONSerialization.data(withJSONObject: raw),
+               let status = try? JSONDecoder().decode(SurfaceStatus.self, from: data) {
+                surface = status
+            }
 
         case "error":
             errorMessage = event.payload["message"] as? String

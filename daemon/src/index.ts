@@ -7,6 +7,7 @@ import { AuthManager } from './auth/manager.js'
 import type { ProviderAdapter } from './providers/types.js'
 import { SessionManager } from './sessions/manager.js'
 import { KrogServer } from './server/ws.js'
+import { Desktop } from './surfaces/desktop.js'
 
 const DATA_DIR = process.env['KROG_DATA_DIR'] ?? join(homedir(), '.krog')
 const PORT = Number(process.env['KROG_PORT'] ?? 7171)
@@ -30,9 +31,13 @@ async function main(): Promise<void> {
   const auth = new AuthManager(store, providers, sessionCwd, DATA_DIR)
   await auth.applyMode()
 
+  // One desktop shared by every bot: its accumulated state — logins, cookies,
+  // downloads — is the point, and a container per bot would discard it each time.
+  const desktop = new Desktop()
+
   let server: KrogServer
   const sessions = new SessionManager(store, providers, (event) => server.broadcast(event))
-  server = new KrogServer({ store, sessions, providers, auth })
+  server = new KrogServer({ store, sessions, providers, auth, desktop })
 
   await server.listen(PORT, HOST)
 
@@ -56,6 +61,8 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} — shutting down`)
     for (const p of providers.values()) p.dispose()
+    // Leave the desktop running: its state is the value, and a restart of krogd
+    // should not cost the user their browser sessions.
     await server.close()
     db.close()
     process.exit(0)

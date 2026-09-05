@@ -25,6 +25,20 @@ final class AppModel {
     var errorMessage: String?
     var isLoadingMessages = false
 
+    // Onboarding
+    var auth: AuthStatus = .unknown
+    /// Nil until the first handshake, so the window shows neither onboarding nor an
+    /// empty chat while we're still finding out which is right.
+    var authKnown = false
+    private var onboardingDismissed = false
+
+    /// Setup is done when the daemon has a working credential and, on a first run,
+    /// the user has seen the closing step.
+    var needsOnboarding: Bool {
+        guard authKnown else { return false }
+        return !auth.configured || !onboardingDismissed
+    }
+
     @ObservationIgnored private let client: KrogClient
 
     // Default arguments are evaluated in a nonisolated context, so the client is
@@ -36,8 +50,18 @@ final class AppModel {
             guard let self else { return }
             self.connection = state
             if state == .connected {
-                Task { await self.refreshAll() }
+                Task {
+                    await self.refreshAuth()
+                    await self.refreshAll()
+                }
             }
+        }
+        client.onAuthStatus = { [weak self] status in
+            guard let self else { return }
+            self.auth = status
+            self.authKnown = true
+            // A daemon that already has a credential shouldn't re-run setup.
+            if status.configured { self.onboardingDismissed = true }
         }
         client.onEvent = { [weak self] event in
             self?.apply(event)
@@ -73,6 +97,48 @@ final class AppModel {
 
     func updateEndpoint(host: String, port: Int) {
         client.updateEndpoint(host: host, port: port)
+    }
+
+    // MARK: - Auth
+
+    func refreshAuth() async {
+        guard let status = try? await client.rpc("auth.status", field: "auth", as: AuthStatus.self) else { return }
+        auth = status
+        authKnown = true
+    }
+
+    /// Drives `claude auth login` on the daemon's machine. Long-running: the user has
+    /// to approve in a browser, so this can sit for minutes.
+    func signInWithClaude() async throws {
+        let status = try await client.rpc(
+            "auth.loginWithClaude", field: "auth", as: AuthStatus.self, timeout: 360
+        )
+        auth = status
+        authKnown = true
+        await refreshAll()
+    }
+
+    func setApiKey(_ key: String) async throws {
+        let status = try await client.rpc(
+            "auth.setApiKey", ["key": key], field: "auth", as: AuthStatus.self
+        )
+        auth = status
+        authKnown = true
+        await refreshAll()
+    }
+
+    func signOut() async {
+        guard let status = try? await client.rpc("auth.signOut", field: "auth", as: AuthStatus.self) else { return }
+        auth = status
+        onboardingDismissed = false
+        bots = []
+        conversations = [:]
+        messages = []
+        clearSelection()
+    }
+
+    func completeOnboarding() {
+        onboardingDismissed = true
     }
 
     // MARK: - Loading

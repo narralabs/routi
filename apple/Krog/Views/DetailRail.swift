@@ -16,7 +16,10 @@ struct DetailRail: View {
             }
             .padding(16)
         }
-        .background(.bar)
+        .background(.background.secondary)
+        .overlay(alignment: .leading) {
+            Rectangle().fill(.separator).frame(width: 0.5).ignoresSafeArea()
+        }
     }
 
     private var surfacePanel: some View {

@@ -2,11 +2,13 @@ import { RpcMethods, type RpcMethod } from '@krog/protocol'
 import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import type { SessionManager } from '../sessions/manager.js'
+import type { AuthManager } from '../auth/manager.js'
 
 export interface RpcContext {
   store: Store
   sessions: SessionManager
   providers: Map<string, ProviderAdapter>
+  auth: AuthManager
 }
 
 export class RpcError extends Error {
@@ -79,16 +81,40 @@ const handlers: Record<RpcMethod, Handler> = {
     return { ok: true as const }
   },
 
+  'auth.status': async (_p, ctx) => ({ auth: await ctx.auth.status() }),
+
+  'auth.loginWithClaude': async (_p, ctx) => {
+    try {
+      return { auth: await ctx.auth.loginWithClaude() }
+    } catch (err) {
+      throw new RpcError('login_failed', err instanceof Error ? err.message : String(err))
+    }
+  },
+
+  'auth.setApiKey': async (p, ctx) => {
+    const { key } = p as { key: string }
+    try {
+      return { auth: await ctx.auth.setApiKey(key) }
+    } catch (err) {
+      // Most likely a bad key: the manager probes before committing.
+      throw new RpcError('invalid_key', err instanceof Error ? err.message : String(err))
+    }
+  },
+
+  'auth.signOut': async (_p, ctx) => ({ auth: await ctx.auth.signOut() }),
+
   'models.list': async (p, ctx) => {
     const { provider } = p as { provider: string }
     const adapter = ctx.providers.get(provider)
-    if (!adapter) throw new RpcError('not_found', `No such provider: ${provider}`)
+    // Before onboarding finishes there is no provider yet; an empty list lets the
+    // client render without special-casing.
+    if (!adapter) return { models: [] }
     return { models: await adapter.listModels() }
   },
 
   'account.info': async (_p, ctx) => {
     const adapter = ctx.providers.get('anthropic')
-    if (!adapter) throw new RpcError('not_found', 'No anthropic provider configured')
+    if (!adapter) throw new RpcError('not_configured', 'No Anthropic credential configured yet.')
     return { account: await adapter.accountInfo() }
   },
 

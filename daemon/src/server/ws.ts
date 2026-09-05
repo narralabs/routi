@@ -81,9 +81,14 @@ export class KrogServer {
         client.name = parsed.clientName
         client.platform = parsed.platform
         client.helloed = true
+        // The handshake has to succeed with no credential configured — that is the
+        // state onboarding exists to fix — so account info is best-effort here.
         const adapter = this.ctx.providers.get('anthropic')
         const account = (await adapter?.accountInfo()) ?? { authMode: 'subscription' as const }
-        send(client.ws, { t: 'hello_ok', protocolVersion: PROTOCOL_VERSION, serverVersion: VERSION, account })
+        const auth = await this.ctx.auth.status()
+        send(client.ws, {
+          t: 'hello_ok', protocolVersion: PROTOCOL_VERSION, serverVersion: VERSION, account, auth,
+        })
         break
       }
 

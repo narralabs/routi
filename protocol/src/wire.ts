@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Block } from './blocks.js'
-import { AccountInfo, Bot, Conversation, Message, ModelInfo, SurfaceMode } from './entities.js'
+import { AccountInfo, AuthStatus, Bot, Conversation, Message, ModelInfo, SurfaceMode } from './entities.js'
 
 /**
  * The krogd wire protocol: one WebSocket carrying request/response RPCs and
@@ -55,6 +55,12 @@ export const RpcMethods = {
     result: z.object({ message: Message }),
   },
   'messages.interrupt': { params: z.object({ conversationId: z.string() }), result: z.object({ ok: z.literal(true) }) },
+
+  'auth.status': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
+  /** Opens the browser sign-in on the machine running krogd. Long-running. */
+  'auth.loginWithClaude': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
+  'auth.setApiKey': { params: z.object({ key: z.string().min(1) }), result: z.object({ auth: AuthStatus }) },
+  'auth.signOut': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
 
   'models.list': { params: z.object({ provider: z.string().default('anthropic') }), result: z.object({ models: z.array(ModelInfo) }) },
   'account.info': { params: z.object({}), result: z.object({ account: AccountInfo }) },
@@ -134,6 +140,8 @@ export const ServerHelloOk = z.object({
   protocolVersion: z.number().int(),
   serverVersion: z.string(),
   account: AccountInfo,
+  /** Lets the client decide to show onboarding without a second round trip. */
+  auth: AuthStatus,
 })
 
 export const ServerRpcOk = z.object({ t: z.literal('rpc_ok'), id: z.string(), result: z.unknown() })

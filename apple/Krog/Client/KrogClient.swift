@@ -34,6 +34,9 @@ final class KrogClient: NSObject {
 
     var onStateChange: ((ConnectionState) -> Void)?
     var onEvent: ((Event) -> Void)?
+    /// Fires on every handshake so the app knows whether to onboard immediately,
+    /// without waiting for a follow-up round trip.
+    var onAuthStatus: ((AuthStatus) -> Void)?
 
     private var host: String
     private var port: Int
@@ -177,6 +180,11 @@ final class KrogClient: NSObject {
                let accountData = try? JSONSerialization.data(withJSONObject: accountDict) {
                 account = try? JSONDecoder().decode(AccountInfo.self, from: accountData)
             }
+            if let authRaw = root["auth"],
+               let authData = try? JSONSerialization.data(withJSONObject: authRaw),
+               let status = try? JSONDecoder().decode(AuthStatus.self, from: authData) {
+                onAuthStatus?(status)
+            }
             if let serverVersion = root["protocolVersion"] as? Int, serverVersion != Self.protocolVersion {
                 // Surface loudly rather than failing later with confusing empty fields.
                 onEvent?(Event(kind: "error", payload: [
@@ -213,11 +221,19 @@ final class KrogClient: NSObject {
     // MARK: - RPC
 
     @discardableResult
-    func rpc(_ method: String, _ params: [String: Any] = [:]) async throws -> [String: Any] {
+    func rpc(_ method: String, _ params: [String: Any] = [:], timeout: TimeInterval = 120) async throws -> [String: Any] {
         guard state == .connected else {
             throw RPCError(code: "disconnected", message: "Not connected to krogd.")
         }
         let id = UUID().uuidString
+
+        let timeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(timeout))
+            guard !Task.isCancelled, let cont = self?.pending.removeValue(forKey: id) else { return }
+            cont.resume(throwing: RPCError(code: "timeout", message: "The daemon did not respond."))
+        }
+
+        defer { timeoutTask.cancel() }
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { cont in
@@ -232,8 +248,10 @@ final class KrogClient: NSObject {
     }
 
     /// Decodes an RPC result field straight into a Codable type.
-    func rpc<T: Decodable>(_ method: String, _ params: [String: Any] = [:], field: String, as _: T.Type) async throws -> T {
-        let result = try await rpc(method, params)
+    func rpc<T: Decodable>(
+        _ method: String, _ params: [String: Any] = [:], field: String, as _: T.Type, timeout: TimeInterval = 120
+    ) async throws -> T {
+        let result = try await rpc(method, params, timeout: timeout)
         guard let raw = result[field] else {
             throw RPCError(code: "bad_response", message: "Missing '\(field)' in response to \(method).")
         }

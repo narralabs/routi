@@ -9,13 +9,31 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var showRail = true
+    @State private var showRail = false
     @State private var showingNewBot = false
 
     var body: some View {
         @Bindable var model = model
 
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        Group {
+            if !model.authKnown {
+                // Neither onboarding nor chat is correct until the handshake lands.
+                ConnectingView()
+            } else if model.needsOnboarding {
+                OnboardingView()
+            } else {
+                main
+            }
+        }
+        .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
+        .animation(.snappy(duration: 0.3), value: model.authKnown)
+        .task { model.start() }
+    }
+
+    private var main: some View {
+        @Bindable var model = model
+
+        return NavigationSplitView(columnVisibility: $columnVisibility) {
             BotListView(showingNewBot: $showingNewBot)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 340)
         } detail: {
@@ -41,6 +59,30 @@ struct RootView: View {
             actions: { Button("OK", role: .cancel) { model.errorMessage = nil } },
             message: { Text(model.errorMessage ?? "") }
         )
-        .task { model.start() }
+    }
+}
+
+/// Shown for the moment between launch and the first handshake.
+private struct ConnectingView: View {
+    @Environment(AppModel.self) private var model
+    @State private var slow = false
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ProgressView().controlSize(.large)
+            Text("Connecting to Krog…")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+            if slow {
+                Text("Taking longer than usual. Is krogd running?")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(minWidth: 420, minHeight: 320)
+        .task {
+            try? await Task.sleep(for: .seconds(4))
+            slow = true
+        }
     }
 }

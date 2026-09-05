@@ -65,6 +65,23 @@ export const AccountInfo = z.object({
   email: z.string().optional(),
 })
 
+/** Everything onboarding needs to decide what to show next. */
+export const AuthStatus = z.object({
+  /** True once a provider can actually reach Anthropic. Gates the main UI. */
+  configured: z.boolean(),
+  mode: AuthMode.nullable(),
+  subscription: z.object({
+    cliInstalled: z.boolean(),
+    cliVersion: z.string().nullable(),
+    loggedIn: z.boolean(),
+    email: z.string().optional(),
+    organization: z.string().optional(),
+    subscriptionType: z.string().optional(),
+  }),
+  apiKey: z.object({ present: z.boolean() }),
+})
+export type AuthStatus = z.infer<typeof AuthStatus>
+
 export type Bot = z.infer<typeof Bot>
 export type Conversation = z.infer<typeof Conversation>
 export type Message = z.infer<typeof Message>

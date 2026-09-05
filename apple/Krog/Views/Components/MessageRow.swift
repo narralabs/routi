@@ -22,7 +22,7 @@ struct MessageRow: View {
 
             if !isUser { actions; Spacer(minLength: 40) }
         }
-        .padding(.top, startsGroup ? 10 : 2)
+        .padding(.top, startsGroup ? 20 : 4)
         .onHover { isHovering = $0 }
     }
 
@@ -69,17 +69,24 @@ private struct Bubble: View {
     var body: some View {
         // Markdown for free: AttributedString parses inline markdown, and Text
         // renders it with the system font's real bold and italic faces.
+        //
+        // Only the user's turn gets a bubble. Assistant replies run as plain text on
+        // the page, which is what lets a long answer read as a document rather than a
+        // wall of tinted rectangles.
         Text(attributed)
-            .font(.system(size: 14))
+            .font(.system(size: 14.5))
+            .lineSpacing(2)
             .foregroundStyle(isUser ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
             .textSelection(.enabled)
-            .padding(.horizontal, 13)
-            .padding(.vertical, 9)
-            .background(
-                isUser ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
-                in: .rect(cornerRadius: 17, style: .continuous)
-            )
-            .frame(maxWidth: 560, alignment: isUser ? .trailing : .leading)
+            .padding(.horizontal, isUser ? 14 : 0)
+            .padding(.vertical, isUser ? 9 : 2)
+            .background {
+                if isUser {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.accentColor)
+                }
+            }
+            .frame(maxWidth: isUser ? 520 : .infinity, alignment: isUser ? .trailing : .leading)
     }
 
     private var attributed: AttributedString {
@@ -189,9 +196,7 @@ struct TypingIndicator: View {
                     .offset(y: -2.5 * lift(i))
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(.quaternary, in: .rect(cornerRadius: 17, style: .continuous))
+        .padding(.vertical, 8)
         .onAppear {
             withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
                 phase = 1

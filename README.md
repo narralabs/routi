@@ -75,6 +75,25 @@ client's render path without driving the UI.
 `probe` is the important one — it drives the real WebSocket exactly as the Flutter
 client does, so protocol work is never blocked on the UI.
 
+## Onboarding
+
+First run walks the user through setup before any chat UI appears. One flow, branching
+on whether the device can host: a Mac offers to run the core itself, an iPhone can only
+connect to one, so that choice is hidden there rather than offered and then refused.
+
+Welcome -> where should the core run -> connect Claude -> done.
+
+Connecting Claude offers the two credentials the daemon supports. Signing in with a
+Claude account shells out to `claude auth login --claudeai`, which opens the browser
+and performs the real OAuth; the token stays owned by the CLI and Krog never sees it.
+Krog does **not** implement its own OAuth client against Anthropic's consumer auth —
+that would mean impersonating Claude Code's client to reach someone's subscription,
+which is not a supported integration.
+
+An API key is validated against the live API (`models.list`, which spends no tokens)
+*before* being stored, so a typo fails in onboarding rather than on the first message,
+and a rejected key never lands in the Keychain.
+
 ## Authentication
 
 `krogd` reaches Claude through `@anthropic-ai/claude-agent-sdk`, which picks up the
@@ -107,6 +126,12 @@ on a warm one — the difference is CLI process spawn. `krogd` holds one `query(
 per conversation and feeds it through a push queue, so only the first message in a
 conversation pays that cost.
 
+**The transcript reads as a document, not a chat log.** Only the user's turn gets a
+bubble; assistant replies run as plain text on the page. That single choice is most of
+what separates a clean AI client from a wall of tinted rectangles — and the composer
+floats as a rounded pill over the scroll view rather than sitting in a bar behind a
+divider, so the window reads as one surface.
+
 **The client is native SwiftUI, and adapts rather than branches.**
 `NavigationSplitView` gives three columns on the Mac, sidebar-over-content on iPad, and
 a push stack on iPhone from the same view code; `.listStyle(.sidebar)` supplies real
@@ -126,6 +151,7 @@ app onto web tech.
 - [x] **M0** — skeleton, auth spike, warm-session spike
 - [x] **M1** — chat: bots, conversations, streaming, persistence, model picker
 - [x] **UI** — native SwiftUI client replacing the Flutter one
+- [x] **Onboarding** — first-run setup, both Anthropic credential paths
 - [ ] **M2** — Tailscale, device pairing, reconnect
 - [ ] **M3** — container surface, WebRTC video, input injection, host surface
 - [ ] **M4** — bots that drive the surface; tool cards wired up

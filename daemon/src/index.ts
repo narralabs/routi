@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { openDb } from './db/schema.js'
 import { Store } from './db/store.js'
-import { AnthropicSubscriptionAdapter } from './providers/anthropic-subscription.js'
+import { AuthManager } from './auth/manager.js'
 import type { ProviderAdapter } from './providers/types.js'
 import { SessionManager } from './sessions/manager.js'
 import { KrogServer } from './server/ws.js'
@@ -24,24 +24,33 @@ async function main(): Promise<void> {
   const db = openDb(join(DATA_DIR, 'krog.db'))
   const store = new Store(db)
 
+  // Starts empty on purpose: the daemon must run with no credential so the client
+  // can connect and walk the user through onboarding.
   const providers = new Map<string, ProviderAdapter>()
-  providers.set('anthropic', new AnthropicSubscriptionAdapter({ cwd: sessionCwd }))
+  const auth = new AuthManager(store, providers, sessionCwd, DATA_DIR)
+  await auth.applyMode()
 
   let server: KrogServer
   const sessions = new SessionManager(store, providers, (event) => server.broadcast(event))
-  server = new KrogServer({ store, sessions, providers })
+  server = new KrogServer({ store, sessions, providers, auth })
 
   await server.listen(PORT, HOST)
+
+  const status = await auth.status()
   console.log(`krogd listening on ws://${HOST}:${PORT}  (data: ${DATA_DIR})`)
+  console.log(
+    status.configured
+      ? `anthropic: ${status.mode === 'api_key' ? 'API key' : status.subscription.subscriptionType ?? 'subscription'}`
+      : 'anthropic: not configured — finish setup in the app',
+  )
 
   // Seed one bot on an empty database so a fresh install opens onto something usable.
   if (store.listBots(true).length === 0) {
-    const { bot } = store.createBot({
+    store.createBot({
       name: 'New Bot',
       systemPrompt: 'You are a helpful, concise assistant.',
       model: 'default',
     })
-    console.log(`seeded first bot: ${bot.name}`)
   }
 
   const shutdown = async (signal: string) => {

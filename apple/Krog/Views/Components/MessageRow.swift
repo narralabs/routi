@@ -6,8 +6,6 @@ struct MessageRow: View {
     let message: Message
     let startsGroup: Bool
 
-    @State private var isHovering = false
-
     private var isUser: Bool { message.role == .user }
 
     var body: some View {
@@ -18,13 +16,21 @@ struct MessageRow: View {
                 ForEach(message.blocks) { block in
                     blockView(block)
                 }
-                actions
+            }
+            // Copy lives in the context menu rather than on hover. A button that
+            // appears under the pointer on every message is a lot of movement for
+            // something wanted rarely, and the text is selectable anyway.
+            .contextMenu {
+                if !copyableText.isEmpty {
+                    Button("Copy Message", systemImage: "doc.on.doc") {
+                        copyToPasteboard(copyableText)
+                    }
+                }
             }
 
             if !isUser { Spacer(minLength: 40) }
         }
         .padding(.top, startsGroup ? 20 : 4)
-        .onHover { isHovering = $0 }
     }
 
     @ViewBuilder
@@ -47,26 +53,8 @@ struct MessageRow: View {
         }
     }
 
-    /// Copy, under the message rather than beside it.
-    ///
-    /// It used to sit in the row's HStack, which put it alongside whatever block
-    /// happened to be last — floating next to a tool card as often as a bubble. It also
-    /// appeared on every message, including ones made only of tool calls, where there
-    /// was nothing to copy.
-    @ViewBuilder
-    private var actions: some View {
-        if !message.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Button("Copy", systemImage: "doc.on.doc") {
-                copyToPasteboard(message.plainText)
-            }
-            .buttonStyle(.plain)
-            .labelStyle(.iconOnly)
-            .font(.system(size: 11))
-            .foregroundStyle(.tertiary)
-            .padding(.horizontal, 4)
-            .opacity(isHovering ? 1 : 0)
-            .animation(.easeOut(duration: 0.12), value: isHovering)
-        }
+    private var copyableText: String {
+        message.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

@@ -9,6 +9,10 @@ struct NewBotSheet: View {
     @State private var selectedProvider = "anthropic"
     @State private var selectedModel = "default"
     @State private var selectedEffort = Effort.implicitDefault
+    // Defaults to a screen. A bot without one can only talk, and "a bot that does
+    // things" is the whole premise — defaulting to none quietly produced bots that
+    // could only offer to help.
+    @State private var surfaceMode = SurfaceMode.container
     @State private var isSubmitting = false
 
     /// Only offer the levels the chosen model actually accepts — Haiku, for one,
@@ -74,6 +78,16 @@ struct NewBotSheet: View {
                         .foregroundStyle(.tertiary)
                 }
 
+                FormField("Screen", footnote: surfaceMode.explanation) {
+                    Picker("", selection: $surfaceMode) {
+                        ForEach(SurfaceMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+
             }
             .padding(.horizontal, 22)
             .padding(.top, 6)
@@ -90,7 +104,8 @@ struct NewBotSheet: View {
                     name: name,
                     systemPrompt: systemPrompt,
                     model: selectedModel,
-                    effort: supportsEffort ? selectedEffort : nil
+                    effort: supportsEffort ? selectedEffort : nil,
+                    surfaceMode: surfaceMode
                 )
                 dismiss()
             }

@@ -17,9 +17,12 @@ enum SurfaceMode: String, Codable, CaseIterable, Identifiable {
 
     var explanation: String {
         switch self {
-        case .none: return "Chat only. The bot has no screen to look at."
-        case .container: return "An isolated Linux container. Safe to reset, and several can run at once."
-        case .host: return "Your real desktop. The bot shares your mouse and sees everything on screen."
+        case .none:
+            return "Chat only. This bot can talk, but cannot browse, click or look anything up."
+        case .container:
+            return "A shared Linux desktop with a browser. The bot can search, read pages and do the work itself."
+        case .host:
+            return "Your real Mac. The bot shares your mouse and sees everything on screen. Not yet available."
         }
     }
 }

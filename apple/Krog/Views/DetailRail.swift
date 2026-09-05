@@ -31,6 +31,17 @@ struct DetailRail: View {
             await model.refreshSurface()
             await model.startSurface()
         }
+        /**
+         * Brings a screen back if it goes away while you are watching.
+         *
+         * A screen can stop without the panel moving: the machine is rebuilt, Docker
+         * restarts, the container is replaced. Starting only on appear meant the panel
+         * then sat on "stopped" indefinitely, since nothing was going to ask again.
+         */
+        .onChange(of: model.surface.state) { _, state in
+            guard state == .stopped else { return }
+            Task { await model.startSurface() }
+        }
     }
 
     @ViewBuilder

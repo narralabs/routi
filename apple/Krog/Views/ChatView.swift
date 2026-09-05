@@ -27,9 +27,6 @@ struct ChatView: View {
         }
         .animation(.snappy(duration: 0.22), value: showRail)
         .navigationTitle(bot.name)
-        #if os(macOS)
-        .toolbarBackground(.hidden, for: .windowToolbar)
-        #endif
         .toolbar { toolbarContent }
         .sheet(isPresented: $showingSettings) {
             BotSettingsSheet(bot: bot)
@@ -143,11 +140,18 @@ struct ChatView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         #if os(macOS)
+        // Avatar + name at the leading edge, matching the reference header.
+        ToolbarItem(placement: .navigation) {
+            HStack(spacing: 8) {
+                BotAvatar(color: bot.color, size: 20)
+                Text(bot.name).font(.system(size: 13, weight: .semibold))
+            }
+        }
         ToolbarItem(placement: .primaryAction) {
             Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
         }
         ToolbarItem(placement: .primaryAction) {
-            Button("Screen", systemImage: "sidebar.right") { showRail.toggle() }
+            Button("Screen", systemImage: "desktopcomputer") { showRail.toggle() }
                 .symbolVariant(showRail ? .fill : .none)
         }
         #else

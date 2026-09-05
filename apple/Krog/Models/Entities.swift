@@ -148,6 +148,11 @@ struct AccountInfo: Codable, Hashable {
             .joined(separator: " ")
     }
 
+    /// "William" from "William Estoque" — the sidebar footer wants a first name.
+    var firstName: String {
+        displayName.split(separator: " ").first.map(String.init) ?? displayName
+    }
+
     var initials: String {
         let parts = displayName.split(separator: " ")
         guard let first = parts.first else { return "?" }

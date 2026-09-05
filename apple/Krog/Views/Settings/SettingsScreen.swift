@@ -90,50 +90,87 @@ struct SettingsScreen: View {
     @State private var selection: Pane? = .general
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $selection) {
-                Section {
-                    Button {
-                        model.isShowingSettings = false
-                    } label: {
-                        Label("Back to app", systemImage: "chevron.left")
-                            .font(.system(size: 13))
-                    }
-                    .buttonStyle(.plain)
-                    .listRowSeparator(.hidden)
-                }
+        #if os(macOS)
+        // A floating panel over the dimmed app, not a full-window takeover: the nav
+        // list is plain rows rather than a split view, so the sheet keeps a fixed
+        // size and never grows a sidebar toggle of its own.
+        HStack(spacing: 0) {
+            navList
+                .frame(width: 232)
+                .background(.background.secondary)
 
-                ForEach(Self.sections, id: \.0) { group, panes in
-                    Section(group) {
-                        ForEach(panes) { pane in
-                            PaneRow(pane: pane)
-                                .tag(pane)
-                                .listRowSeparator(.hidden)
-                        }
+            ZStack(alignment: .topTrailing) {
+                pane
+                Button {
+                    model.isShowingSettings = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 26, height: 26)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                .padding(14)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .frame(width: 880, height: 620)
+        #else
+        NavigationStack {
+            navList
+                .navigationTitle("Settings")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { model.isShowingSettings = false }
                     }
                 }
-            }
-            .listStyle(.sidebar)
-            .navigationTitle("Settings")
-            .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 300)
-        } detail: {
-            switch selection ?? .general {
-            case .general: GeneralPane()
-            case .provider(let id): ProviderPane(provider: ProviderInfo.find(id))
-            case .core: ConnectionPane()
-            case .about: AboutPane()
-            }
-        }
-        #if !os(macOS)
-        // On a phone the split view collapses to the sidebar, so the way out has to
-        // be a toolbar button rather than the Mac's list row.
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Done") { model.isShowingSettings = false }
-            }
         }
         #endif
     }
+
+    @ViewBuilder
+    private var pane: some View {
+        switch selection ?? .general {
+        case .general: GeneralPane()
+        case .provider(let id): ProviderPane(provider: ProviderInfo.find(id))
+        case .core: ConnectionPane()
+        case .about: AboutPane()
+        }
+    }
+
+    private var navList: some View {
+        List(selection: $selection) {
+            ForEach(Self.sections, id: \.0) { group, panes in
+                Section(group) {
+                    ForEach(panes) { pane in
+                        #if os(macOS)
+                        PaneRow(pane: pane)
+                            .tag(pane)
+                            .listRowSeparator(.hidden)
+                        #else
+                        NavigationLink { paneView(pane) } label: { PaneRow(pane: pane) }
+                        #endif
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
+    }
+
+    #if !os(macOS)
+    @ViewBuilder
+    private func paneView(_ pane: Pane) -> some View {
+        switch pane {
+        case .general: GeneralPane()
+        case .provider(let id): ProviderPane(provider: ProviderInfo.find(id))
+        case .core: ConnectionPane()
+        case .about: AboutPane()
+        }
+    }
+    #endif
 }
 
 /// One sidebar row. Providers render their tinted monogram; everything else uses an
@@ -166,12 +203,18 @@ private struct PaneRow: View {
 // MARK: - General
 
 struct GeneralPane: View {
+    @Environment(AppModel.self) private var model
     @AppStorage("appearance") private var appearance = AppearanceMode.system.rawValue
     @AppStorage("sendBehavior") private var sendBehavior = SendBehavior.returnKey.rawValue
     @AppStorage("showThinking") private var showThinking = true
+    @AppStorage("displayName") private var displayName = ""
 
     var body: some View {
         SettingsPane(title: "General") {
+            SettingsSection("Account") {
+                AccountCard(displayName: $displayName)
+            }
+
             SettingsSection("Appearance") {
                 SettingsRow(title: "Theme", detail: "How Krog looks on this device.", isFirst: true) {
                     Picker("", selection: $appearance) {
@@ -207,6 +250,51 @@ struct GeneralPane: View {
                     Toggle("", isOn: $showThinking).labelsHidden().toggleStyle(.switch)
                 }
             }
+        }
+    }
+}
+
+/// Avatar, editable name, account email, and sign-out — the card from the reference.
+private struct AccountCard: View {
+    @Environment(AppModel.self) private var model
+    @Binding var displayName: String
+    @State private var showingDisconnect = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(model.userInitials)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 40, height: 40)
+                .background(.quaternary, in: .circle)
+
+            VStack(alignment: .leading, spacing: 3) {
+                TextField("Your name", text: $displayName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14, weight: .medium))
+                if let email = model.auth.subscription.email {
+                    Text(email)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Sign Out") { showingDisconnect = true }
+                .disabled(!model.auth.configured)
+        }
+        .padding(14)
+        .confirmationDialog("Sign out of Claude?", isPresented: $showingDisconnect) {
+            Button("Sign Out", role: .destructive) {
+                Task {
+                    await model.signOut()
+                    model.isShowingSettings = false
+                }
+            }
+        } message: {
+            Text("You'll go back through setup to reconnect.")
         }
     }
 }

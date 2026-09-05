@@ -63,8 +63,12 @@ struct MessageRow: View {
 }
 
 private struct Bubble: View {
+    @Environment(\.colorScheme) private var colorScheme
     let text: String
     let isUser: Bool
+
+    /// The outgoing bubble tracks `primary`, so its label must be the opposite.
+    private var outgoingText: Color { colorScheme == .dark ? .black : .white }
 
     var body: some View {
         // Markdown for free: AttributedString parses inline markdown, and Text
@@ -72,12 +76,12 @@ private struct Bubble: View {
         Text(attributed)
             .font(.system(size: 14.5))
             .lineSpacing(2)
-            .foregroundStyle(isUser ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+            .foregroundStyle(isUser ? AnyShapeStyle(outgoingText) : AnyShapeStyle(.primary))
             .textSelection(.enabled)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
-                isUser ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.bubbleIncoming),
+                isUser ? AnyShapeStyle(Color.bubbleOutgoing) : AnyShapeStyle(Color.bubbleIncoming),
                 in: .rect(cornerRadius: 18, style: .continuous)
             )
             .frame(maxWidth: 560, alignment: isUser ? .trailing : .leading)
@@ -215,6 +219,10 @@ extension Color {
     /// assistant messages looking like they had no background at all. This reads
     /// clearly in both light and dark, because `primary` inverts with the scheme.
     static let bubbleIncoming = Color.primary.opacity(0.06)
+
+    /// The user's bubble is near-black in the reference, not the accent colour.
+    /// Defined against `primary` so it inverts to near-white in dark mode.
+    static let bubbleOutgoing = Color.primary.opacity(0.92)
 }
 
 func copyToPasteboard(_ string: String) {

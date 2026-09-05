@@ -20,7 +20,7 @@ struct KrogApp: App {
         }
         // Unified toolbar puts controls inline with the title bar, which is what
         // gives a modern Mac app its single-row chrome.
-        .windowToolbarStyle(.unified(showsTitle: true))
+        .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(width: 1180, height: 760)
         .commands {
             CommandGroup(replacing: .newItem) {}

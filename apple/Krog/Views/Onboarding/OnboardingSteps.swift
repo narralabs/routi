@@ -355,6 +355,8 @@ struct AnthropicStep: View {
 
 struct FinishingStep: View {
     @Environment(AppModel.self) private var model
+    @AppStorage("displayName") private var displayName = ""
+    @FocusState private var nameFocused: Bool
 
     var body: some View {
         OnboardingScaffold(
@@ -362,7 +364,19 @@ struct FinishingStep: View {
             title: "You're set",
             subtitle: summary
         ) {
-            EmptyView()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("What should we call you?")
+                    .font(.system(size: 13, weight: .medium))
+                TextField("Your name", text: $displayName)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 14))
+                    .focused($nameFocused)
+            }
+            .frame(maxWidth: 300)
+            .onAppear {
+                // Pre-fill from the Anthropic account so most people just continue.
+                if displayName.isEmpty { displayName = model.account?.firstName ?? "" }
+            }
         } actions: {
             Button {
                 model.completeOnboarding()

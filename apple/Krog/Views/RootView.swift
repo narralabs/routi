@@ -21,15 +21,12 @@ struct RootView: View {
                 ConnectingView()
             } else if model.needsOnboarding {
                 OnboardingView()
-            } else if model.isShowingSettings {
-                SettingsScreen()
             } else {
                 main
             }
         }
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
         .animation(.snappy(duration: 0.3), value: model.authKnown)
-        .animation(.snappy(duration: 0.25), value: model.isShowingSettings)
         .task { model.start() }
     }
 
@@ -50,8 +47,15 @@ struct RootView: View {
                 )
             }
         }
+
         .sheet(isPresented: $showingNewBot) {
             NewBotSheet()
+        }
+        .sheet(isPresented: Binding(
+            get: { model.isShowingSettings },
+            set: { model.isShowingSettings = $0 }
+        )) {
+            SettingsScreen()
         }
         .alert(
             "Something went wrong",

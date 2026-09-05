@@ -74,6 +74,21 @@ final class AppModel {
 
     var account: AccountInfo? { client.account }
 
+    /// Shown in the sidebar footer. Asked for during onboarding and pre-filled from
+    /// the Anthropic account, so it is a real preference rather than a derivation.
+    var userName: String {
+        let stored = UserDefaults.standard.string(forKey: "displayName") ?? ""
+        if !stored.isEmpty { return stored }
+        return account?.firstName ?? "Account"
+    }
+
+    var userInitials: String {
+        let parts = userName.split(separator: " ")
+        guard let first = parts.first else { return "?" }
+        if parts.count == 1 { return String(first.prefix(1)).uppercased() }
+        return (String(first.prefix(1)) + String(parts[parts.count - 1].prefix(1))).uppercased()
+    }
+
     var selectedBot: Bot? {
         bots.first { $0.id == selectedBotID }
     }

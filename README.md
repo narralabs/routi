@@ -121,9 +121,9 @@ An API-key adapter is planned alongside, selectable in settings.
 
 ## Settings
 
-Settings replaces the whole window rather than opening a preferences panel, reached
-from the sidebar footer or ⌘,. `NavigationSplitView` again does the adapting: a
-two-column pane on Mac and iPad, a pushed grouped list on iPhone, from one file.
+Settings is a sheet over the app — a fixed-size panel with a nav list on the left and
+an X to close — reached from the account row in the sidebar footer or ⌘,. On iPhone it
+becomes a navigation stack that pushes into each pane.
 
 Panes are General (theme, send key, reasoning visibility), one per **Provider**,
 Krog Core (daemon endpoint and connection state), and About.
@@ -163,6 +163,13 @@ bubble; assistant replies run as plain text on the page. That single choice is m
 what separates a clean AI client from a wall of tinted rectangles — and the composer
 floats as a rounded pill over the scroll view rather than sitting in a bar behind a
 divider, so the window reads as one surface.
+
+**The window chrome has no sidebar toggle, on purpose.** The system toggle anchors to
+the detail pane's leading edge, so it slides across the window whenever the sidebar
+collapses. Attempts to pin it — `.navigation` placement, a hidden title bar with
+per-column headers — each traded that jump for a different misalignment. The reference
+design simply has no toggle and an always-visible sidebar, which removes the problem
+rather than compensating for it.
 
 **The client is native SwiftUI, and adapts rather than branches.**
 `NavigationSplitView` gives three columns on the Mac, sidebar-over-content on iPad, and

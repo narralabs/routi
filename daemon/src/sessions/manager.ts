@@ -19,6 +19,8 @@ type Emit = (event: ServerEvent) => void
  */
 export class SessionManager {
   private readonly inFlight = new Map<string, AbortController>()
+  /** Messages sent while a reply was in flight, waiting for it to finish. */
+  private readonly queued = new Map<string, Message[]>()
 
   constructor(
     private readonly store: Store,
@@ -49,10 +51,6 @@ export class SessionManager {
     const isChannel = conv.kind === 'channel'
     const bot = isChannel ? null : this.store.getBot(conv.botId ?? '')
     if (!isChannel && !bot) throw new Error(`No such bot: ${conv.botId}`)
-    // A room is many turns at once, so "already replying" is only a limit on a 1:1.
-    if (!isChannel && this.inFlight.has(conversationId)) {
-      throw new Error('This conversation is already generating a reply.')
-    }
 
     const userMessage = this.store.insertMessage({ conversationId, role: 'user', blocks })
     this.emit({ e: 'message.created', message: userMessage })
@@ -67,12 +65,53 @@ export class SessionManager {
       }
     }
 
+    /**
+     * A second message while the first is still being answered waits its turn.
+     *
+     * It used to be refused outright, which surfaced as an alert saying the conversation
+     * was already generating a reply — a true statement and a useless one, since the
+     * person had simply thought of something else and there was nothing for them to do
+     * about it but wait and retype. The message is written to the transcript either way;
+     * only the answering waits.
+     */
+    if (this.inFlight.has(conversationId)) {
+      const waiting = this.queued.get(conversationId) ?? []
+      waiting.push(userMessage)
+      this.queued.set(conversationId, waiting)
+      return userMessage
+    }
+
     if (isChannel) {
       void this.runChannelTurn(conversationId, userMessage, null)
     } else {
       void this.runTurn(conversationId, bot!, userMessage.blocks)
     }
     return userMessage
+  }
+
+  /**
+   * Answers whatever arrived while the last turn was running.
+   *
+   * Everything queued goes into one turn rather than one turn each: a person adding
+   * "actually, make it two nights" to a request they just sent means both things
+   * together, and answering them separately would be answering the first as though the
+   * second had not been said.
+   */
+  private drainQueue(conversationId: string): void {
+    const waiting = this.queued.get(conversationId)
+    if (!waiting || waiting.length === 0) return
+    this.queued.delete(conversationId)
+
+    const conv = this.store.getConversation(conversationId)
+    if (!conv) return
+
+    const blocks = waiting.flatMap((message) => message.blocks)
+    if (conv.kind === 'channel') {
+      void this.runChannelTurn(conversationId, { ...waiting[0]!, blocks }, null)
+      return
+    }
+    const bot = this.store.getBot(conv.botId ?? '')
+    if (bot) void this.runTurn(conversationId, bot, blocks)
   }
 
   /**
@@ -299,6 +338,11 @@ export class SessionManager {
       this.emit({ e: 'error', conversationId, code: 'turn_failed', message })
       stopReason = 'error'
     } finally {
+      // Runs whatever the turn did, including throwing: a failed turn that kept the
+      // lock or the queue would leave the conversation permanently stuck.
+      this.inFlight.delete(conversationId)
+      surface?.release(conversationId)
+
       const finalBlocks = blocks.filter(Boolean)
       /**
        * Silence is an outcome, not a failure.
@@ -325,7 +369,12 @@ export class SessionManager {
       if (sid) this.store.setProviderSessionId(conversationId, sid)
 
       this.inFlight.delete(conversationId)
+      surface?.release(conversationId)
       this.emit({ e: 'message.completed', conversationId, messageId, stopReason, providerMeta: meta })
+
+      // Deleted from inFlight first, so anything sent mid-turn starts now rather than
+      // queueing again behind a turn that has already finished.
+      this.drainQueue(conversationId)
 
       // What a bot said can wake a teammate — but only one it named. This is the loop
       // rule doing its work: a statement reaches nobody, an @mention reaches one bot.

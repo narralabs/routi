@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Store } from '../db/store.js'
+import { routineTools } from '../sessions/routine-tools.js'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { TOOL_INSTRUCTIONS, desktopToolSpecs, runDesktopTool } from '../surfaces/tools.js'
 
@@ -20,15 +22,34 @@ import { TOOL_INSTRUCTIONS, desktopToolSpecs, runDesktopTool } from '../surfaces
  * has to know whose screen it is acting on.
  */
 export class McpHttp {
-  constructor(private readonly desktops: DesktopPool) {}
+  constructor(
+    private readonly desktops: DesktopPool,
+    private readonly store: Store,
+  ) {}
 
   /** True when this request is ours to answer. */
   static matches(url: string | undefined): boolean {
     return typeof url === 'string' && url.startsWith('/mcp/')
   }
 
+  /**
+   * Everything a bot can do here, not merely everything its screen can do.
+   *
+   * This was `desktopToolSpecs()` with no context, so a bot served over HTTP got the
+   * nine screen verbs and nothing else — and since Codex is served this way, Codex bots
+   * could not save routines. Asked to check something daily, one would try, find no such
+   * tool, and tell the user it was unable to schedule anything. The tools existed; they
+   * were simply never offered down this path.
+   */
+  private contextFor(botId: string, conversationId: string) {
+    return { routines: routineTools(this.store, botId, conversationId) }
+  }
+
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    const botId = decodeURIComponent((req.url ?? '').slice('/mcp/'.length).split('?')[0] ?? '')
+    // /mcp/:botId/:conversationId — a routine belongs to a bot in a conversation, so
+    // both travel in the path.
+    const path = (req.url ?? '').slice('/mcp/'.length).split('?')[0] ?? ''
+    const [botId = '', conversationId = ''] = path.split('/').map(decodeURIComponent)
     if (!botId) return this.fail(res, 400, 'No bot in the URL.')
 
     if (req.method === 'GET') {
@@ -47,7 +68,7 @@ export class McpHttp {
       return this.fail(res, 400, 'Body was not JSON.')
     }
 
-    const result = await this.dispatch(botId, request)
+    const result = await this.dispatch(botId, conversationId, request)
     // A notification expects no answer, and MCP says to acknowledge it with 202.
     if (result === undefined) {
       res.writeHead(202).end()
@@ -59,6 +80,7 @@ export class McpHttp {
 
   private async dispatch(
     botId: string,
+    conversationId: string,
     request: { method?: string; params?: Record<string, unknown> },
   ): Promise<unknown> {
     switch (request.method) {
@@ -75,7 +97,7 @@ export class McpHttp {
 
       case 'tools/list':
         return {
-          tools: desktopToolSpecs().map((spec) => ({
+          tools: desktopToolSpecs(this.contextFor(botId, conversationId)).map((spec) => ({
             name: spec.name,
             description: spec.description,
             inputSchema: spec.parameters,
@@ -86,7 +108,12 @@ export class McpHttp {
         const name = String(request.params?.['name'] ?? '')
         const args = (request.params?.['arguments'] ?? {}) as Record<string, unknown>
         try {
-          const outcome = await runDesktopTool(this.desktops.for(botId), name, args)
+          const outcome = await runDesktopTool(
+            this.desktops.for(botId),
+            name,
+            args,
+            this.contextFor(botId, conversationId),
+          )
           const content: unknown[] = []
           if (outcome.imageDataUrl) {
             content.push({

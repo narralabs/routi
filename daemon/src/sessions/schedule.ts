@@ -19,8 +19,23 @@ export type Schedule =
   | { kind: 'weekly'; weekdays: number[]; at: string }
 
 export function parseSchedule(value: unknown): Schedule | null {
-  if (typeof value !== 'object' || value === null) return null
-  const raw = value as Record<string, unknown>
+  // A model may hand this over as JSON in a string rather than as an object — Codex
+  // does, and the tool rejected every one of them with a message about the schedule
+  // being unusable, which read to the user as "routines don't work". The argument is
+  // well formed; it just arrived quoted.
+  const source =
+    typeof value === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(value) as unknown
+          } catch {
+            return null
+          }
+        })()
+      : value
+
+  if (typeof source !== 'object' || source === null) return null
+  const raw = source as Record<string, unknown>
 
   if (raw['kind'] === 'interval') {
     const minutes = Math.round(Number(raw['minutes']))

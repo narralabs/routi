@@ -32,6 +32,8 @@ export const Conversation = z.object({
   id: z.string(),
   botId: z.string(),
   title: z.string(),
+  /** First line of the most recent message — what the sidebar shows under the name. */
+  preview: z.string().default(''),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
   lastMessageAt: z.number().int().nullable().default(null),

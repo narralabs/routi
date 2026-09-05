@@ -81,6 +81,14 @@ private struct BotRow: View {
     let conversation: Conversation?
     let isBusy: Bool
 
+    /// The last thing said, as in the reference — falling back to the chat's title,
+    /// then to a placeholder for a bot that has not spoken yet.
+    private var subtitle: String {
+        if let preview = conversation?.preview, !preview.isEmpty { return preview }
+        if let title = conversation?.title, !title.isEmpty { return title }
+        return "New chat"
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             BotAvatar(color: bot.color, size: 36, isBusy: isBusy)
@@ -97,7 +105,7 @@ private struct BotRow: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
-                Text(conversation?.title.isEmpty == false ? conversation!.title : "New chat")
+                Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)

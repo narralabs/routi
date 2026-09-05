@@ -16,6 +16,7 @@ type ConvRow = {
   id: string; bot_id: string; title: string
   created_at: number; updated_at: number; last_message_at: number | null
   provider_session_id: string | null
+  last_blocks: string | null
 }
 type MsgRow = {
   id: string; conversation_id: string; role: string
@@ -40,10 +41,38 @@ const toConv = (r: ConvRow): Conversation => ({
   id: r.id,
   botId: r.bot_id,
   title: r.title,
+  preview: previewOf(r.last_blocks),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
   lastMessageAt: r.last_message_at,
 })
+
+/** First non-empty text block of the last message, flattened to one line. */
+function previewOf(blocksJson: string | null): string {
+  if (!blocksJson) return ''
+  try {
+    const blocks = JSON.parse(blocksJson) as Block[]
+    for (const b of blocks) {
+      if (b.type === 'text' && b.text.trim()) {
+        return b.text.trim().replace(/\s+/g, ' ').slice(0, 140)
+      }
+    }
+    // A turn can be all tool cards or images; say something rather than nothing.
+    if (blocks.some((b) => b.type === 'tool_use')) return 'Working…'
+    if (blocks.some((b) => b.type === 'image')) return 'Sent an image'
+  } catch {
+    // Corrupt row: fall through to an empty preview rather than failing the list.
+  }
+  return ''
+}
+
+/** Attaches the latest message's blocks so `toConv` can derive a preview. */
+const CONV_SELECT = `SELECT c.*, (
+    SELECT m.blocks_json FROM messages m
+    WHERE m.conversation_id = c.id
+    ORDER BY m.created_at DESC LIMIT 1
+  ) AS last_blocks
+  FROM conversations c`
 
 const toMsg = (r: MsgRow): Message => ({
   id: r.id,
@@ -104,7 +133,16 @@ export class Store {
   updateBot(id: string, patch: Partial<Bot>): Bot | null {
     const existing = this.getBot(id)
     if (!existing) return null
-    const next: Bot = { ...existing, ...patch, id: existing.id, updatedAt: now() }
+    // Provider and model are immutable after creation; pin them regardless of what
+    // the caller sent, so the schema and the storage layer agree.
+    const next: Bot = {
+      ...existing,
+      ...patch,
+      id: existing.id,
+      provider: existing.provider,
+      model: existing.model,
+      updatedAt: now(),
+    }
     this.db
       .prepare(
         `UPDATE bots SET name=@name, avatar_color=@avatarColor, system_prompt=@systemPrompt,
@@ -122,21 +160,22 @@ export class Store {
   // ---------------------------------------------------------- conversations
 
   listConversations(botId?: string): Conversation[] {
-    const sql = botId
-      ? 'SELECT * FROM conversations WHERE bot_id = ? ORDER BY COALESCE(last_message_at, created_at) DESC'
-      : 'SELECT * FROM conversations ORDER BY COALESCE(last_message_at, created_at) DESC'
+    const order = ' ORDER BY COALESCE(c.last_message_at, c.created_at) DESC'
+    const sql = botId ? `${CONV_SELECT} WHERE c.bot_id = ?${order}` : `${CONV_SELECT}${order}`
     const rows = (botId ? this.db.prepare(sql).all(botId) : this.db.prepare(sql).all()) as ConvRow[]
     return rows.map(toConv)
   }
 
   getConversation(id: string): Conversation | null {
-    const r = this.db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as ConvRow | undefined
+    const r = this.db.prepare(`${CONV_SELECT} WHERE c.id = ?`).get(id) as ConvRow | undefined
     return r ? toConv(r) : null
   }
 
   createConversation(botId: string, title = 'New chat'): Conversation {
     const t = now()
-    const conv: Conversation = { id: randomUUID(), botId, title, createdAt: t, updatedAt: t, lastMessageAt: null }
+    const conv: Conversation = {
+      id: randomUUID(), botId, title, preview: '', createdAt: t, updatedAt: t, lastMessageAt: null,
+    }
     this.db
       .prepare(
         `INSERT INTO conversations (id,bot_id,title,created_at,updated_at,last_message_at,provider_session_id)

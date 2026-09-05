@@ -30,10 +30,16 @@ export const RpcMethods = {
   'bots.update': {
     params: z.object({
       id: z.string(),
+      /**
+       * `provider` and `model` are deliberately absent: they are chosen once, at
+       * creation, and fixed for the bot's lifetime. Changing the model mid-thread
+       * would silently reinterpret an existing conversation under different
+       * capabilities — and on the subscription adapter it would strand the warm
+       * agent session that owns that history.
+       */
       patch: z.object({
         name: z.string().min(1).optional(),
         systemPrompt: z.string().optional(),
-        model: z.string().optional(),
         avatarColor: z.string().optional(),
         surfaceMode: SurfaceMode.optional(),
         archivedAt: z.number().int().nullable().optional(),

@@ -42,7 +42,10 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
    */
   private async withProbe<T>(fn: (q: Query) => Promise<T>): Promise<T> {
     const input = new PushQueue<SDKUserMessage>()
-    const q = query({ prompt: input, options: { cwd: this.opts.cwd, tools: [], persistSession: false } })
+    const q = query({
+      prompt: input,
+      options: { cwd: this.opts.cwd, tools: [], persistSession: false, settingSources: [] },
+    })
     try {
       return await fn(q)
     } finally {
@@ -90,8 +93,17 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         model: req.model,
         effort: req.effort,
         // A chat bot, not a coding agent: no built-in tools, no claude_code preset.
-        systemPrompt: { type: 'custom', prompt: req.systemPrompt || 'You are a helpful assistant.' },
+        systemPrompt: { type: 'custom', prompt: composeSystemPrompt(req.systemPrompt) },
         tools: [],
+        /**
+         * Isolation mode. Without this the SDK loads the host's own Claude Code
+         * configuration — ~/.claude/settings.json, its MCP servers, and any CLAUDE.md
+         * on the path — and the bot inherits an identity that has nothing to do with
+         * its personality. It showed up as a bot introducing itself as the operator's
+         * MCP tooling rather than as itself. A Krog bot is defined by its system
+         * prompt and nothing else.
+         */
+        settingSources: [],
         includePartialMessages: true,
         ...(resumeId ? { resume: resumeId } : {}),
       },
@@ -217,6 +229,31 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
   dispose(): void {
     for (const id of [...this.sessions.keys()]) this.release(id)
   }
+}
+
+/**
+ * The bot's persona, plus a rule about where its identity comes from.
+ *
+ * Connectors enabled on the Anthropic account (claude.ai integrations) are attached
+ * server-side to every subscription session. They cannot be removed from this end —
+ * `settingSources: []`, `mcpServers: {}` and `tools: []` were all measured and none
+ * of them drop the connectors, because they are not local configuration. Left alone,
+ * a freshly created bot introduces itself as whatever tooling the account happens to
+ * expose rather than as itself.
+ *
+ * So the framing is handled where it can be: the bot is told that its description is
+ * the source of its identity and that incidental tools are not.
+ */
+function composeSystemPrompt(persona: string): string {
+  const description = persona.trim() || 'You are a helpful, concise assistant.'
+  return [
+    description,
+    '',
+    'The description above is who you are. Any external tools, integrations or data ' +
+      'sources that happen to be available to you are incidental — never describe ' +
+      'yourself in terms of them, and do not mention them unless the user asks about ' +
+      'them directly.',
+  ].join('\n')
 }
 
 // ------------------------------------------------------------------ mapping

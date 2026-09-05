@@ -32,7 +32,11 @@ const handlers: Record<RpcMethod, Handler> = {
 
   'bots.create': async (p, ctx) => {
     const params = p as { name: string; systemPrompt: string; model: string; avatarColor?: string; surfaceMode: 'none' | 'container' | 'host' }
-    return ctx.store.createBot(params)
+    const created = ctx.store.createBot(params)
+    // Fire and forget: the client should get its bot back immediately and watch the
+    // greeting stream in, exactly as it would any other reply.
+    void ctx.sessions.greet(created.conversation.id)
+    return created
   },
 
   'bots.update': async (p, ctx) => {

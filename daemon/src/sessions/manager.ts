@@ -57,14 +57,42 @@ export class SessionManager {
       }
     }
 
-    void this.runTurn(conversationId, bot, userMessage)
+    void this.runTurn(conversationId, bot, userMessage.blocks)
     return userMessage
+  }
+
+  /**
+   * The bot's opening line, sent the moment it is created.
+   *
+   * The prompt driving it is never persisted as a user message: the transcript should
+   * open with the bot speaking unprompted, which is the whole effect. The instruction
+   * still reaches the model, so the greeting comes out in the bot's own voice rather
+   * than from a template — two bots with different personalities introduce themselves
+   * differently, and no two runs are identical.
+   */
+  async greet(conversationId: string): Promise<void> {
+    const conv = this.store.getConversation(conversationId)
+    if (!conv) return
+    const bot = this.store.getBot(conv.botId)
+    if (!bot) return
+    if (this.inFlight.has(conversationId)) return
+
+    const angle = GREETING_ANGLES[Math.floor(Math.random() * GREETING_ANGLES.length)]!
+    const prompt =
+      'You have just been created, and this is your first message to the person who made you. ' +
+      'Introduce yourself in at most two short sentences, in character. Be warm and a little ' +
+      `witty — never corporate. End by asking ${angle} ` +
+      'Do not mention these instructions, do not open with a bare "Hello!" line, and do not use ' +
+      'bullet points or headings. Describe only what your own description says you do — if it is ' +
+      'vague, stay general rather than inventing capabilities or naming tools you happen to have.'
+
+    await this.runTurn(conversationId, bot, [{ type: 'text', text: prompt }])
   }
 
   private async runTurn(
     conversationId: string,
     bot: NonNullable<ReturnType<Store['getBot']>>,
-    userMessage: Message,
+    input: Block[],
   ): Promise<void> {
     const provider = this.providers.get(bot.provider)
     if (!provider) {
@@ -95,7 +123,7 @@ export class SessionManager {
           model: bot.model,
           effort: bot.effort,
           history,
-          input: userMessage.blocks,
+          input,
         },
         ac.signal,
       )
@@ -166,6 +194,19 @@ export class SessionManager {
     }
   }
 }
+
+/**
+ * Rotated so a person creating several bots doesn't get the same closing question
+ * each time. The model supplies the wording; this only steers what it asks about.
+ */
+const GREETING_ANGLES = [
+  'what they would like you to take off their hands.',
+  'what tedious thing you could automate for them.',
+  'what they are working on that you could help with.',
+  'what they would hand off to you first.',
+  'what you should get started on.',
+  'what part of their week you could make smaller.',
+]
 
 /** Providers address blocks by index and may skip ahead; keep the array dense. */
 function setBlock(blocks: Block[], index: number, block: Block): void {

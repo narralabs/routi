@@ -120,7 +120,7 @@ struct ChatView: View {
             focused: $composerFocused,
             onSend: send,
             onInterrupt: { Task { await model.interrupt() } },
-            trailingLabel: AnyView(InlineModelPicker(bot: bot))
+            trailingLabel: AnyView(ModelLabel(bot: bot))
         )
     }
 
@@ -170,8 +170,12 @@ struct ChatView: View {
     }
 }
 
-/// Model name as plain text inside the composer pill, the way ChatGPT shows it.
-private struct InlineModelPicker: View {
+/// The bot's model, shown but not editable.
+///
+/// Provider and model are chosen once when the bot is created and fixed for its
+/// lifetime, so this is a label rather than a picker — switching mid-thread would
+/// reinterpret an existing conversation under different capabilities.
+private struct ModelLabel: View {
     @Environment(AppModel.self) private var model
     let bot: Bot
 
@@ -183,29 +187,10 @@ private struct InlineModelPicker: View {
     }
 
     var body: some View {
-        Menu {
-            ForEach(model.models) { info in
-                Button {
-                    Task { await model.updateBot(bot.id, patch: ["model": info.id]) }
-                } label: {
-                    if info.id == bot.model {
-                        Label(info.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(info.displayName)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 3) {
-                Text(label).font(.system(size: 12))
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
-            }
-            .foregroundStyle(.secondary)
-        }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .disabled(model.models.isEmpty)
+        Text(label)
+            .font(.system(size: 12))
+            .foregroundStyle(.tertiary)
+            .fixedSize()
+            .help("\(bot.provider.capitalized) · \(label). Fixed when this bot was created.")
     }
 }

@@ -59,6 +59,8 @@ struct Conversation: Codable, Identifiable, Hashable {
     var id: String
     var botId: String
     var title: String
+    /// First line of the most recent message — what the sidebar shows under the name.
+    var preview: String
     var lastMessageAt: Double?
 
     init(from decoder: Decoder) throws {
@@ -66,10 +68,11 @@ struct Conversation: Codable, Identifiable, Hashable {
         id = try c.decode(String.self, forKey: .id)
         botId = try c.decode(String.self, forKey: .botId)
         title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        preview = try c.decodeIfPresent(String.self, forKey: .preview) ?? ""
         lastMessageAt = try c.decodeIfPresent(Double.self, forKey: .lastMessageAt)
     }
 
-    private enum CodingKeys: String, CodingKey { case id, botId, title, lastMessageAt }
+    private enum CodingKeys: String, CodingKey { case id, botId, title, preview, lastMessageAt }
 }
 
 enum Role: String, Codable {

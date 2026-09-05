@@ -144,6 +144,28 @@ plus-trailing-control shape this layout needs.
 
 ## Design notes
 
+**A new bot speaks first.** Creating a bot immediately runs a turn whose prompt is
+never persisted, so the transcript opens with the bot introducing itself unprompted
+and asking what it can take on. The wording comes from the model in the bot's own
+voice rather than a template, so two personalities introduce themselves differently
+and no two runs match; a rotating set of closing questions keeps repeat creations from
+feeling canned.
+
+**Account connectors leak into the subscription path.** Integrations enabled on the
+Anthropic account attach server-side to every subscription session. `settingSources:
+[]`, `mcpServers: {}` and `tools: []` were each measured and none of them remove the
+connectors, because they are not local configuration — a fresh bot would introduce
+itself as whatever tooling the account exposes instead of as itself. The system prompt
+therefore states that the bot's description is the source of its identity and that
+incidental tools are not. To remove them entirely, turn the connectors off in the
+Anthropic account, or use the API-key credential, which carries none.
+
+**Provider and model are fixed at creation.** Both are chosen in the New Bot sheet and
+immutable afterwards, enforced in the protocol schema *and* pinned again in
+`Store.updateBot`. Changing a model mid-thread would reinterpret an existing
+conversation under different capabilities, and on the subscription adapter it would
+strand the warm agent session that owns that history.
+
 **Messages are block arrays, never strings.** A single assistant turn interleaves
 prose, inline screenshots, and tool cards, so `messages.blocks_json` holds
 `text | thinking | image | tool_use | tool_result | surface_event`. Getting this right

@@ -277,11 +277,11 @@ final class AppModel {
         try? await client.rpc("messages.interrupt", ["conversationId": id])
     }
 
-    func createBot(name: String, systemPrompt: String, model: String) async {
+    func createBot(name: String, systemPrompt: String, model: String, effort: Effort?) async {
         do {
-            let result = try await client.rpc("bots.create", [
-                "name": name, "systemPrompt": systemPrompt, "model": model,
-            ])
+            var params: [String: Any] = ["name": name, "systemPrompt": systemPrompt, "model": model]
+            if let effort { params["effort"] = effort.rawValue }
+            let result = try await client.rpc("bots.create", params)
             if let botRaw = result["bot"],
                let data = try? JSONSerialization.data(withJSONObject: botRaw),
                let bot = try? JSONDecoder().decode(Bot.self, from: data) {

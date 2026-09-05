@@ -31,12 +31,13 @@ struct Bot: Codable, Identifiable, Hashable {
     var systemPrompt: String
     var provider: String
     var model: String
+    var effort: String?
     var surfaceMode: SurfaceMode
     var updatedAt: Double
     var archivedAt: Double?
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, avatarColor, systemPrompt, provider, model, surfaceMode, updatedAt, archivedAt
+        case id, name, avatarColor, systemPrompt, provider, model, effort, surfaceMode, updatedAt, archivedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -47,6 +48,7 @@ struct Bot: Codable, Identifiable, Hashable {
         systemPrompt = try c.decodeIfPresent(String.self, forKey: .systemPrompt) ?? ""
         provider = try c.decodeIfPresent(String.self, forKey: .provider) ?? "anthropic"
         model = try c.decodeIfPresent(String.self, forKey: .model) ?? "default"
+        effort = try c.decodeIfPresent(String.self, forKey: .effort)
         surfaceMode = (try? c.decode(SurfaceMode.self, forKey: .surfaceMode)) ?? .none
         updatedAt = try c.decodeIfPresent(Double.self, forKey: .updatedAt) ?? 0
         archivedAt = try c.decodeIfPresent(Double.self, forKey: .archivedAt)
@@ -109,6 +111,7 @@ struct ModelInfo: Codable, Identifiable, Hashable {
     var displayName: String
     var description: String
     var resolvedModel: String?
+    var effortLevels: [String]
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -116,9 +119,12 @@ struct ModelInfo: Codable, Identifiable, Hashable {
         displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? id
         description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
         resolvedModel = try c.decodeIfPresent(String.self, forKey: .resolvedModel)
+        effortLevels = try c.decodeIfPresent([String].self, forKey: .effortLevels) ?? []
     }
 
-    private enum CodingKeys: String, CodingKey { case id, displayName, description, resolvedModel }
+    private enum CodingKeys: String, CodingKey {
+        case id, displayName, description, resolvedModel, effortLevels
+    }
 }
 
 struct AccountInfo: Codable, Hashable {

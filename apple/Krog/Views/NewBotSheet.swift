@@ -8,7 +8,17 @@ struct NewBotSheet: View {
     @State private var systemPrompt = ""
     @State private var selectedProvider = "anthropic"
     @State private var selectedModel = "default"
+    @State private var selectedEffort = Effort.implicitDefault
     @State private var isSubmitting = false
+
+    /// Only offer the levels the chosen model actually accepts — Haiku, for one,
+    /// reports none, and a picker of options the API would reject is worse than none.
+    private var availableEfforts: [Effort] {
+        let levels = model.models.first { $0.id == selectedModel }?.effortLevels ?? []
+        return levels.compactMap(Effort.init(rawValue:))
+    }
+
+    private var supportsEffort: Bool { !availableEfforts.isEmpty }
 
     var body: some View {
         SheetScaffold(title: "New Bot", confirmLabel: "Create", canConfirm: !name.isEmpty && !isSubmitting) {
@@ -33,7 +43,7 @@ struct NewBotSheet: View {
                     ProviderChips(selection: $selectedProvider)
                 }
 
-                FormField("Model", footnote: "Provider and model are fixed once the bot is created.") {
+                FormField("Model") {
                     Picker("", selection: $selectedModel) {
                         ForEach(model.models) { info in
                             Text(info.displayName).tag(info.id)
@@ -42,6 +52,23 @@ struct NewBotSheet: View {
                     .labelsHidden()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .disabled(model.models.isEmpty)
+                }
+
+                if supportsEffort {
+                    FormField(
+                        "Effort",
+                        footnote: "\(selectedEffort.detail) Provider, model and effort are fixed once the bot is created."
+                    ) {
+                        Picker("", selection: $selectedEffort) {
+                            ForEach(availableEfforts) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
+                } else {
+                    Text("Provider and model are fixed once the bot is created.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                 }
 
                 Spacer(minLength: 0)
@@ -57,7 +84,12 @@ struct NewBotSheet: View {
         } onConfirm: {
             isSubmitting = true
             Task {
-                await model.createBot(name: name, systemPrompt: systemPrompt, model: selectedModel)
+                await model.createBot(
+                    name: name,
+                    systemPrompt: systemPrompt,
+                    model: selectedModel,
+                    effort: supportsEffort ? selectedEffort : nil
+                )
                 dismiss()
             }
         } onCancel: {

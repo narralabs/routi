@@ -101,7 +101,8 @@ export class Store {
   }
 
   createBot(input: {
-    name: string; systemPrompt?: string; model?: string; avatarColor?: string; surfaceMode?: Bot['surfaceMode']
+    name: string; systemPrompt?: string; model?: string; effort?: Bot['effort']
+    avatarColor?: string; surfaceMode?: Bot['surfaceMode']
   }): { bot: Bot; conversation: Conversation } {
     const count = this.db.prepare('SELECT COUNT(*) AS n FROM bots').get() as { n: number }
     const t = now()
@@ -112,6 +113,7 @@ export class Store {
       systemPrompt: input.systemPrompt ?? '',
       provider: 'anthropic',
       model: input.model ?? 'default',
+      effort: input.effort,
       surfaceMode: input.surfaceMode ?? 'none',
       createdAt: t,
       updatedAt: t,
@@ -122,9 +124,9 @@ export class Store {
       this.db
         .prepare(
           `INSERT INTO bots (id,name,avatar_color,system_prompt,provider,model,effort,surface_mode,created_at,updated_at,archived_at)
-           VALUES (@id,@name,@avatarColor,@systemPrompt,@provider,@model,NULL,@surfaceMode,@createdAt,@updatedAt,NULL)`,
+           VALUES (@id,@name,@avatarColor,@systemPrompt,@provider,@model,@effort,@surfaceMode,@createdAt,@updatedAt,NULL)`,
         )
-        .run(bot)
+        .run({ ...bot, effort: bot.effort ?? null })
       return this.createConversation(bot.id, 'New chat')
     })()
     return { bot, conversation }
@@ -141,6 +143,7 @@ export class Store {
       id: existing.id,
       provider: existing.provider,
       model: existing.model,
+      effort: existing.effort,
       updatedAt: now(),
     }
     this.db

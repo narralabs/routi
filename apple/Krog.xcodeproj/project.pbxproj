@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1C87824652C8B1E2FCD38EFD /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF6CC08DB5DCD356ECB1178 /* Effort.swift */; };
 		1EE8E5A5399787E011F2B7A3 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E25BE43C387D4A05868B48 /* Providers.swift */; };
 		44D22B926D16E7C173457228 /* DetailRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E6FA1A94CEE9C22CFB566A /* DetailRail.swift */; };
 		488BF2089285F13417005847 /* NewBotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B133E8092EF8FA68F0222731 /* NewBotSheet.swift */; };
@@ -31,6 +32,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0AF6CC08DB5DCD356ECB1178 /* Effort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effort.swift; sourceTree = "<group>"; };
 		0D970051271EF5121D087906 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
 		13A7628F51CE98CEA0DD1E6A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		1C049368396CD14AB35A3532 /* OnboardingSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSteps.swift; sourceTree = "<group>"; };
@@ -139,6 +141,7 @@
 			children = (
 				CFF7CD8BEF25FE854AFBBDD2 /* Auth.swift */,
 				41D664BF4CAD9823F7621366 /* Blocks.swift */,
+				0AF6CC08DB5DCD356ECB1178 /* Effort.swift */,
 				5DCF205E969ACC97A3C8222E /* Entities.swift */,
 			);
 			path = Models;
@@ -244,6 +247,7 @@
 				F60D240F3014485F52F3B126 /* ChatView.swift in Sources */,
 				49DE2E9CEE1236B22B62D172 /* Composer.swift in Sources */,
 				44D22B926D16E7C173457228 /* DetailRail.swift in Sources */,
+				1C87824652C8B1E2FCD38EFD /* Effort.swift in Sources */,
 				D7237D07593FF4EC7820D7B8 /* Entities.swift in Sources */,
 				51BE75839CA8A64496525819 /* KrogApp.swift in Sources */,
 				C674793AACF4E1F3072E7832 /* KrogClient.swift in Sources */,

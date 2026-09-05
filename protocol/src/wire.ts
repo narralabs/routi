@@ -22,6 +22,8 @@ export const RpcMethods = {
       name: z.string().min(1),
       systemPrompt: z.string().default(''),
       model: z.string().default('default'),
+      /** Fixed at creation like provider and model; omitted means Anthropic's default. */
+      effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
       avatarColor: z.string().optional(),
       surfaceMode: SurfaceMode.default('none'),
     }),

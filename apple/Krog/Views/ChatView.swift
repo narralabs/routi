@@ -62,8 +62,11 @@ struct ChatView: View {
                 }
             }
 
-            composer
-                .frame(maxWidth: 680)
+            VStack(spacing: 0) {
+                composer
+                configLine
+            }
+            .frame(maxWidth: 680)
 
             Spacer()
             Spacer()
@@ -105,10 +108,13 @@ struct ChatView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            composer
-                .frame(maxWidth: 680)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 18)
+            VStack(spacing: 0) {
+                composer
+                configLine
+            }
+            .frame(maxWidth: 680)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 14)
         }
     }
 
@@ -119,9 +125,23 @@ struct ChatView: View {
             isBusy: model.isBusy,
             focused: $composerFocused,
             onSend: send,
-            onInterrupt: { Task { await model.interrupt() } },
-            trailingLabel: AnyView(ModelLabel(bot: bot))
+            onInterrupt: { Task { await model.interrupt() } }
         )
+    }
+
+    /// Provider · Model · Effort, under the composer on the right.
+    ///
+    /// All three are fixed when the bot is created, so this is a standing statement of
+    /// what the bot runs on rather than a control — which is why it sits below the bar
+    /// as a caption instead of inside it as a picker.
+    private var configLine: some View {
+        Text(BotConfig(bot: bot, models: model.models).summary)
+            .font(.system(size: 11))
+            .foregroundStyle(.tertiary)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, 6)
+            .padding(.top, 6)
     }
 
     private static let tailAnchor = "krog.tail"
@@ -212,27 +232,27 @@ private struct ToolbarIcon: View {
     }
 }
 
-/// The bot's model, shown but not editable.
-///
-/// Provider and model are chosen once when the bot is created and fixed for its
-/// lifetime, so this is a label rather than a picker — switching mid-thread would
-/// reinterpret an existing conversation under different capabilities.
-private struct ModelLabel: View {
-    @Environment(AppModel.self) private var model
+/// Renders a bot's fixed configuration as "Anthropic · Opus · High".
+struct BotConfig {
     let bot: Bot
+    let models: [ModelInfo]
 
-    private var label: String {
-        let full = model.models.first { $0.id == bot.model }?.displayName ?? bot.model
+    private var modelName: String {
+        let full = models.first { $0.id == bot.model }?.displayName ?? bot.model
         // Trim the parenthetical the CLI adds ("Default (recommended)").
         return full.split(separator: "(").first
             .map { $0.trimmingCharacters(in: .whitespaces) } ?? full
     }
 
-    var body: some View {
-        Text(label)
-            .font(.system(size: 12))
-            .foregroundStyle(.tertiary)
-            .fixedSize()
-            .help("\(bot.provider.capitalized) · \(label). Fixed when this bot was created.")
+    private var supportsEffort: Bool {
+        !(models.first { $0.id == bot.model }?.effortLevels ?? []).isEmpty
+    }
+
+    var summary: String {
+        var parts = [ProviderInfo.find(bot.provider).name, modelName]
+        // Omit rather than guess for models that take no effort setting — Haiku
+        // reports none, and showing "High" there would state something untrue.
+        if supportsEffort { parts.append(Effort.parse(bot.effort).label) }
+        return parts.joined(separator: " · ")
     }
 }

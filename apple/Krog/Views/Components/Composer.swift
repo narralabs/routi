@@ -14,9 +14,6 @@ struct Composer: View {
     let onSend: () -> Void
     let onInterrupt: () -> Void
 
-    /// Rendered inline on the right of the pill, the way ChatGPT shows the model.
-    var trailingLabel: AnyView?
-
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -42,10 +39,6 @@ struct Composer: View {
                 .focused($focused)
                 .onSubmit(onSend)
                 .padding(.vertical, 7)
-
-            if let trailingLabel {
-                trailingLabel.padding(.bottom, 3)
-            }
 
             Button {
                 isBusy ? onInterrupt() : onSend()

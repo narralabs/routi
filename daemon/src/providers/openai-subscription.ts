@@ -48,46 +48,7 @@ const MODELS: ModelInfo[] = [
   },
 ]
 
-/**
- * What a Krog bot is, said plainly to a coding agent.
- *
- * Codex is a coding agent wearing this bot's description, and left alone it behaves
- * like one: asked to look something up with no browser to hand, it reaches for the
- * shell and starts reading the operator's disk — /Applications, dotfiles, app
- * bundles. That is a reasonable instinct for a coding tool and entirely wrong for a
- * bot someone made to check flight prices.
- *
- * Until these bots get a screen of their own, the shell is the only pair of hands
- * they have, and it points at the wrong machine. So the instruction is explicit
- * rather than implied.
- */
-const GUARDRAIL = [
-  'You are a personal assistant in a chat app, not a coding agent, and you are talking',
-  'to someone who is not a programmer.',
-  '',
-  'Answer from what you know and from web search. Do not inspect, search or modify',
-  'this computer: its files, applications and settings are not part of your task and',
-  'are not yours to look at. If something genuinely cannot be answered without',
-  'access you do not have, say so plainly in one sentence.',
-  '',
-  'Write like a person. No shell commands, no file paths, no code unless the user',
-  'asked for code.',
-].join('\n')
 
-/**
- * Said only to bots that have a screen.
- *
- * Codex arrives with web search and will reach for it by reflex, which answers the
- * question but not the way the user asked — a bot given a browser and told to look at
- * a page should look at the page. It also matters for anything search cannot reach: a
- * signed-in account, a form, a price behind a session.
- */
-const SCREEN_RULE = [
-  'You have your own screen with a browser on it. Use open_url and read_page to look at',
-  'pages yourself. Prefer that over web search whenever the user points you at a site,',
-  'asks what a page says, or wants something only visible once signed in — and say what',
-  'you actually saw rather than what a search result claimed.',
-].join('\n')
 
 /**
  * A Codex home belonging to Krog rather than to whoever owns this Mac.
@@ -180,8 +141,9 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       return
     }
 
-    const rules = req.hasSurface === true ? `${GUARDRAIL}\n\n${SCREEN_RULE}` : GUARDRAIL
-    const framed = [req.systemPrompt.trim(), '', rules, '', prompt].filter(Boolean).join('\n')
+    // The system prompt already carries the standing policy; Codex takes instructions
+    // in the turn rather than as a system role, so it leads here.
+    const framed = [req.systemPrompt.trim(), '', prompt].filter(Boolean).join('\n')
 
     // Events arrive on the server's own schedule, so they queue here and the generator
     // drains them. Without this, anything emitted while the consumer is awaiting would

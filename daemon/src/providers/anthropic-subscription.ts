@@ -102,7 +102,8 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         model: req.model,
         effort: req.effort,
         // A chat bot, not a coding agent: no built-in tools, no claude_code preset.
-        systemPrompt: { type: 'custom', prompt: composeSystemPrompt(req.systemPrompt, withDesktop) },
+        // Composed once by the session manager, so every runtime says the same things.
+        systemPrompt: { type: 'custom', prompt: req.systemPrompt },
         ...(withDesktop
           ? {
               mcpServers: { desktop: desktopToolServer(desktop!) },
@@ -247,44 +248,6 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
   }
 }
 
-/**
- * The bot's persona, plus a rule about where its identity comes from.
- *
- * Connectors enabled on the Anthropic account (claude.ai integrations) are attached
- * server-side to every subscription session. They cannot be removed from this end —
- * `settingSources: []`, `mcpServers: {}` and `tools: []` were all measured and none
- * of them drop the connectors, because they are not local configuration. Left alone,
- * a freshly created bot introduces itself as whatever tooling the account happens to
- * expose rather than as itself.
- *
- * So the framing is handled where it can be: the bot is told that its description is
- * the source of its identity and that incidental tools are not.
- */
-function composeSystemPrompt(rawDescription: string, withDesktop: boolean): string {
-  const description = rawDescription.trim() || 'You are a helpful, concise assistant.'
-  const lines = [
-    description,
-    '',
-    'The description above is who you are and what you are for. Any external tools, ' +
-      'integrations or data sources that happen to be available to you are incidental ' +
-      '— never describe yourself in terms of them, and do not mention them unless the ' +
-      'user asks about them directly.',
-  ]
-
-  if (withDesktop) {
-    lines.push(
-      '',
-      'You have a Linux desktop with Chromium and tools to see and use it. Treat your ' +
-        'description as a standing instruction: when it names something to do, do it — ' +
-        'open the browser, search, read the pages, and come back with what you found. ' +
-        'Do not ask whether you should begin work you were plainly created for. Ask ' +
-        'only when a choice is genuinely the user\'s to make, such as a budget, a date, ' +
-        'or which of several real options to take.',
-    )
-  }
-
-  return lines.join('\n')
-}
 
 // ------------------------------------------------------------------ mapping
 

@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import type { Block, Bot, Message, ServerEvent } from '@krog/protocol'
 import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
-import { channelInstructions, wakeFor } from './channel.js'
+import { wakeFor } from './channel.js'
+import { standingInstructions } from './policy.js'
 import type { DesktopPool, Surface } from '../surfaces/pool.js'
 
 type Emit = (event: ServerEvent) => void
@@ -207,13 +208,11 @@ export class SessionManager {
           conversationId,
           // The bot's name belongs in its prompt: without it a bot introduces itself
           // as "Claude" rather than as the thing the user just named and created.
-          systemPrompt: [
-            `Your name is ${bot.name}.`,
-            bot.systemPrompt.trim(),
-            channel ? channelInstructions(bot, channel.members) : '',
-          ]
-            .filter(Boolean)
-            .join('\n\n'),
+          systemPrompt: standingInstructions({
+            bot,
+            hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
+            channel,
+          }),
           model: bot.model,
           effort: bot.effort,
           history,

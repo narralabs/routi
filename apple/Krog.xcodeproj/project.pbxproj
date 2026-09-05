@@ -10,6 +10,7 @@
 		1C87824652C8B1E2FCD38EFD /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF6CC08DB5DCD356ECB1178 /* Effort.swift */; };
 		1EE8E5A5399787E011F2B7A3 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E25BE43C387D4A05868B48 /* Providers.swift */; };
 		2623D2F1326A43B927333552 /* ModelName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA7019832B13F1009D511DC /* ModelName.swift */; };
+		385DDCC97DB917F838027A8D /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49BD697351E2436ABD3C2345 /* MarkdownText.swift */; };
 		44D22B926D16E7C173457228 /* DetailRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E6FA1A94CEE9C22CFB566A /* DetailRail.swift */; };
 		488BF2089285F13417005847 /* NewBotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B133E8092EF8FA68F0222731 /* NewBotSheet.swift */; };
 		49DE2E9CEE1236B22B62D172 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E221D6034194D8F4BDB884 /* Composer.swift */; };
@@ -43,6 +44,7 @@
 		1ED48FDC6E26CA8F03797898 /* ScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenView.swift; sourceTree = "<group>"; };
 		211A76F272CF10AC6A1C656E /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		41D664BF4CAD9823F7621366 /* Blocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Blocks.swift; sourceTree = "<group>"; };
+		49BD697351E2436ABD3C2345 /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		4EA7019832B13F1009D511DC /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
 		55E221D6034194D8F4BDB884 /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
 		5DCF205E969ACC97A3C8222E /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
@@ -88,6 +90,7 @@
 			children = (
 				6DDFF0B0A9289DEE414C498C /* BotAvatar.swift */,
 				55E221D6034194D8F4BDB884 /* Composer.swift */,
+				49BD697351E2436ABD3C2345 /* MarkdownText.swift */,
 				E420CB5CFEF7066DD24C4C7A /* MessageRow.swift */,
 				1ED48FDC6E26CA8F03797898 /* ScreenView.swift */,
 				F032C09AD590AF32BF76346E /* ToolbarStyle.swift */,
@@ -286,6 +289,7 @@
 				D7237D07593FF4EC7820D7B8 /* Entities.swift in Sources */,
 				51BE75839CA8A64496525819 /* KrogApp.swift in Sources */,
 				C674793AACF4E1F3072E7832 /* KrogClient.swift in Sources */,
+				385DDCC97DB917F838027A8D /* MarkdownText.swift in Sources */,
 				C674CB9D6178B9844D49C413 /* MessageRow.swift in Sources */,
 				2623D2F1326A43B927333552 /* ModelName.swift in Sources */,
 				488BF2089285F13417005847 /* NewBotSheet.swift in Sources */,
@@ -404,10 +408,7 @@
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"$(inherited)",
-					"DEBUG=1",
-				);
+				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG=1 $(inherited)";
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;

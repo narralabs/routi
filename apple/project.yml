@@ -13,12 +13,6 @@ configs:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-  configs:
-    # xcodegen does not define DEBUG on its own, so `#if DEBUG` silently compiled
-    # out — which is exactly the kind of thing the build stamp exists to catch.
-    Debug:
-      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
-      GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 $(inherited)"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     # Ad-hoc signing ("Sign to Run Locally"). Needs no Apple account and still
@@ -35,6 +29,12 @@ settings:
     CODE_SIGNING_ALLOWED: YES
     ENABLE_HARDENED_RUNTIME: NO
     SWIFT_STRICT_CONCURRENCY: minimal
+  configs:
+    # xcodegen does not define DEBUG on its own, so `#if DEBUG` silently compiled
+    # out — which is exactly the kind of thing the build stamp exists to catch.
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+      GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 $(inherited)"
 
 targets:
   Krog:

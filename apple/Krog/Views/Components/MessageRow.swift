@@ -71,10 +71,16 @@ private struct Bubble: View {
     private var outgoingText: Color { colorScheme == .dark ? .black : .white }
 
     var body: some View {
-        // Markdown for free: AttributedString parses inline markdown, and Text
-        // renders it with the system font's real bold and italic faces.
-        Text(attributed)
-            .font(.system(size: 14.5))
+        // Outgoing messages are typed by hand and short, so they render as written.
+        // Replies are structured — headings, lists, tables of prices — and go through
+        // the block renderer.
+        Group {
+            if isUser {
+                Text(MarkdownText.attributed(text)).font(.system(size: 14.5))
+            } else {
+                MarkdownText(text: text)
+            }
+        }
             .lineSpacing(2)
             .foregroundStyle(isUser ? AnyShapeStyle(outgoingText) : AnyShapeStyle(.primary))
             .textSelection(.enabled)
@@ -87,12 +93,6 @@ private struct Bubble: View {
             .frame(maxWidth: 560, alignment: isUser ? .trailing : .leading)
     }
 
-    private var attributed: AttributedString {
-        (try? AttributedString(
-            markdown: text,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        )) ?? AttributedString(text)
-    }
 }
 
 /// Reasoning collapses by default; expanded it buries the actual answer.
@@ -132,8 +132,12 @@ struct ToolCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Text(tool.name)
+            HStack(spacing: 8) {
+                Image(systemName: ToolLabel.icon(for: tool.name))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 15)
+                Text(ToolLabel.title(for: tool.name))
                     .font(.system(size: 13, weight: .semibold))
                 Spacer(minLength: 12)
                 HStack(spacing: 5) {
@@ -232,4 +236,47 @@ func copyToPasteboard(_ string: String) {
     #else
     UIPasteboard.general.string = string
     #endif
+}
+
+/// What a tool call is called in front of a person.
+///
+/// The wire names are plumbing — `mcp__desktop__click` says where a tool is registered
+/// and by whom, none of which is the user's business. A bot driving a browser should
+/// read as doing recognisable things.
+enum ToolLabel {
+    private static let known: [String: (title: String, icon: String)] = [
+        "mcp__desktop__screenshot": ("Looking at the screen", "eye"),
+        "mcp__desktop__open_url": ("Opening a page", "safari"),
+        "mcp__desktop__click": ("Clicking", "cursorarrow.click"),
+        "mcp__desktop__type_text": ("Typing", "keyboard"),
+        "mcp__desktop__press_key": ("Pressing a key", "keyboard"),
+        "mcp__desktop__scroll": ("Scrolling", "arrow.up.arrow.down"),
+        "WebSearch": ("Searching the web", "magnifyingglass"),
+        "WebFetch": ("Reading a page", "doc.text"),
+        "Read": ("Reading a file", "doc.text"),
+        "Write": ("Writing a file", "square.and.pencil"),
+        "Edit": ("Editing a file", "square.and.pencil"),
+        "Bash": ("Running a command", "terminal"),
+        "Glob": ("Finding files", "folder"),
+        "Grep": ("Searching files", "magnifyingglass"),
+        "Task": ("Working on a sub-task", "arrow.triangle.branch"),
+        "TodoWrite": ("Updating its plan", "checklist"),
+    ]
+
+    static func title(for name: String) -> String { known[name]?.title ?? prettify(name) }
+    static func icon(for name: String) -> String { known[name]?.icon ?? "wrench.and.screwdriver" }
+
+    /// Fallback for a tool nobody has named yet: strip the MCP routing prefix and
+    /// space out the identifier, so a new tool reads as words rather than as code.
+    private static func prettify(_ name: String) -> String {
+        var base = name
+        if base.hasPrefix("mcp__"), let last = base.components(separatedBy: "__").last {
+            base = last
+        }
+        base = base.replacingOccurrences(of: "_", with: " ")
+        base = base.replacingOccurrences(
+            of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression
+        )
+        return base.prefix(1).uppercased() + base.dropFirst().lowercased()
+    }
 }

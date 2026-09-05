@@ -51,9 +51,6 @@ struct ScreenWindow: View {
             Text("Click and type to drive it · Esc to leave")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
-
-            Button("Stop") { Task { await model.stopSurface(); model.isShowingScreen = false } }
-                .controlSize(.small)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

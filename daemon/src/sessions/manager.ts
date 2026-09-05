@@ -156,7 +156,7 @@ export class SessionManager {
           history,
           input,
           botId: bot.id,
-          hasSurface: bot.surfaceMode !== 'none',
+          hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
         },
         ac.signal,
       )

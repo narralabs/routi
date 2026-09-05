@@ -44,7 +44,10 @@ const handlers: Record<RpcMethod, Handler> = {
     // A bot with a screen gets it now rather than on first use. Pulling a container up
     // takes tens of seconds, and a bot is expected to start working the moment it is
     // made — waiting until its first tool call would strand it mid-greeting.
-    if (params.surfaceMode === 'container') ctx.desktops.warm(created.bot.id)
+    const adapter = ctx.providers.get(created.bot.provider)
+    if (params.surfaceMode === 'container' && adapter?.supportsSurface) {
+      ctx.desktops.warm(created.bot.id)
+    }
     // Fire and forget: the client should get its bot back immediately and watch the
     // greeting stream in, exactly as it would any other reply.
     void ctx.sessions.greet(created.conversation.id)
@@ -189,8 +192,8 @@ const handlers: Record<RpcMethod, Handler> = {
     const adapter = ctx.providers.get(provider)
     // Before onboarding finishes there is no provider yet; an empty list lets the
     // client render without special-casing.
-    if (!adapter) return { models: [] }
-    return { models: await adapter.listModels() }
+    if (!adapter) return { models: [], supportsSurface: false }
+    return { models: await adapter.listModels(), supportsSurface: adapter.supportsSurface }
   },
 
   'account.info': async (_p, ctx) => {

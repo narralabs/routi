@@ -123,6 +123,7 @@ interface Session {
 
 export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   readonly id = 'openai'
+  readonly supportsSurface = false
   private readonly codex: Codex
   private readonly sessions = new Map<string, Session>()
 

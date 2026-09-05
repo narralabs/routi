@@ -18,6 +18,9 @@ final class AppModel {
     /// Model lists per provider. Each provider names its own, so the picker never
     /// offers a bot a model its provider cannot serve.
     var modelsByProvider: [String: [ModelInfo]] = [:]
+    /// Providers whose harness will accept Krog's desktop tools. A bot on any other
+    /// cannot be given a screen, however willing the container is to make one.
+    var providersWithScreen: Set<String> = []
 
     // Selection
     var selectedBotID: String?
@@ -312,12 +315,22 @@ final class AppModel {
     }
 
     func loadModels(for provider: String) async {
-        let list = (try? await client.rpc(
-            "models.list", ["provider": provider], field: "models", as: [ModelInfo].self
+        guard let result = try? await client.rpc("models.list", ["provider": provider]) else { return }
+        let raw = result["models"] ?? []
+        let list = (try? JSONDecoder().decode(
+            [ModelInfo].self, from: JSONSerialization.data(withJSONObject: raw)
         )) ?? []
         modelsByProvider[provider] = list
         if provider == "anthropic" { models = list }
+
+        if result["supportsSurface"] as? Bool ?? true {
+            providersWithScreen.insert(provider)
+        } else {
+            providersWithScreen.remove(provider)
+        }
     }
+
+    func supportsScreen(_ provider: String) -> Bool { providersWithScreen.contains(provider) }
 
     /// Providers a new bot can actually be built on.
     var availableProviders: [String] {
@@ -392,12 +405,7 @@ final class AppModel {
                 }
             }
 
-            if models.isEmpty {
-                models = (try? await client.rpc(
-                    "models.list", ["provider": "anthropic"], field: "models", as: [ModelInfo].self
-                )) ?? []
-                modelsByProvider["anthropic"] = models
-            }
+            if models.isEmpty { await loadModels(for: "anthropic") }
             // Only providers with a working credential: the daemon answers with an
             // empty list otherwise, and an empty picker is worse than no picker.
             for (id, provider) in auth.providers where provider.configured {

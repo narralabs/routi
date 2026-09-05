@@ -34,6 +34,15 @@ export interface ChatRequest {
 
 export interface ProviderAdapter {
   readonly id: string
+  /**
+   * Whether this adapter can hand a bot the desktop verbs.
+   *
+   * Not every harness accepts our tools. Claude's SDK registers them in-process and
+   * the Responses API takes them as functions, but Codex only loads custom tools from
+   * MCP servers it launches itself — which is unbuilt. A bot there would be given a
+   * screen it could not reach, so the daemon says so rather than allocating one.
+   */
+  readonly supportsSurface: boolean
   listModels(): Promise<ModelInfo[]>
   accountInfo(): Promise<AccountInfo>
   stream(req: ChatRequest, signal: AbortSignal): AsyncIterable<ProviderEvent>

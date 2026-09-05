@@ -42,6 +42,7 @@ const MODELS: ModelInfo[] = [
 
 export class AnthropicApiAdapter implements ProviderAdapter {
   readonly id = 'anthropic'
+  readonly supportsSurface = false
   private readonly client: Anthropic
 
   constructor(private readonly apiKey: string) {

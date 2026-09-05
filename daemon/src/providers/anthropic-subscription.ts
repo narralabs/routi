@@ -30,6 +30,7 @@ interface WarmSession {
 
 export class AnthropicSubscriptionAdapter implements ProviderAdapter {
   readonly id = 'anthropic'
+  readonly supportsSurface = true
   private readonly sessions = new Map<string, WarmSession>()
   private modelCache: ModelInfo[] | null = null
   private accountCache: AccountInfo | null = null

@@ -10,6 +10,16 @@ struct NewBotSheet: View {
 
     /// The chosen provider's own models. Ids do not cross providers.
     private var providerModels: [ModelInfo] { model.models(for: selectedProvider) }
+
+    private var canHaveScreen: Bool { model.supportsScreen(selectedProvider) }
+
+    /// Says plainly when a provider cannot drive a screen, rather than offering one
+    /// that would be created and never reached.
+    private var screenFootnote: String {
+        canHaveScreen
+            ? surfaceMode.explanation
+            : "\(ProviderInfo.find(selectedProvider).name) runs its own agent, which does not take Krog's browser tools yet, so a bot here cannot use a screen."
+    }
     @State private var selectedModel = "default"
     @State private var selectedEffort = Effort.implicitDefault
     // Defaults to a screen. A bot without one can only talk, and "a bot that does
@@ -81,7 +91,7 @@ struct NewBotSheet: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                FormField("Screen", footnote: surfaceMode.explanation) {
+                FormField("Screen", footnote: screenFootnote) {
                     Picker("", selection: $surfaceMode) {
                         ForEach(SurfaceMode.allCases) { mode in
                             Text(mode.label).tag(mode)
@@ -90,12 +100,15 @@ struct NewBotSheet: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                 }
+                    .disabled(!canHaveScreen)
 
             }
             .padding(.horizontal, 22)
             .padding(.top, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .onChange(of: selectedProvider) { _, new in
+                // A provider that cannot drive a screen should not appear to offer one.
+                if !model.supportsScreen(new) { surfaceMode = .none }
                 // Only a connected provider can be chosen; snap back if the user
                 // reaches an unconfigured entry via the keyboard.
                 if !model.availableProviders.contains(new) {
@@ -129,6 +142,7 @@ struct NewBotSheet: View {
             if let first = providerModels.first, !providerModels.contains(where: { $0.id == selectedModel }) {
                 selectedModel = first.id
             }
+            if !canHaveScreen { surfaceMode = .none }
         }
     }
 }
@@ -141,6 +155,17 @@ struct BotSettingsSheet: View {
     @State private var name: String
     @State private var systemPrompt: String
     @State private var surfaceMode: SurfaceMode
+
+    private var canHaveScreen: Bool { model.supportsScreen(bot.provider) }
+
+    /// A bot's provider is fixed, so this is a statement about the bot rather than a
+    /// choice: when its harness will not take Krog's browser tools, a screen here
+    /// would be created and never reached.
+    private var screenFootnote: String {
+        canHaveScreen
+            ? surfaceMode.explanation
+            : "\(ProviderInfo.find(bot.provider).name) runs its own agent, which does not take Krog's browser tools yet, so this bot cannot use a screen."
+    }
 
     init(bot: Bot) {
         self.bot = bot
@@ -163,7 +188,7 @@ struct BotSettingsSheet: View {
                         .lineLimit(4...10)
                 }
 
-                FormField("Screen", footnote: surfaceMode.explanation) {
+                FormField("Screen", footnote: screenFootnote) {
                     Picker("", selection: $surfaceMode) {
                         ForEach(SurfaceMode.allCases) { mode in
                             Text(mode.label).tag(mode)
@@ -171,6 +196,7 @@ struct BotSettingsSheet: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    .disabled(!canHaveScreen)
                 }
 
             }

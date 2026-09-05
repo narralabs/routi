@@ -130,7 +130,14 @@ export const RpcMethods = {
     result: z.object({ ok: z.literal(true) }),
   },
 
-  'models.list': { params: z.object({ provider: z.string().default('anthropic') }), result: z.object({ models: z.array(ModelInfo) }) },
+  'models.list': {
+    params: z.object({ provider: z.string().default('anthropic') }),
+    result: z.object({
+      models: z.array(ModelInfo),
+      /** Whether a bot on this provider can be given a screen. */
+      supportsSurface: z.boolean().default(true),
+    }),
+  },
   'account.info': { params: z.object({}), result: z.object({ account: AccountInfo }) },
 
   'settings.get': { params: z.object({}), result: z.object({ settings: z.record(z.string(), z.unknown()) }) },

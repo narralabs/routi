@@ -44,6 +44,7 @@ const FALLBACK_MODEL = 'gpt-5.2'
 
 export class OpenAiApiAdapter implements ProviderAdapter {
   readonly id = 'openai'
+  readonly supportsSurface = true
   private readonly client: OpenAI
 
   constructor(apiKey: string, private readonly desktops?: DesktopPool) {

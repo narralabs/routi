@@ -61,7 +61,7 @@ export function desktopToolServer(desktop: Desktop) {
         const status = await desktop.status()
         return {
           content: [
-            { type: 'image', data: frame.toString('base64'), mimeType: 'image/jpeg' },
+            { type: 'image', data: frame.jpeg.toString('base64'), mimeType: 'image/jpeg' },
             { type: 'text', text: `Screen is ${status.width}x${status.height} pixels.` },
           ],
         }

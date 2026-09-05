@@ -7,6 +7,7 @@ import SwiftUI
 /// is a mode the whole window should be in.
 struct ScreenWindow: View {
     @Environment(AppModel.self) private var model
+    @State private var frameViewer = UUID()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,20 +16,17 @@ struct ScreenWindow: View {
             ScreenView(
                 frame: model.surfaceFrame,
                 size: CGSize(width: model.surface.width, height: model.surface.height),
+                pointer: model.surfacePointer,
                 isInteractive: true,
                 onInput: { input in Task { await model.sendSurfaceInput(input) } }
             )
         }
         .background(.black.opacity(0.92))
-        // A full-size view earns a faster refresh than the thumbnail did.
-        .onAppear {
-            model.stopFrames()
-            model.startFrames(interval: .milliseconds(200))
-        }
-        .onDisappear {
-            model.stopFrames()
-            model.startFrames()
-        }
+        // A full-size view earns a faster refresh than the thumbnail did. It registers
+        // as its own viewer, so leaving drops back to the panel's rate rather than
+        // stopping the stream the panel is still using.
+        .onAppear { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
+        .onDisappear { model.endFrames(frameViewer) }
     }
 
     private var header: some View {

@@ -11,6 +11,8 @@ import AppKit
 struct ScreenView: View {
     let frame: Data?
     let size: CGSize
+    /// The desktop's pointer, in desktop pixels.
+    var pointer: CGPoint?
     var isInteractive = false
     var onInput: ([String: Any]) -> Void = { _ in }
 
@@ -50,6 +52,22 @@ struct ScreenView: View {
         .clipShape(.rect(cornerRadius: isInteractive ? 6 : 0, style: .continuous))
         .shadow(color: .black.opacity(isInteractive ? 0.5 : 0), radius: 18, y: 6)
         .contentShape(.rect)
+        // The desktop's cursor, drawn rather than captured.
+        //
+        // X screenshots contain no pointer — the server composites it above the root
+        // window — so the frame can never show one. Drawing it from the position that
+        // arrives with each frame is what makes the screen legible: you can see where
+        // the desktop thinks you are pointing, and watch the cursor move on its own
+        // while a bot is working.
+        .overlay(alignment: .topLeading) {
+            if let pointer, fitted.width > 0, size.width > 0 {
+                let scale = fitted.width / size.width
+                RemoteCursor()
+                    .offset(x: pointer.x * scale, y: pointer.y * scale)
+                    .allowsHitTesting(false)
+                    .animation(.linear(duration: 0.1), value: pointer)
+            }
+        }
         // Input rides on top of the picture, sized to it, so a point in the layer's
         // own coordinates is a point on the screen — scaled, with nothing to subtract.
         .overlay {
@@ -163,6 +181,10 @@ struct DesktopInputLayer: NSViewRepresentable {
         var size: CGSize = .zero
         var onInput: ([String: Any]) -> Void = { _ in }
 
+        private var trackingArea: NSTrackingArea?
+        private var lastMoveSent = Date.distantPast
+        private var lastMovePoint: (x: Int, y: Int)?
+
         override var acceptsFirstResponder: Bool { true }
         /// A click that focuses the window should also land on the desktop, rather
         /// than being swallowed as the click that woke the app up.
@@ -176,6 +198,44 @@ struct DesktopInputLayer: NSViewRepresentable {
 
         override func resetCursorRects() {
             addCursorRect(bounds, cursor: .pointingHand)
+        }
+
+        /// Movement has to be asked for; an NSView gets `mouseMoved` only inside a
+        /// tracking area.
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if let existing = trackingArea { removeTrackingArea(existing) }
+            let area = NSTrackingArea(
+                rect: bounds,
+                options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                owner: self
+            )
+            addTrackingArea(area)
+            trackingArea = area
+        }
+
+        /// Moves the desktop's own pointer to follow yours.
+        ///
+        /// Without this the remote cursor never moved: only clicks were sent, so the
+        /// desktop had no idea where you were pointing and nothing ever highlighted
+        /// under the pointer. Sending movement means the streamed picture shows its
+        /// cursor tracking yours, which is the honest version of a shadow cursor — and
+        /// it makes hover states work, which a drawn-on overlay could never do.
+        ///
+        /// Throttled hard, because each move is a round trip that ends in a `docker
+        /// exec`: about twelve a second, and only when the pointer has actually gone
+        /// somewhere. Buttons and typing are never throttled.
+        override func mouseMoved(with event: NSEvent) {
+            guard let p = screenPoint(event) else { return }
+            if let last = lastMovePoint, abs(last.x - p.x) < 3, abs(last.y - p.y) < 3 { return }
+            guard Date().timeIntervalSince(lastMoveSent) > 0.08 else { return }
+            lastMoveSent = Date()
+            lastMovePoint = p
+            onInput(["kind": "move", "x": p.x, "y": p.y])
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            mouseMoved(with: event)
         }
 
         /// View point to desktop pixel. AppKit's origin is bottom-left and X11's is
@@ -263,3 +323,19 @@ extension KeySymbol {
     }
 }
 #endif
+
+/// The desktop's pointer, drawn at the frame's reported position.
+///
+/// A plain arrow with a light outline so it stays visible on dark and light windows
+/// alike, anchored at its tip the way a real cursor is.
+private struct RemoteCursor: View {
+    var body: some View {
+        Image(systemName: "cursorarrow.fill")
+            .font(.system(size: 15))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.7), radius: 1)
+            .shadow(color: .black.opacity(0.4), radius: 3)
+            // SF Symbols centre their glyph; a cursor points from its top-left corner.
+            .offset(x: 5, y: 6)
+    }
+}

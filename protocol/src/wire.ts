@@ -87,6 +87,9 @@ export const RpcMethods = {
       jpeg: z.string().nullable(),
       width: z.number().int(),
       height: z.number().int(),
+      // An X screenshot has no cursor in it, so the pointer travels beside the frame.
+      pointerX: z.number().int().nullable().default(null),
+      pointerY: z.number().int().nullable().default(null),
     }),
   },
   'surface.input': {

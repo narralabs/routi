@@ -142,9 +142,11 @@ const handlers: Record<RpcMethod, Handler> = {
     const status = await desktop.status()
     const frame = await desktop.captureFrame(quality)
     return {
-      jpeg: frame ? frame.toString('base64') : null,
+      jpeg: frame ? frame.jpeg.toString('base64') : null,
       width: status.width,
       height: status.height,
+      pointerX: frame?.pointer?.x ?? null,
+      pointerY: frame?.pointer?.y ?? null,
     }
   },
 

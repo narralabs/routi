@@ -6,6 +6,7 @@ struct DetailRail: View {
     let bot: Bot
     @Binding var showingSettings: Bool
     @State private var isHoveringScreen = false
+    @State private var frameViewer = UUID()
 
     var body: some View {
         ScrollView {
@@ -20,8 +21,8 @@ struct DetailRail: View {
             Rectangle().fill(.separator).frame(width: 0.5).ignoresSafeArea()
         }
         // Only pull frames while the rail is actually on screen.
-        .onAppear { model.startFrames() }
-        .onDisappear { model.stopFrames() }
+        .onAppear { model.beginFrames(frameViewer) }
+        .onDisappear { model.endFrames(frameViewer) }
         // A bot with a screen has one running, always. The daemon starts the container
         // when the bot is created; this covers every other way the panel can arrive at
         // a bot whose desktop is not up — an older bot, a restarted Docker, a daemon
@@ -39,7 +40,8 @@ struct DetailRail: View {
             case .running:
                 ScreenView(
                     frame: model.surfaceFrame,
-                    size: CGSize(width: model.surface.width, height: model.surface.height)
+                    size: CGSize(width: model.surface.width, height: model.surface.height),
+                    pointer: model.surfacePointer
                 )
                 .aspectRatio(model.surface.aspectRatio, contentMode: .fit)
                 .clipShape(.rect(cornerRadius: 10, style: .continuous))

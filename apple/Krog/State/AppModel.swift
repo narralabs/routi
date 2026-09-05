@@ -45,6 +45,8 @@ final class AppModel {
     var surface: SurfaceStatus = .unknown
     /// Latest frame as JPEG bytes. Nil until the first capture arrives.
     var surfaceFrame: Data?
+    /// Where the desktop's own pointer is, in its pixels. Absent until a frame says.
+    var surfacePointer: CGPoint?
     @ObservationIgnored private var frameTask: Task<Void, Never>?
 
     // Onboarding
@@ -200,14 +202,36 @@ final class AppModel {
         surface = status
     }
 
-    /// Pulls frames while a viewer is on screen.
+    /// Everyone currently showing the screen, and how often each needs a frame.
     ///
+    /// Registered rather than started and stopped, because the two views hand over in
+    /// an order nobody controls: SwiftUI runs the arriving view's `onAppear` before the
+    /// departing view's `onDisappear`, so the panel's teardown was cancelling the
+    /// stream the full-window view had just started — leaving the expanded desktop
+    /// frozen on a single frame, which looked for all the world like broken input.
+    /// With viewers counted, a handover in either order leaves one watcher standing.
+    private var frameViewers: [UUID: Duration] = [:]
+
     /// Pull rather than push, and only while something is watching: a preview nobody
     /// is looking at should cost nothing, and the client asks again only once it has
     /// drawn the previous frame, so a slow link degrades to a lower rate instead of
     /// queueing frames it will never show.
-    func startFrames(interval: Duration = .milliseconds(500)) {
-        guard frameTask == nil else { return }
+    func beginFrames(_ viewer: UUID, interval: Duration = .milliseconds(500)) {
+        frameViewers[viewer] = interval
+        restartFrames()
+    }
+
+    func endFrames(_ viewer: UUID) {
+        frameViewers.removeValue(forKey: viewer)
+        restartFrames()
+    }
+
+    private func restartFrames() {
+        frameTask?.cancel()
+        frameTask = nil
+        // The fastest watcher sets the pace; the others simply see fresher frames.
+        guard let interval = frameViewers.values.min() else { return }
+
         frameTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
@@ -217,15 +241,15 @@ final class AppModel {
                    let base64 = result["jpeg"] as? String,
                    let data = Data(base64Encoded: base64) {
                     self.surfaceFrame = data
+                    if let x = result["pointerX"] as? Double, let y = result["pointerY"] as? Double {
+                        self.surfacePointer = CGPoint(x: x, y: y)
+                    } else if let x = result["pointerX"] as? Int, let y = result["pointerY"] as? Int {
+                        self.surfacePointer = CGPoint(x: x, y: y)
+                    }
                 }
                 try? await Task.sleep(for: interval)
             }
         }
-    }
-
-    func stopFrames() {
-        frameTask?.cancel()
-        frameTask = nil
     }
 
     func sendSurfaceInput(_ input: [String: Any]) async {

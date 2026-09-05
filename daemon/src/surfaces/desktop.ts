@@ -188,25 +188,47 @@ export class Desktop {
   // --------------------------------------------------------------- capture
 
   /**
-   * A single frame as a JPEG.
+   * A single frame as a JPEG, with the pointer's position.
    *
    * Deliberately a pull, not a push: the panel is a small preview, and the client
    * asks for frames at whatever rate it can actually draw. That keeps an idle window
    * from costing anything and avoids a stream nobody is watching. A WebRTC transport
    * belongs here later, when the surface becomes interactive at full size.
+   *
+   * The pointer comes along because an X screenshot does not contain it — `import`
+   * captures the root window's pixels and the cursor is drawn by the server on top,
+   * so a frame alone can never show where the pointer is. Without it there is no way
+   * to see the desktop's cursor at all: not the one following your mouse, and not the
+   * one a bot is moving while it works.
+   *
+   * Both come from one `docker exec` rather than two: the location is printed as a
+   * line first, and the JPEG's own SOI marker says where the text ends and the image
+   * begins, so nothing has to be guessed from lengths.
    */
-  async captureFrame(quality = 6): Promise<Buffer | null> {
+  async captureFrame(quality = 6): Promise<{ jpeg: Buffer; pointer: { x: number; y: number } | null } | null> {
     if (this.state !== 'running') return null
     return new Promise((resolve) => {
       const child = spawn('docker', [
         'exec', this.container, 'bash', '-lc',
-        `DISPLAY=${DISPLAY} import -window root -quality ${quality * 10} jpeg:-`,
+        `export DISPLAY=${DISPLAY}; eval $(xdotool getmouselocation --shell); ` +
+          `echo "$X $Y"; import -window root -quality ${quality * 10} jpeg:-`,
       ])
       const chunks: Buffer[] = []
       child.stdout.on('data', (c: Buffer) => chunks.push(c))
       child.on('error', () => resolve(null))
       child.on('close', (code) => {
-        resolve(code === 0 && chunks.length > 0 ? Buffer.concat(chunks) : null)
+        if (code !== 0 || chunks.length === 0) return resolve(null)
+        const all = Buffer.concat(chunks)
+        const start = all.indexOf(Buffer.from([0xff, 0xd8]))
+        if (start < 0) return resolve(null)
+
+        const header = all.subarray(0, start).toString('ascii').trim().split(/\s+/)
+        const x = Number(header[0])
+        const y = Number(header[1])
+        resolve({
+          jpeg: all.subarray(start),
+          pointer: Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null,
+        })
       })
     })
   }

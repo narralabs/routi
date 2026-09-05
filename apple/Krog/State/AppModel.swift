@@ -184,16 +184,35 @@ final class AppModel {
     /// same container on bot creation, so this is usually a confirmation.
     func startSurface() async {
         guard let botID = surfaceBotID else { return }
-        if surface.state == .running || surface.state == .starting { return }
-        surface = SurfaceStatus(state: .starting, width: surface.width, height: surface.height)
-        // Starting pulls an image and waits for X, so allow well past the default.
-        guard let status = try? await client.rpc(
-            "surface.start", ["botId": botID], field: "surface", as: SurfaceStatus.self, timeout: 180
-        ) else {
-            await refreshSurface()
-            return
+        if surface.state == .running { return }
+
+        // Already on its way up — creating a bot warms its screen — so there is
+        // nothing to ask for, only something to wait for.
+        if surface.state != .starting {
+            surface = SurfaceStatus(state: .starting, width: surface.width, height: surface.height)
+            // Starting can wait on a container as well as a display, so allow well
+            // past the default.
+            if let status = try? await client.rpc(
+                "surface.start", ["botId": botID], field: "surface", as: SurfaceStatus.self, timeout: 180
+            ) {
+                surface = status
+            }
         }
-        surface = status
+        await waitWhileStarting()
+    }
+
+    /// Polls until a starting screen resolves.
+    ///
+    /// Nothing pushes surface state, so a client that arrives while a screen is coming
+    /// up has to ask again — otherwise it sits on "Starting the desktop" forever while
+    /// the screen has been running for a minute. The frame loop cannot cover this: it
+    /// only pulls once the state already says running.
+    private func waitWhileStarting() async {
+        for _ in 0..<90 {
+            guard surface.state == .starting else { return }
+            try? await Task.sleep(for: .seconds(1))
+            await refreshSurface()
+        }
     }
 
     func stopSurface() async {

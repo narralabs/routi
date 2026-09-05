@@ -32,7 +32,14 @@ async function main(): Promise<void> {
   const desktops = new DesktopPool()
 
   const providers = new Map<string, ProviderAdapter>()
-  const auth = new AuthManager(store, providers, sessionCwd, DATA_DIR, desktops)
+  const auth = new AuthManager(
+    store,
+    providers,
+    sessionCwd,
+    DATA_DIR,
+    `http://127.0.0.1:${PORT}`,
+    desktops,
+  )
   await auth.applyMode()
 
   let server: KrogServer

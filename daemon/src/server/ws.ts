@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
+import { McpHttp } from './mcp-http.js'
 import { ClientMessage, PROTOCOL_VERSION, type ServerEvent, type ServerMessage } from '@krog/protocol'
 import { dispatch, RpcError, type RpcContext } from './rpc.js'
 
@@ -20,7 +21,14 @@ export class KrogServer {
   private readonly clients = new Set<Client>()
 
   constructor(private readonly ctx: RpcContext) {
+    const mcp = new McpHttp(ctx.desktops)
+
     this.http = createServer((req, res) => {
+      // Tools over HTTP, for harnesses that sandbox the processes they launch.
+      if (McpHttp.matches(req.url)) {
+        void mcp.handle(req, res)
+        return
+      }
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ ok: true, version: VERSION, protocolVersion: PROTOCOL_VERSION }))

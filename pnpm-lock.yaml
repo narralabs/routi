@@ -19,6 +19,9 @@ importers:
       '@krog/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@openai/codex':
+        specifier: ^0.153.4
+        version: 0.153.4
       '@openai/codex-sdk':
         specifier: ^0.153.4
         version: 0.153.4

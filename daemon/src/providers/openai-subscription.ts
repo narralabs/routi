@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
+import { join } from 'node:path'
 import { Codex, type Thread, type ThreadEvent, type ThreadItem } from '@openai/codex-sdk'
 import type { AccountInfo, ModelInfo } from '@krog/protocol'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
@@ -118,29 +118,22 @@ function isolatedCodexHome(dataDir: string): string {
 }
 
 /**
- * How to launch the stdio MCP server, from wherever this daemon is running.
+ * The CLI this SDK was written against, rather than whichever one is on PATH.
  *
- * A compiled daemon has a .js beside it and node runs it directly. A daemon running
- * from source does not: node cannot read a .ts entry at all, so the child has to be
- * given the same loader flags this process was started with. Pointing at a .js that
- * was never built is silent — Codex drops a server it cannot start and simply carries
- * on without those tools, which reads as a model choosing not to use its screen.
+ * The SDK drives a separate CLI binary, and the two are versioned together — this
+ * machine had 0.153 of the SDK spawning 0.133 from Homebrew, twenty versions apart,
+ * which is the kind of gap where a config key the SDK sends is simply not understood
+ * by the process reading it. Pinning the bundled one also means a user's own Codex can
+ * be any version, or absent, without changing how bots behave.
  */
-function mcpServerCommand(): { command: string; args: string[] } {
-  const here = dirname(fileURLToPath(import.meta.url))
-  const built = join(here, '..', 'surfaces', 'mcp-stdio.js')
-  if (existsSync(built)) return { command: process.execPath, args: [built] }
-
-  const source = join(here, '..', 'surfaces', 'mcp-stdio.ts')
-  const loader: string[] = []
-  for (let i = 0; i < process.execArgv.length; i++) {
-    const flag = process.execArgv[i]
-    if (flag === '--require' || flag === '--import') {
-      const value = process.execArgv[i + 1]
-      if (value) { loader.push(flag, value); i++ }
-    }
+function codexBinary(): { codexPathOverride?: string } {
+  try {
+    const require = createRequire(import.meta.url)
+    return { codexPathOverride: require.resolve('@openai/codex/bin/codex.js') }
+  } catch {
+    // Falls back to whatever `codex` is on PATH, which is how it worked before.
+    return {}
   }
-  return { command: process.execPath, args: [...loader, source] }
 }
 
 interface Session {
@@ -150,23 +143,16 @@ interface Session {
 
 export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   readonly id = 'openai'
-  /**
-   * False until Codex will actually run the tools, not merely call them.
-   *
-   * The MCP server is registered and Codex does invoke it — open_url and read_page
-   * appear in its transcript — but the calls come back refused by its own policy,
-   * which sandboxes a third-party server differently from its built-in tools. Claiming
-   * the capability while every call fails is worse than not offering it: the picker
-   * would hand out screens that answer "I can't reach a browser".
-   */
-  readonly supportsSurface = false
+  readonly supportsSurface = true
   private readonly codex: Codex
   private readonly sessions = new Map<string, Session>()
   /** One Codex client per bot, each declaring that bot's screen as an MCP server. */
   private readonly withTools = new Map<string, Codex>()
   private readonly env: Record<string, string>
 
-  constructor(private readonly opts: { cwd: string; dataDir: string; apiKey?: string }) {
+  constructor(
+    private readonly opts: { cwd: string; dataDir: string; mcpBaseUrl: string; apiKey?: string },
+  ) {
     const home = isolatedCodexHome(opts.dataDir)
     // Without an apiKey Codex spends the signed-in ChatGPT account; with one it bills
     // per token instead. The harness is the same either way, which is the point of
@@ -183,6 +169,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     }
     this.codex = new Codex({
       ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
+      ...codexBinary(),
       env: this.env,
     })
   }
@@ -337,13 +324,23 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       botId,
       new Codex({
         ...(this.opts.apiKey ? { apiKey: this.opts.apiKey } : {}),
+        ...codexBinary(),
         env: this.env,
         config: {
           mcp_servers: {
-            krog: (() => {
-              const entry = mcpServerCommand()
-              return { command: entry.command, args: [...entry.args, botId] }
-            })(),
+            // A URL rather than a command. Codex sandboxes the processes it launches,
+            // and a stdio server inheriting that sandbox can reach neither the Docker
+            // socket nor the browser's port — every call failed, and the model reported
+            // it as being refused permission to browse. Served over HTTP the work
+            // happens in the daemon, which owns the containers and is not sandboxed.
+            krog: {
+              url: `${this.opts.mcpBaseUrl}/mcp/${botId}`,
+              // Codex asks before every MCP call, and an approval policy of "never"
+              // denies rather than allows — there is nobody at a prompt here. "auto"
+              // is the per-server setting that lets them through. The permission being
+              // granted is narrow: these tools reach one bot's screen and nothing else.
+              default_tools_approval_mode: 'auto',
+            },
           },
         },
       }),
@@ -389,15 +386,16 @@ function itemToBlock(item: ThreadItem, completed = false):
         title: item.query,
       }
 
+    // Codex's own coding-agent work does not belong in a chat transcript.
+    //
+    // A bot here is told this machine is not its subject, so a shell command is either
+    // noise or something it should not be doing — and either way a wall of
+    // `/bin/bash -lc` is not what the person asked to see. Dropping it keeps one
+    // transcript vocabulary across every provider: prose, thinking, and tools the user
+    // recognises. Web search stays, because it maps onto the same WebSearch card a
+    // Claude bot produces.
     case 'command_execution':
-      return {
-        type: 'tool_use',
-        id: item.id,
-        name: 'Bash',
-        input: { command: item.command },
-        status: item.status === 'failed' ? 'error' : item.status === 'completed' ? 'done' : 'running',
-        title: item.command,
-      }
+      return null
 
     case 'mcp_tool_call':
       return {

@@ -55,6 +55,8 @@ export class AuthManager {
     private readonly providers: Map<string, ProviderAdapter>,
     private readonly sessionCwd: string,
     private readonly dataDir: string,
+    /** Where this daemon serves tools over HTTP, for harnesses that need a URL. */
+    private readonly mcpBaseUrl: string,
     private readonly desktops?: DesktopPool,
   ) {
     this.credentials = new Credentials(dataDir)
@@ -220,7 +222,12 @@ export class AuthManager {
     if (mode === 'api_key' && key) {
       this.providers.set(
         'openai-codex',
-        new OpenAiSubscriptionAdapter({ cwd: this.sessionCwd, dataDir: this.dataDir, apiKey: key }),
+        new OpenAiSubscriptionAdapter({
+          cwd: this.sessionCwd,
+          dataDir: this.dataDir,
+          mcpBaseUrl: this.mcpBaseUrl,
+          apiKey: key,
+        }),
       )
       return
     }
@@ -229,7 +236,11 @@ export class AuthManager {
       if (cli.installed && cli.loggedIn) {
         this.providers.set(
           'openai-codex',
-          new OpenAiSubscriptionAdapter({ cwd: this.sessionCwd, dataDir: this.dataDir }),
+          new OpenAiSubscriptionAdapter({
+            cwd: this.sessionCwd,
+            dataDir: this.dataDir,
+            mcpBaseUrl: this.mcpBaseUrl,
+          }),
         )
       }
     }

@@ -125,8 +125,18 @@ Settings replaces the whole window rather than opening a preferences panel, reac
 from the sidebar footer or ⌘,. `NavigationSplitView` again does the adapting: a
 two-column pane on Mac and iPad, a pushed grouped list on iPhone, from one file.
 
-Panes are General (theme, send key, reasoning visibility), Krog Core (daemon endpoint
-and connection state), Claude (current credential, disconnect), and About.
+Panes are General (theme, send key, reasoning visibility), one per **Provider**,
+Krog Core (daemon endpoint and connection state), and About.
+
+Each provider is its own entry with a tinted monogram tile — Anthropic, OpenAI, xAI,
+Moonshot. Only Anthropic is wired up; the others are listed and marked "Soon" because
+that is the roadmap, and each is a daemon-side adapter that will appear without an app
+update. Krog Core sits in its own section: it is the daemon this app talks to, not a
+model provider, and lumping the two under one "Connections" heading blurred that.
+
+The monograms are deliberately not reproductions of anyone's logo. A consistent set of
+tinted tiles reads as intentional design; hand-drawn approximations of real brand marks
+would look wrong next to the genuine article.
 
 The rows are hand-built rather than a SwiftUI `Form`: `Form`'s grouped style puts a
 control and its description on separate lines and can't produce the two-line-label-

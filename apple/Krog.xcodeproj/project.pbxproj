@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1EE8E5A5399787E011F2B7A3 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E25BE43C387D4A05868B48 /* Providers.swift */; };
 		44D22B926D16E7C173457228 /* DetailRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E6FA1A94CEE9C22CFB566A /* DetailRail.swift */; };
 		488BF2089285F13417005847 /* NewBotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B133E8092EF8FA68F0222731 /* NewBotSheet.swift */; };
 		49DE2E9CEE1236B22B62D172 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E221D6034194D8F4BDB884 /* Composer.swift */; };
@@ -38,6 +39,7 @@
 		5DCF205E969ACC97A3C8222E /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
 		6DDFF0B0A9289DEE414C498C /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
 		6EF04143D0F6344E31CEB437 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		71E25BE43C387D4A05868B48 /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
 		733D8BCC64AF0C2524ED521E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		7A9A2C4D6480F7C2BC501022 /* BotListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotListView.swift; sourceTree = "<group>"; };
 		9397C5991163B69040903A75 /* Krog.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Krog.entitlements; sourceTree = "<group>"; };
@@ -99,6 +101,7 @@
 		B1A36A152B6E65FD8C8C4855 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				71E25BE43C387D4A05868B48 /* Providers.swift */,
 				211A76F272CF10AC6A1C656E /* SettingsComponents.swift */,
 				0D970051271EF5121D087906 /* SettingsScreen.swift */,
 			);
@@ -245,6 +248,7 @@
 				488BF2089285F13417005847 /* NewBotSheet.swift in Sources */,
 				B2A0E5602304462975CED032 /* OnboardingSteps.swift in Sources */,
 				E0EB05BB4C805E388C2D3B55 /* OnboardingView.swift in Sources */,
+				1EE8E5A5399787E011F2B7A3 /* Providers.swift in Sources */,
 				7C8F8A1D3819CF8B8F0C2953 /* RootView.swift in Sources */,
 				9A326FC4B73F8B4ECCE2D762 /* SettingsComponents.swift in Sources */,
 				8C4A300C44130F442E752D47 /* SettingsScreen.swift in Sources */,

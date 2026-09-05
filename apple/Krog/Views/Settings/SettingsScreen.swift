@@ -43,48 +43,51 @@ enum SendBehavior: String, CaseIterable, Identifiable {
 struct SettingsScreen: View {
     @Environment(AppModel.self) private var model
 
-    enum Pane: String, CaseIterable, Identifiable, Hashable {
-        case general, connection, claude, about
-        var id: String { rawValue }
+    /// Providers each get their own entry, so the section reads as a roster rather
+    /// than a single lumped "Connections" row. Krog Core is deliberately *not* in
+    /// there — it is the daemon this app talks to, not a model provider.
+    enum Pane: Hashable, Identifiable {
+        case general
+        case provider(String)
+        case core
+        case about
+
+        var id: String {
+            switch self {
+            case .general: return "general"
+            case .provider(let id): return "provider.\(id)"
+            case .core: return "core"
+            case .about: return "about"
+            }
+        }
 
         var title: String {
             switch self {
             case .general: return "General"
-            case .connection: return "Krog Core"
-            case .claude: return "Claude"
+            case .provider(let id): return ProviderInfo.find(id).name
+            case .core: return "Krog Core"
             case .about: return "About"
             }
         }
 
-        var icon: String {
+        var symbol: String? {
             switch self {
             case .general: return "gearshape"
-            case .connection: return "externaldrive.connected.to.line.below"
-            case .claude: return "brain"
+            case .provider: return nil // uses ProviderIcon instead
+            case .core: return "externaldrive.connected.to.line.below"
             case .about: return "info.circle"
             }
         }
-
-        var group: String {
-            switch self {
-            case .general: return "App"
-            case .connection, .claude: return "Connections"
-            case .about: return "About"
-            }
-        }
     }
+
+    private static let sections: [(String, [Pane])] = [
+        ("App", [.general]),
+        ("Providers", ProviderInfo.all.map { .provider($0.id) }),
+        ("Core", [.core]),
+        ("About", [.about]),
+    ]
 
     @State private var selection: Pane? = .general
-
-    private var groups: [(String, [Pane])] {
-        var order: [String] = []
-        var buckets: [String: [Pane]] = [:]
-        for pane in Pane.allCases {
-            if buckets[pane.group] == nil { order.append(pane.group) }
-            buckets[pane.group, default: []].append(pane)
-        }
-        return order.map { ($0, buckets[$0] ?? []) }
-    }
 
     var body: some View {
         NavigationSplitView {
@@ -100,11 +103,10 @@ struct SettingsScreen: View {
                     .listRowSeparator(.hidden)
                 }
 
-                ForEach(groups, id: \.0) { group, panes in
+                ForEach(Self.sections, id: \.0) { group, panes in
                     Section(group) {
                         ForEach(panes) { pane in
-                            Label(pane.title, systemImage: pane.icon)
-                                .font(.system(size: 13))
+                            PaneRow(pane: pane)
                                 .tag(pane)
                                 .listRowSeparator(.hidden)
                         }
@@ -117,8 +119,8 @@ struct SettingsScreen: View {
         } detail: {
             switch selection ?? .general {
             case .general: GeneralPane()
-            case .connection: ConnectionPane()
-            case .claude: ClaudePane()
+            case .provider(let id): ProviderPane(provider: ProviderInfo.find(id))
+            case .core: ConnectionPane()
             case .about: AboutPane()
             }
         }
@@ -131,6 +133,33 @@ struct SettingsScreen: View {
             }
         }
         #endif
+    }
+}
+
+/// One sidebar row. Providers render their tinted monogram; everything else uses an
+/// SF Symbol, sized to line up with it.
+private struct PaneRow: View {
+    let pane: SettingsScreen.Pane
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Group {
+                if case .provider(let id) = pane {
+                    ProviderIcon(provider: ProviderInfo.find(id), size: 20)
+                } else if let symbol = pane.symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 14))
+                        .frame(width: 20, height: 20)
+                }
+            }
+            Text(pane.title).font(.system(size: 13))
+            Spacer(minLength: 0)
+            if case .provider(let id) = pane, !ProviderInfo.find(id).isAvailable {
+                Text("Soon")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
@@ -250,69 +279,6 @@ struct ConnectionPane: View {
         host = draftHost
         port = draftPort
         model.updateEndpoint(host: draftHost, port: draftPort)
-    }
-}
-
-// MARK: - Claude
-
-struct ClaudePane: View {
-    @Environment(AppModel.self) private var model
-    @State private var showingDisconnect = false
-
-    private var methodLabel: String {
-        switch model.auth.mode {
-        case "api_key": return "Anthropic API key"
-        case "subscription": return model.auth.subscription.planLabel
-        default: return "Not connected"
-        }
-    }
-
-    var body: some View {
-        SettingsPane(title: "Claude") {
-            SettingsSection("Credential") {
-                SettingsRow(title: "Method", isFirst: true) {
-                    SettingsValue(text: methodLabel)
-                }
-                if model.auth.mode == "subscription", let email = model.auth.subscription.email {
-                    SettingsRow(title: "Account") { SettingsValue(text: email) }
-                }
-                if let version = model.auth.subscription.cliVersion, model.auth.mode == "subscription" {
-                    SettingsRow(title: "Claude Code", detail: "Krog signs in through the CLI; the token stays with it.") {
-                        SettingsValue(text: version)
-                    }
-                }
-                SettingsRow(title: "", detail: nil) {
-                    HStack {
-                        Spacer()
-                        Button("Disconnect", role: .destructive) { showingDisconnect = true }
-                    }
-                }
-            }
-
-            SettingsSection("Other providers") {
-                SettingsRow(
-                    title: "OpenAI, Grok, Kimi",
-                    detail: "Planned. Each is a provider adapter on the core — no app update needed.",
-                    isFirst: true
-                ) {
-                    Text("Soon")
-                        .font(.system(size: 11, weight: .medium))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(.quaternary, in: .capsule)
-                }
-            }
-        }
-        .confirmationDialog("Disconnect Claude?", isPresented: $showingDisconnect) {
-            Button("Disconnect", role: .destructive) {
-                Task {
-                    await model.signOut()
-                    model.isShowingSettings = false
-                }
-            }
-        } message: {
-            Text("You'll go back through setup to reconnect.")
-        }
     }
 }
 

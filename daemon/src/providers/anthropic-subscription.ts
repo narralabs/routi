@@ -5,7 +5,7 @@ import { PushQueue } from './push-queue.js'
 import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 import type { DesktopPool } from '../surfaces/pool.js'
-import { desktopToolServer, DESKTOP_TOOL_NAMES } from '../surfaces/tools.js'
+import { desktopToolServer, toolNames } from '../surfaces/tools.js'
 
 /**
  * Anthropic via the user's personal Claude plan.
@@ -106,10 +106,10 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         systemPrompt: { type: 'custom', prompt: req.systemPrompt },
         ...(withDesktop
           ? {
-              mcpServers: { desktop: desktopToolServer(desktop!) },
+              mcpServers: { desktop: desktopToolServer(desktop!, req.toolContext) },
               // Pre-approved: the user granted this by giving the bot a screen, and
               // a permission prompt per click would make any real task unusable.
-              allowedTools: DESKTOP_TOOL_NAMES,
+              allowedTools: toolNames(req.toolContext),
             }
           : { tools: [] }),
         /**

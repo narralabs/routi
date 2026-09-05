@@ -7,6 +7,7 @@ import { AuthManager } from './auth/manager.js'
 import type { ProviderAdapter } from './providers/types.js'
 import { SessionManager } from './sessions/manager.js'
 import { KrogServer } from './server/ws.js'
+import { Scheduler } from './sessions/scheduler.js'
 import { DesktopPool } from './surfaces/pool.js'
 
 const DATA_DIR = process.env['KROG_DATA_DIR'] ?? join(homedir(), '.krog')
@@ -46,10 +47,15 @@ async function main(): Promise<void> {
   const sessions = new SessionManager(store, providers, (event) => server.broadcast(event), desktops)
   server = new KrogServer({ store, sessions, providers, auth, desktops })
 
+  // Routines are saved by bots during ordinary turns; this only fires what is due.
+  const scheduler = new Scheduler(store, sessions)
+  scheduler.start()
+
   await server.listen(PORT, HOST)
 
   const status = await auth.status()
   console.log(`krogd listening on ws://${HOST}:${PORT}  (data: ${DATA_DIR})`)
+  console.log(scheduler.summary())
   console.log(
     status.configured
       ? `anthropic: ${status.mode === 'api_key' ? 'API key' : status.subscription.subscriptionType ?? 'subscription'}`
@@ -67,6 +73,7 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} — shutting down`)
+    scheduler.stop()
     for (const p of providers.values()) p.dispose()
     // Leave the desktops running: their state is the value, and a restart of krogd
     // should not cost the user their browser sessions.

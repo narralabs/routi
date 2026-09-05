@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { Block, Bot, Message, ServerEvent } from '@krog/protocol'
-import type { Store } from '../db/store.js'
+import type { Routine, Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import { wakeFor } from './channel.js'
 import { standingInstructions } from './policy.js'
+import { routineTools } from './routine-tools.js'
 import type { DesktopPool, Surface } from '../surfaces/pool.js'
 
 type Emit = (event: ServerEvent) => void
@@ -72,6 +73,27 @@ export class SessionManager {
       void this.runTurn(conversationId, bot!, userMessage.blocks)
     }
     return userMessage
+  }
+
+  /**
+   * Runs a routine's saved prompt as a turn in the bot's own conversation.
+   *
+   * The prompt itself is not persisted, the same way a greeting's is not: the user
+   * wrote the instruction once when the routine was made, and replaying it into the
+   * transcript every morning would bury the answers under the question. The reply
+   * carries the routine's name in its metadata so the transcript can say why the bot
+   * spoke unprompted.
+   */
+  async runRoutine(routine: Routine, bot: Bot): Promise<void> {
+    if (this.inFlight.has(routine.conversationId)) return
+
+    await this.runTurn(
+      routine.conversationId,
+      bot,
+      [{ type: 'text', text: routine.prompt }],
+      undefined,
+      { routineId: routine.id, routineName: routine.name },
+    )
   }
 
   /**
@@ -170,6 +192,8 @@ export class SessionManager {
     bot: NonNullable<ReturnType<Store['getBot']>>,
     input: Block[],
     channel?: { members: Bot[] },
+    /** Present when a routine woke this turn rather than a person. */
+    routine?: { routineId: string; routineName: string },
   ): Promise<void> {
     const provider = this.providers.get(bot.provider)
     if (!provider) {
@@ -213,6 +237,8 @@ export class SessionManager {
             hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
             channel,
           }),
+          // A bot schedules work for itself, in the conversation it is speaking in.
+          toolContext: { routines: routineTools(this.store, bot.id, conversationId) },
           model: bot.model,
           effort: bot.effort,
           history,
@@ -282,6 +308,8 @@ export class SessionManager {
        * than an empty bubble — but only in a room, because a 1:1 that answers nothing
        * looks broken.
        */
+      if (routine) meta = { ...(meta ?? {}), ...routine }
+
       const saidNothing = finalBlocks.every(
         (block) => block.type !== 'text' || block.text.trim().length === 0,
       )

@@ -115,6 +115,33 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_conversations_bot ON conversations(bot_id, last_message_at DESC);
   `,
 
+  /**
+   * Routines: a saved prompt and when to run it.
+   *
+   * The schedule is stored structured rather than as a cron string. A bot writes these
+   * itself, and "0 9 * * 1-5" is a format models get subtly wrong — an off-by-one in a
+   * weekday field is a routine that fires on the wrong day forever, silently.
+   *
+   * `next_run_at` is computed on write and after each run, so finding due work is an
+   * index scan rather than parsing every row on every tick.
+   */
+  `
+  CREATE TABLE routines (
+    id              TEXT PRIMARY KEY,
+    bot_id          TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    prompt          TEXT NOT NULL,
+    schedule_json   TEXT NOT NULL,
+    enabled         INTEGER NOT NULL DEFAULT 1,
+    created_at      INTEGER NOT NULL,
+    last_run_at     INTEGER,
+    next_run_at     INTEGER
+  );
+  CREATE INDEX idx_routines_due ON routines(enabled, next_run_at);
+  CREATE INDEX idx_routines_bot ON routines(bot_id);
+  `,
+
 ]
 
 export function openDb(path: string): Database.Database {

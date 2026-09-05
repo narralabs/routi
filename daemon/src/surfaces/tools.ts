@@ -33,19 +33,19 @@ type ToolResult = { content: Array<TextContent | ImageContent> }
 
 const say = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] })
 
-export function desktopToolServer(desktop: Surface) {
+export function desktopToolServer(desktop: Surface, ctx: ToolContext = {}) {
   /**
    * Built from the same specs every other provider gets, rather than written out
    * again here. The two lists drifted the moment the browser verbs were added — the
    * OpenAI path had them and Claude did not — which is exactly the bug a second
    * source of truth guarantees.
    */
-  const tools: ToolDef[] = desktopToolSpecs().map((spec) => ({
+  const tools: ToolDef[] = desktopToolSpecs(ctx).map((spec) => ({
     name: spec.name,
     description: spec.description,
     inputSchema: zodShapeOf(spec.parameters),
     handler: async (args: Record<string, unknown>): Promise<ToolResult> => {
-      const result = await runDesktopTool(desktop, spec.name, args ?? {})
+      const result = await runDesktopTool(desktop, spec.name, args ?? {}, ctx)
       if (!result.imageDataUrl) return say(result.output)
       return {
         content: [
@@ -79,8 +79,17 @@ function zodShapeOf(parameters: Record<string, unknown>): Record<string, z.ZodTy
 
   const shape: Record<string, z.ZodTypeAny> = {}
   for (const [name, schema] of Object.entries(properties)) {
+    // Object and array fall through to `unknown` rather than to a string. They used to
+    // land on z.string(), so a tool taking a structured argument — a schedule — rejected
+    // every well-formed call the model made, and reported it as an invalid schedule.
     const base: z.ZodTypeAny =
-      schema.type === 'number' ? z.number() : schema.type === 'boolean' ? z.boolean() : z.string()
+      schema.type === 'number'
+        ? z.number()
+        : schema.type === 'boolean'
+          ? z.boolean()
+          : schema.type === 'object' || schema.type === 'array'
+            ? z.unknown()
+            : z.string()
     shape[name] = required.has(name) ? base : base.optional()
   }
   return shape
@@ -154,8 +163,50 @@ function browserFor(desktop: Surface): Browser {
   return browser
 }
 
-export function desktopToolSpecs(): DesktopToolSpec[] {
+export function desktopToolSpecs(ctx: ToolContext = {}): DesktopToolSpec[] {
+  const routineTools: DesktopToolSpec[] = ctx.routines
+    ? [
+        {
+          name: 'create_routine',
+          description:
+            'Save something to do again later, on a schedule. Use this whenever the ' +
+            'user wants something recurring, time-based, or watched — "every morning", ' +
+            '"remind me", "keep an eye on", "let me know when" — even if they never say ' +
+            'the word routine. Prefer saving a routine over doing the thing once and ' +
+            'forgetting it. The prompt is what you will be asked to do each time, so ' +
+            'write it as a full instruction to yourself, not a title.',
+          parameters: object(
+            {
+              name: { type: 'string' },
+              prompt: { type: 'string' },
+              schedule: {
+                type: 'object',
+                description:
+                  'One of {"kind":"interval","minutes":N} (N at least 5), ' +
+                  '{"kind":"daily","at":"HH:MM"}, or ' +
+                  '{"kind":"weekly","weekdays":[1,2,3,4,5],"at":"HH:MM"} where 0 is ' +
+                  'Sunday — use the list for weekdays, a weekend, or a single day. ' +
+                  'Times are the local clock of the machine you run on.',
+              },
+            },
+            ['name', 'prompt', 'schedule'],
+          ),
+        },
+        {
+          name: 'list_routines',
+          description: 'What you are already scheduled to do, so you do not save the same thing twice.',
+          parameters: object({}),
+        },
+        {
+          name: 'delete_routine',
+          description: 'Stop doing a routine, by its name.',
+          parameters: object({ name: { type: 'string' } }, ['name']),
+        },
+      ]
+    : []
+
   return [
+    ...routineTools,
     {
       name: 'read_page',
       description:
@@ -233,6 +284,20 @@ export function desktopToolSpecs(): DesktopToolSpec[] {
   ]
 }
 
+/**
+ * What a bot can reach beyond its screen.
+ *
+ * Passed rather than imported so the tool layer stays a layer: it knows a routine can
+ * be saved, not how routines are stored or when they fire.
+ */
+export interface ToolContext {
+  routines?: {
+    create(name: string, prompt: string, schedule: unknown): { ok: true; described: string } | { ok: false; why: string }
+    list(): { name: string; described: string; enabled: boolean }[]
+    remove(name: string): boolean
+  }
+}
+
 export interface DesktopToolResult {
   ok: boolean
   /** What the model is told happened. */
@@ -253,6 +318,7 @@ export async function runDesktopTool(
   desktop: Surface,
   rawName: string,
   args: Record<string, unknown>,
+  ctx: ToolContext = {},
 ): Promise<DesktopToolResult> {
   const name = rawName.startsWith('mcp__desktop__') ? rawName.slice('mcp__desktop__'.length) : rawName
   const num = (value: unknown): number => Math.round(Number(value) || 0)
@@ -269,6 +335,12 @@ export async function runDesktopTool(
       const detail = started.detail ?? 'The desktop could not start.'
       return { ok: false, output: detail, summary: 'Desktop unavailable' }
     }
+  }
+
+  // Routines touch no screen, so they are answered before the desktop is woken —
+  // otherwise saving one would start a container for no reason.
+  if (ctx.routines && (name === 'create_routine' || name === 'list_routines' || name === 'delete_routine')) {
+    return runRoutineTool(ctx.routines, name, args)
   }
 
   try {
@@ -385,4 +457,45 @@ export async function runDesktopTool(
  * per click would make any real task unusable. Derived from the specs so a new verb
  * is allowed by existing.
  */
-export const DESKTOP_TOOL_NAMES = desktopToolSpecs().map((spec) => `mcp__desktop__${spec.name}`)
+export const toolNames = (ctx: ToolContext = {}): string[] =>
+  desktopToolSpecs(ctx).map((spec) => `mcp__desktop__${spec.name}`)
+
+/** The routine verbs, which touch no screen. */
+function runRoutineTool(
+  routines: NonNullable<ToolContext['routines']>,
+  name: string,
+  args: Record<string, unknown>,
+): DesktopToolResult {
+  if (name === 'list_routines') {
+    const all = routines.list()
+    return {
+      ok: true,
+      output: all.length === 0
+        ? 'Nothing scheduled.'
+        : all.map((r) => `${r.name} — ${r.described}${r.enabled ? '' : ' (paused)'}`).join('\n'),
+      summary: all.length === 0 ? 'No routines' : `${all.length} routine(s)`,
+    }
+  }
+
+  if (name === 'delete_routine') {
+    const target = String(args['name'] ?? '')
+    const removed = routines.remove(target)
+    return {
+      ok: removed,
+      output: removed ? `Stopped "${target}".` : `No routine called "${target}".`,
+      summary: removed ? `Stopped ${target}` : 'Not found',
+    }
+  }
+
+  const result = routines.create(
+    String(args['name'] ?? '').trim(),
+    String(args['prompt'] ?? '').trim(),
+    args['schedule'],
+  )
+  if (!result.ok) return { ok: false, output: result.why, summary: 'Could not save' }
+  return {
+    ok: true,
+    output: `Saved "${String(args['name'])}" — ${result.described}. Tell the user plainly that you will do this, and when.`,
+    summary: `${String(args['name'])} · ${result.described}`,
+  }
+}

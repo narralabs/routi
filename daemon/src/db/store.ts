@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
+import { nextRun, parseSchedule, type Schedule } from '../sessions/schedule.js'
 import type { Block, Bot, Conversation, Message, Role } from '@krog/protocol'
 
 const now = () => Date.now()
@@ -12,6 +13,38 @@ type BotRow = {
   provider: string; model: string; effort: string | null; surface_mode: string
   created_at: number; updated_at: number; archived_at: number | null
 }
+type RoutineRow = {
+  id: string; bot_id: string; conversation_id: string; name: string; prompt: string
+  schedule_json: string; enabled: number; created_at: number
+  last_run_at: number | null; next_run_at: number | null
+}
+
+const toRoutine = (r: RoutineRow): Routine => ({
+  id: r.id,
+  botId: r.bot_id,
+  conversationId: r.conversation_id,
+  name: r.name,
+  prompt: r.prompt,
+  schedule: parseSchedule(JSON.parse(r.schedule_json)) ?? { kind: 'daily', at: '09:00' },
+  enabled: r.enabled === 1,
+  createdAt: r.created_at,
+  lastRunAt: r.last_run_at,
+  nextRunAt: r.next_run_at,
+})
+
+export interface Routine {
+  id: string
+  botId: string
+  conversationId: string
+  name: string
+  prompt: string
+  schedule: Schedule
+  enabled: boolean
+  createdAt: number
+  lastRunAt: number | null
+  nextRunAt: number | null
+}
+
 type ConvRow = {
   kind?: string
   id: string; bot_id: string; title: string
@@ -102,6 +135,67 @@ export class Store {
   getBot(id: string): Bot | null {
     const r = this.db.prepare('SELECT * FROM bots WHERE id = ?').get(id) as BotRow | undefined
     return r ? toBot(r) : null
+  }
+
+  // ------------------------------------------------------------------ routines
+
+  createRoutine(input: {
+    botId: string; conversationId: string; name: string; prompt: string
+    schedule: Schedule
+  }): Routine {
+    const t = now()
+    const routine: Routine = {
+      id: randomUUID(),
+      botId: input.botId,
+      conversationId: input.conversationId,
+      name: input.name,
+      prompt: input.prompt,
+      schedule: input.schedule,
+      enabled: true,
+      createdAt: t,
+      lastRunAt: null,
+      nextRunAt: nextRun(input.schedule, t),
+    }
+    this.db
+      .prepare(
+        `INSERT INTO routines (id,bot_id,conversation_id,name,prompt,schedule_json,enabled,created_at,last_run_at,next_run_at)
+         VALUES (@id,@botId,@conversationId,@name,@prompt,@scheduleJson,1,@createdAt,NULL,@nextRunAt)`,
+      )
+      .run({ ...routine, scheduleJson: JSON.stringify(routine.schedule) })
+    return routine
+  }
+
+  listRoutines(botId?: string): Routine[] {
+    const rows = botId
+      ? (this.db.prepare('SELECT * FROM routines WHERE bot_id = ? ORDER BY created_at').all(botId) as RoutineRow[])
+      : (this.db.prepare('SELECT * FROM routines ORDER BY created_at').all() as RoutineRow[])
+    return rows.map(toRoutine)
+  }
+
+  /** Everything enabled and overdue. The scheduler's only query. */
+  dueRoutines(at = now()): Routine[] {
+    const rows = this.db
+      .prepare('SELECT * FROM routines WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?')
+      .all(at) as RoutineRow[]
+    return rows.map(toRoutine)
+  }
+
+  /** Records a run and books the next one. */
+  markRoutineRun(id: string, at = now()): void {
+    const routine = this.db.prepare('SELECT * FROM routines WHERE id = ?').get(id) as RoutineRow | undefined
+    if (!routine) return
+    const schedule = parseSchedule(JSON.parse(routine.schedule_json))
+    this.db
+      .prepare('UPDATE routines SET last_run_at = ?, next_run_at = ? WHERE id = ?')
+      .run(at, schedule ? nextRun(schedule, at) : null, id)
+  }
+
+  setRoutineEnabled(id: string, enabled: boolean): void {
+    this.db.prepare('UPDATE routines SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id)
+  }
+
+  deleteRoutine(id: string): void {
+    this.db.prepare('DELETE FROM routines WHERE id = ?').run(id)
   }
 
   // ------------------------------------------------------------------ channels

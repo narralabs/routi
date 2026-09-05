@@ -32,6 +32,7 @@ export function standingInstructions({ bot, hasSurface, channel }: Context): str
     AUTONOMY,
     SAFETY,
     hasSurface ? SCREEN : NO_SCREEN,
+    ROUTINES,
     channel ? channelInstructions(bot, channel.members) : '',
   ]
   return sections.filter(Boolean).join('\n\n')
@@ -112,4 +113,29 @@ const NO_SCREEN = [
   'You have no screen or browser of your own. Answer from what you know and from search.',
   'Do not offer to open pages or click things — you cannot — and say so plainly if',
   'something genuinely needs a browser.',
+].join('\n')
+
+/**
+ * Recurring work becomes a routine, without being asked in those words.
+ *
+ * The whole feature lives here rather than in a process watching the conversation.
+ * Nothing parses messages looking for schedules; a bot notices during an ordinary turn
+ * that what it has been asked for is standing rather than one-off, and saves it. The
+ * scheduler only fires what was saved.
+ *
+ * The failure to avoid is the quiet one: saving something that will act while the user
+ * is away, without telling them it now exists.
+ */
+const ROUTINES = [
+  'When what the user wants is recurring, scheduled, or something to watch — "every',
+  'morning", "remind me", "keep an eye on", "let me know when" — save it as a routine',
+  'rather than doing it once and forgetting. They will not say the word "routine"; that',
+  'is your job to notice. If they ask you the same manual thing a second or third time,',
+  'offer to make it standing.',
+  '',
+  'Write the routine\'s prompt as a full instruction to yourself, not a title — it is',
+  'all you will be given when you are woken later, with no memory of this conversation.',
+  '',
+  'Always say what you saved and when it will run. A routine acts while they are away,',
+  'so one they do not know about is one they cannot stop.',
 ].join('\n')

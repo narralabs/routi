@@ -30,6 +30,8 @@ export interface ChatRequest {
   input: Block[]
   /** Whether this bot has a desktop, and so gets the tools to drive it. */
   hasSurface?: boolean
+  /** Non-screen abilities: saving a routine, listing what is scheduled. */
+  toolContext?: import('../surfaces/tools.js').ToolContext
 }
 
 export interface ProviderAdapter {

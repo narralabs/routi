@@ -115,8 +115,21 @@ private struct ThinkingDisclosure: View {
 }
 
 /// The "Computer — Done" card from the reference app.
+///
+/// Detail is one line, and only opens on request. Providers put wildly different
+/// things in a tool's detail — a search phrase, a URL, or an entire `/bin/bash -lc`
+/// invocation — and a transcript that pastes the last of those in full stops being
+/// something a person can read. What a bot is *doing* stays visible; how it is doing
+/// it waits until someone asks.
 struct ToolCard: View {
     let tool: Block.ToolUse
+    @State private var isExpanded = false
+
+    /// Whether there is more to see than the single line already shown.
+    private var isMultiline: Bool {
+        guard let title = tool.title else { return false }
+        return title != ToolLabel.oneLine(title)
+    }
 
     private var status: (String, Color) {
         switch tool.status {
@@ -143,11 +156,29 @@ struct ToolCard: View {
                         .foregroundStyle(status.1)
                 }
             }
-            if let title = tool.title {
-                Text(title)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
+            if let title = tool.title, !title.isEmpty {
+                Button {
+                    withAnimation(.snappy(duration: 0.18)) { isExpanded.toggle() }
+                } label: {
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(isExpanded ? title : ToolLabel.oneLine(title))
+                            .font(.system(size: 12, design: isExpanded ? .monospaced : .default))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(isExpanded ? nil : 1)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        if isMultiline {
+                            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 2)
+                        }
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .disabled(!isMultiline)
             }
         }
         .padding(13)
@@ -260,6 +291,27 @@ enum ToolLabel {
     ]
 
     static func title(for name: String) -> String { known[name]?.title ?? prettify(name) }
+
+    /// A tool's detail reduced to something that fits on one line.
+    ///
+    /// Shell invocations are the reason this exists: a provider that reports a command
+    /// reports the whole thing, newlines and quoting and all. The first meaningful line
+    /// says what it was, and the rest waits behind the chevron.
+    static func oneLine(_ detail: String) -> String {
+        let stripped = detail
+            .replacingOccurrences(of: "^/bin/(ba)?sh -lc [\"']?", with: "", options: .regularExpression)
+        let firstLine = stripped
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .first
+            .map(String.init)?
+            .trimmingCharacters(in: .whitespaces) ?? stripped
+
+        let limit = 68
+        guard firstLine.count > limit else {
+            return firstLine == detail ? detail : firstLine
+        }
+        return String(firstLine.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
+    }
     static func icon(for name: String) -> String { known[name]?.icon ?? "wrench.and.screwdriver" }
 
     /// Fallback for a tool nobody has named yet: strip the MCP routing prefix and

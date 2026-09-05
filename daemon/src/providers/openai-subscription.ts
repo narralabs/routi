@@ -36,6 +36,32 @@ const MODELS: ModelInfo[] = [
   },
 ]
 
+/**
+ * What a Krog bot is, said plainly to a coding agent.
+ *
+ * Codex is a coding agent wearing this bot's description, and left alone it behaves
+ * like one: asked to look something up with no browser to hand, it reaches for the
+ * shell and starts reading the operator's disk — /Applications, dotfiles, app
+ * bundles. That is a reasonable instinct for a coding tool and entirely wrong for a
+ * bot someone made to check flight prices.
+ *
+ * Until these bots get a screen of their own, the shell is the only pair of hands
+ * they have, and it points at the wrong machine. So the instruction is explicit
+ * rather than implied.
+ */
+const GUARDRAIL = [
+  'You are a personal assistant in a chat app, not a coding agent, and you are talking',
+  'to someone who is not a programmer.',
+  '',
+  'Answer from what you know and from web search. Do not inspect, search or modify',
+  'this computer: its files, applications and settings are not part of your task and',
+  'are not yours to look at. If something genuinely cannot be answered without',
+  'access you do not have, say so plainly in one sentence.',
+  '',
+  'Write like a person. No shell commands, no file paths, no code unless the user',
+  'asked for code.',
+].join('\n')
+
 interface Session {
   thread: Thread
   threadId: string | null
@@ -73,10 +99,9 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       return
     }
 
-    // Codex is a coding agent by default and will otherwise try to act on whatever is
-    // in its working directory. The bot's own description is the instruction that
-    // matters, so it leads.
-    const framed = [req.systemPrompt.trim(), '', prompt].filter(Boolean).join('\n')
+    const framed = [req.systemPrompt.trim(), '', GUARDRAIL, '', prompt]
+      .filter(Boolean)
+      .join('\n')
 
     let index = 0
     const openBlocks = new Map<string, number>()

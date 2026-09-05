@@ -19,7 +19,7 @@ struct ChatView: View {
             content
             #if os(macOS)
             if showRail {
-                DetailRail(bot: bot, showingSettings: $showingSettings, isOpen: $showRail)
+                DetailRail(bot: bot, showingSettings: $showingSettings)
                     .frame(width: 300)
                     .transition(.move(edge: .trailing))
             }
@@ -184,16 +184,21 @@ struct ChatView: View {
         }
         .flatBackground()
 
-        // Only a way *in*. Once the rail is open it carries its own close control, so
-        // a second toggle in the window chrome would be one control too many.
-        if !showRail {
-            ToolbarItem(placement: .primaryAction) {
-                ToolbarIcon(systemName: "desktopcomputer", help: "Show Screen") {
-                    showRail = true
-                }
+        // Always present, at the trailing edge of the chat pane. Hiding it while the
+        // rail was open meant the control disappeared exactly when you might want to
+        // put the screen away.
+        flexibleToolbarSpacer()
+
+        ToolbarItem(placement: .primaryAction) {
+            ToolbarIcon(
+                systemName: "desktopcomputer",
+                help: showRail ? "Hide Screen" : "Show Screen",
+                isActive: showRail
+            ) {
+                showRail.toggle()
             }
-            .flatBackground()
         }
+        .flatBackground()
         #else
         ToolbarItem(placement: .topBarTrailing) {
             Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }

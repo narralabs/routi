@@ -12,15 +12,16 @@ struct MessageRow: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
-            if isUser { Spacer(minLength: 40); actions }
+            if isUser { Spacer(minLength: 40) }
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: 3) {
                 ForEach(message.blocks) { block in
                     blockView(block)
                 }
+                actions
             }
 
-            if !isUser { actions; Spacer(minLength: 40) }
+            if !isUser { Spacer(minLength: 40) }
         }
         .padding(.top, startsGroup ? 20 : 4)
         .onHover { isHovering = $0 }
@@ -46,19 +47,26 @@ struct MessageRow: View {
         }
     }
 
+    /// Copy, under the message rather than beside it.
+    ///
+    /// It used to sit in the row's HStack, which put it alongside whatever block
+    /// happened to be last — floating next to a tool card as often as a bubble. It also
+    /// appeared on every message, including ones made only of tool calls, where there
+    /// was nothing to copy.
     @ViewBuilder
     private var actions: some View {
-        HStack(spacing: 2) {
+        if !message.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Button("Copy", systemImage: "doc.on.doc") {
                 copyToPasteboard(message.plainText)
             }
+            .buttonStyle(.plain)
+            .labelStyle(.iconOnly)
+            .font(.system(size: 11))
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 4)
+            .opacity(isHovering ? 1 : 0)
+            .animation(.easeOut(duration: 0.12), value: isHovering)
         }
-        .buttonStyle(.plain)
-        .labelStyle(.iconOnly)
-        .font(.system(size: 11))
-        .foregroundStyle(.tertiary)
-        .opacity(isHovering ? 1 : 0)
-        .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 }
 

@@ -30,6 +30,10 @@ final class AppModel {
     /// visibility is app state, not view state — the ⌘, menu command toggles it too.
     var isShowingSettings = false
 
+    /// The desktop fills the whole app window rather than opening a sheet, so its
+    /// visibility lives beside the other window-level modes.
+    var isShowingScreen = false
+
     /// Held here rather than in the view so the View menu can restore a sidebar the
     /// user has dragged shut — without a toolbar toggle there is otherwise no way back.
     var sidebarVisibility: NavigationSplitViewVisibility = .all

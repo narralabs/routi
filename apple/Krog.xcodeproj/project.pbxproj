@@ -15,6 +15,7 @@
 		49DE2E9CEE1236B22B62D172 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E221D6034194D8F4BDB884 /* Composer.swift */; };
 		5131C81C9A3E6E1538015577 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E435C8AAE185181BA4C260CA /* Assets.xcassets */; };
 		51BE75839CA8A64496525819 /* KrogApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B1AB1409273FF7286B8A83 /* KrogApp.swift */; };
+		5E22275BC5C6AD02110BA281 /* ScreenWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3CF60DFA3CD061B84B85E11 /* ScreenWindow.swift */; };
 		6F0D6A8C50DA36FFDB765030 /* Blocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41D664BF4CAD9823F7621366 /* Blocks.swift */; };
 		7C8F8A1D3819CF8B8F0C2953 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A7628F51CE98CEA0DD1E6A /* RootView.swift */; };
 		8C4A300C44130F442E752D47 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D970051271EF5121D087906 /* SettingsScreen.swift */; };
@@ -58,6 +59,7 @@
 		CFF7CD8BEF25FE854AFBBDD2 /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		D091E4F14BC8B08335A02596 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		E24E745B62B20BC8076E35EA /* Krog.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Krog.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E3CF60DFA3CD061B84B85E11 /* ScreenWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenWindow.swift; sourceTree = "<group>"; };
 		E420CB5CFEF7066DD24C4C7A /* MessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRow.swift; sourceTree = "<group>"; };
 		E435C8AAE185181BA4C260CA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EF7ACF3AE8BBF1CE95ED9759 /* KrogClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KrogClient.swift; sourceTree = "<group>"; };
@@ -136,6 +138,7 @@
 				C7E6FA1A94CEE9C22CFB566A /* DetailRail.swift */,
 				B133E8092EF8FA68F0222731 /* NewBotSheet.swift */,
 				13A7628F51CE98CEA0DD1E6A /* RootView.swift */,
+				E3CF60DFA3CD061B84B85E11 /* ScreenWindow.swift */,
 				42FE77BA654317A0828AFF04 /* Components */,
 				7C18B7A6F3819FD0EE14879D /* Onboarding */,
 				B1A36A152B6E65FD8C8C4855 /* Settings */,
@@ -268,6 +271,7 @@
 				1EE8E5A5399787E011F2B7A3 /* Providers.swift in Sources */,
 				7C8F8A1D3819CF8B8F0C2953 /* RootView.swift in Sources */,
 				C2194ADF03F3588601CD56EB /* ScreenView.swift in Sources */,
+				5E22275BC5C6AD02110BA281 /* ScreenWindow.swift in Sources */,
 				9A326FC4B73F8B4ECCE2D762 /* SettingsComponents.swift in Sources */,
 				8C4A300C44130F442E752D47 /* SettingsScreen.swift in Sources */,
 				A54AE5ADEC482D6780C87C68 /* Surface.swift in Sources */,

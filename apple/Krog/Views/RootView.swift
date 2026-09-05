@@ -20,12 +20,15 @@ struct RootView: View {
                 ConnectingView()
             } else if model.needsOnboarding {
                 OnboardingView()
+            } else if model.isShowingScreen {
+                ScreenWindow()
             } else {
                 main
             }
         }
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
         .animation(.snappy(duration: 0.3), value: model.authKnown)
+        .animation(.snappy(duration: 0.25), value: model.isShowingScreen)
         .task { model.start() }
     }
 
@@ -41,10 +44,11 @@ struct RootView: View {
             set: { model.sidebarVisibility = $0 == .detailOnly ? .all : $0 }
         )) {
             BotListView(showingNewBot: $showingNewBot)
-                // The floor is an icon rail, not nothing: dragging the divider in
-                // collapses the sidebar to avatars rather than closing it, so there is
-                // always something left to grab and click.
-                .navigationSplitViewColumnWidth(min: 78, ideal: 268, max: 360)
+                // A firm stop rather than a shrinking rail. The earlier version
+                // swapped to an icon-only layout partway through the drag, which read
+                // as jank; the divider now simply refuses to go below a width the
+                // sidebar is still readable at.
+                .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 360)
         } detail: {
             if let bot = model.selectedBot {
                 ChatView(bot: bot, showRail: $showRail)

@@ -5,7 +5,7 @@ struct DetailRail: View {
     @Environment(AppModel.self) private var model
     let bot: Bot
     @Binding var showingSettings: Bool
-    @State private var showingFullScreen = false
+    @State private var isHoveringScreen = false
 
     var body: some View {
         ScrollView {
@@ -22,9 +22,6 @@ struct DetailRail: View {
         // Only pull frames while the rail is actually on screen.
         .onAppear { model.startFrames() }
         .onDisappear { model.stopFrames() }
-        .sheet(isPresented: $showingFullScreen) {
-            ScreenWindow(bot: bot)
-        }
     }
 
     @ViewBuilder
@@ -32,20 +29,34 @@ struct DetailRail: View {
         VStack(spacing: 8) {
             switch model.surface.state {
             case .running:
-                Button { showingFullScreen = true } label: {
-                    ScreenView(
-                        frame: model.surfaceFrame,
-                        size: CGSize(width: model.surface.width, height: model.surface.height)
-                    )
-                    .aspectRatio(model.surface.aspectRatio, contentMode: .fit)
-                    .clipShape(.rect(cornerRadius: 10, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(.separator, lineWidth: 0.5)
+                ScreenView(
+                    frame: model.surfaceFrame,
+                    size: CGSize(width: model.surface.width, height: model.surface.height)
+                )
+                .aspectRatio(model.surface.aspectRatio, contentMode: .fit)
+                .clipShape(.rect(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(.separator, lineWidth: 0.5)
+                }
+                // The preview is small and non-interactive, so hovering offers the
+                // one action worth having here rather than trying to make a
+                // thumbnail clickable.
+                .overlay {
+                    if isHoveringScreen {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(.black.opacity(0.35))
+                            Button("Open") { model.isShowingScreen = true }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.regular)
+                        }
+                        .transition(.opacity)
                     }
                 }
-                .buttonStyle(.plain)
-                .help("Open the full screen")
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.12)) { isHoveringScreen = hovering }
+                }
 
                 Text("\(bot.name)'s screen")
                     .font(.system(size: 12))
@@ -107,39 +118,5 @@ struct DetailRail: View {
             Button("Create Routine") {}
                 .buttonStyle(.bordered)
         }
-    }
-}
-
-/// The desktop at full size, where clicks are forwarded to it.
-private struct ScreenWindow: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    let bot: Bot
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                BotAvatar(color: bot.color, size: 18)
-                Text("\(bot.name)'s screen").font(.system(size: 13, weight: .semibold))
-                Spacer()
-                Text("Click to interact")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-                Button("Done") { dismiss() }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-
-            ScreenView(
-                frame: model.surfaceFrame,
-                size: CGSize(width: model.surface.width, height: model.surface.height),
-                isInteractive: true,
-                onInput: { input in Task { await model.sendSurfaceInput(input) } }
-            )
-        }
-        .frame(width: 1000, height: 690)
-        // A larger view deserves a faster refresh than the thumbnail.
-        .onAppear { model.stopFrames(); model.startFrames(interval: .milliseconds(220)) }
-        .onDisappear { model.stopFrames(); model.startFrames() }
     }
 }

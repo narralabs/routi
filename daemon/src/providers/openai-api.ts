@@ -48,7 +48,9 @@ export class OpenAiApiAdapter implements ProviderAdapter {
   private readonly client: OpenAI
 
   constructor(apiKey: string, private readonly desktops?: DesktopPool) {
-    this.client = new OpenAI({ apiKey })
+    // Rate limits and 5xx are ordinary weather on a long agentic turn, and losing a
+    // turn's work to one is worse than waiting a moment for it.
+    this.client = new OpenAI({ apiKey, maxRetries: 3 })
   }
 
   async listModels(): Promise<ModelInfo[]> {
@@ -214,6 +216,24 @@ export class OpenAiApiAdapter implements ProviderAdapter {
             call_id: call.callId,
             output: result.output,
           })
+
+          /**
+           * A picture cannot travel as a function result.
+           *
+           * `function_call_output` carries a string, so a screenshot's image had nowhere
+           * to go and was being dropped — the model called `screenshot` and got told the
+           * screen's dimensions and nothing else. It could read pages and not look at
+           * them. The image follows as its own user turn instead, which is the shape the
+           * API does accept.
+           */
+          if (result.imageDataUrl) {
+            input.push({
+              role: 'user',
+              content: [
+                { type: 'input_image', image_url: result.imageDataUrl, detail: 'auto' },
+              ],
+            })
+          }
         }
         stopReason = 'tool_use'
       }

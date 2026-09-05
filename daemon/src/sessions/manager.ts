@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Block, Message, ServerEvent } from '@krog/protocol'
 import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
+import type { DesktopPool, Surface } from '../surfaces/pool.js'
 
 type Emit = (event: ServerEvent) => void
 
@@ -20,6 +21,7 @@ export class SessionManager {
     private readonly store: Store,
     private readonly providers: Map<string, ProviderAdapter>,
     private readonly emit: Emit,
+    private readonly desktops?: DesktopPool,
   ) {}
 
   isBusy(conversationId: string): boolean {
@@ -130,6 +132,13 @@ export class SessionManager {
     const ac = new AbortController()
     this.inFlight.set(conversationId, ac)
     this.emit({ e: 'conversation.busy', conversationId, busy: true })
+
+    // Held for the whole turn, because a turn is many actions and interleaving two
+    // bots' clicks would corrupt both. On a container screen this never waits — each
+    // bot has its own display. On This Mac it does: there is one pointer, and every
+    // bot set to it shares the surface. Whoever is second waits rather than fighting.
+    const surface = bot.surfaceMode !== 'none' ? this.desktops?.for(bot.id) : undefined
+    if (surface) await waitForSurface(surface, conversationId, ac.signal)
 
     const messageId = randomUUID()
     const blocks: Block[] = []
@@ -245,4 +254,24 @@ const GREETING_ANGLES = [
 function setBlock(blocks: Block[], index: number, block: Block): void {
   while (blocks.length < index) blocks.push({ type: 'text', text: '' })
   blocks[index] = block
+}
+
+/**
+ * Waits for the pointer, rather than failing when someone else has it.
+ *
+ * A bot that loses the race has done nothing wrong and its work is still wanted, so
+ * queueing is the right behaviour — refusing the turn would surface as an error the
+ * user cannot act on. The wait is bounded: a holder that never releases is a bug, and
+ * waiting forever on one would look identical to the app hanging.
+ */
+async function waitForSurface(
+  surface: Surface,
+  conversationId: string,
+  signal: AbortSignal,
+): Promise<void> {
+  const deadline = Date.now() + 5 * 60_000
+  while (!surface.claim(conversationId)) {
+    if (signal.aborted || Date.now() > deadline) return
+    await new Promise((resolve) => setTimeout(resolve, 400))
+  }
 }

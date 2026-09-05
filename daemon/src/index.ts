@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   await auth.applyMode()
 
   let server: KrogServer
-  const sessions = new SessionManager(store, providers, (event) => server.broadcast(event))
+  const sessions = new SessionManager(store, providers, (event) => server.broadcast(event), desktops)
   server = new KrogServer({ store, sessions, providers, auth, desktops })
 
   await server.listen(PORT, HOST)

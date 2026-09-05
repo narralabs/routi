@@ -93,14 +93,32 @@ struct ChatView: View {
                 .padding(.top, 16)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: messageSignature) {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-                }
+            /**
+             * The bottom is where a conversation lives.
+             *
+             * This does the work that an animated scrollTo per token was doing badly:
+             * the view opens at the end, stays pinned there as a reply streams in, and
+             * lets go the moment someone scrolls up to read back — which a repeated
+             * scrollTo cannot do, because it drags them down again on the next token.
+             */
+            .defaultScrollAnchor(.bottom)
+            /**
+             * Switching bots lands at the latest message.
+             *
+             * On the id alone this fired before the new conversation's messages had
+             * arrived, so it scrolled an empty list and left the transcript at the top
+             * once the messages appeared. Waiting for the messages themselves is what
+             * makes it land.
+             */
+            .task(id: model.selectedConversationID) {
+                await settleThenScroll(proxy)
             }
-            .onChange(of: model.selectedConversationID) {
-                proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-            }
+            /**
+             * Coming back from the full-window desktop rebuilds this view from nothing,
+             * so there is no scroll position to restore — only somewhere sensible to
+             * be, which is the end.
+             */
+            .onAppear { proxy.scrollTo(Self.tailAnchor, anchor: .bottom) }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
@@ -142,15 +160,17 @@ struct ChatView: View {
     private static let tailAnchor = "krog.tail"
 
     /// Cheap change token: message count plus streamed text length.
-    private var messageSignature: Int {
-        model.messages.reduce(model.messages.count) { total, message in
-            total + message.blocks.reduce(0) { sum, block in
-                if case .text(let t) = block { return sum + t.count }
-                if case .thinking(let t) = block { return sum + t.count }
-                return sum + 1
-            }
+    /// Waits for a conversation's messages to arrive, then goes to the end.
+    private func settleThenScroll(_ proxy: ScrollViewProxy) async {
+        proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+        // Messages load after the selection changes; a couple of passes covers the gap
+        // without a timer that keeps firing at a transcript nobody is waiting on.
+        for _ in 0..<3 {
+            try? await Task.sleep(for: .milliseconds(120))
+            proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
         }
     }
+
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {

@@ -150,7 +150,16 @@ interface Session {
 
 export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   readonly id = 'openai'
-  readonly supportsSurface = true
+  /**
+   * False until Codex will actually run the tools, not merely call them.
+   *
+   * The MCP server is registered and Codex does invoke it — open_url and read_page
+   * appear in its transcript — but the calls come back refused by its own policy,
+   * which sandboxes a third-party server differently from its built-in tools. Claiming
+   * the capability while every call fails is worse than not offering it: the picker
+   * would hand out screens that answer "I can't reach a browser".
+   */
+  readonly supportsSurface = false
   private readonly codex: Codex
   private readonly sessions = new Map<string, Session>()
   /** One Codex client per bot, each declaring that bot's screen as an MCP server. */

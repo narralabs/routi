@@ -30,7 +30,7 @@ struct ProviderInfo: Identifiable, Hashable {
             models: "GPT",
             monogram: "O",
             tint: Color(red: 0.06, green: 0.64, blue: 0.50),
-            isAvailable: false
+            isAvailable: true
         ),
         ProviderInfo(
             id: "xai",
@@ -87,6 +87,8 @@ struct ProviderPane: View {
     var body: some View {
         if provider.id == "anthropic" {
             AnthropicPane(provider: provider)
+        } else if provider.id == "openai" {
+            OpenAiPane(provider: provider)
         } else {
             UnavailableProviderPane(provider: provider)
         }
@@ -233,6 +235,198 @@ private struct StatusPill: View {
             Text(content.0)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - OpenAI
+
+/// Connect OpenAI with either a ChatGPT account or an API key.
+///
+/// The same two paths as Anthropic, for the same reason: a plan someone already pays
+/// for should be spendable without a second, metered bill. The account path runs
+/// through the Codex CLI's own browser sign-in on the machine hosting the core, so
+/// Krog never sees the credential — it only asks the CLI whether one exists.
+private struct OpenAiPane: View {
+    @Environment(AppModel.self) private var model
+    let provider: ProviderInfo
+
+    @State private var isEnteringKey = false
+    @State private var apiKey = ""
+    @State private var isWorking = false
+    @State private var failure: String?
+    @State private var showingDisconnect = false
+
+    private var auth: AuthStatus.ProviderAuth? { model.auth.provider(provider.id) }
+    private var isConnected: Bool { auth?.configured ?? false }
+
+    private var methodLabel: String {
+        switch auth?.mode {
+        case "api_key": return "API key"
+        case "subscription": return auth?.cli.account.map { "\($0) account" } ?? "ChatGPT account"
+        default: return "Not connected"
+        }
+    }
+
+    var body: some View {
+        SettingsPane(title: provider.name) {
+            ProviderHeader(provider: provider, isConnected: isConnected)
+
+            if isConnected {
+                connected
+            } else {
+                choices
+            }
+
+            if let failure {
+                SettingsSection {
+                    SettingsRow(title: "Couldn't connect", detail: failure, isFirst: true) { EmptyView() }
+                }
+            }
+
+            if isConnected {
+                SettingsSection("Models") {
+                    let list = model.models(for: provider.id)
+                    if list.isEmpty {
+                        SettingsRow(title: "None available", isFirst: true) { EmptyView() }
+                    } else {
+                        ForEach(Array(list.enumerated()), id: \.element.id) { index, info in
+                            SettingsRow(
+                                title: info.displayName,
+                                detail: info.description.isEmpty ? nil : info.description,
+                                isFirst: index == 0
+                            ) {
+                                if let resolved = info.resolvedModel {
+                                    SettingsValue(text: resolved, monospaced: true)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .confirmationDialog("Disconnect \(provider.name)?", isPresented: $showingDisconnect) {
+            Button("Disconnect", role: .destructive) {
+                Task { await model.providerSignOut(provider.id) }
+            }
+        } message: {
+            Text("Bots already using \(provider.name) will stop working until you reconnect.")
+        }
+    }
+
+    @ViewBuilder
+    private var connected: some View {
+        SettingsSection("Credential") {
+            SettingsRow(title: "Method", isFirst: true) { SettingsValue(text: methodLabel) }
+
+            if auth?.mode == "subscription", let version = auth?.cli.version {
+                SettingsRow(
+                    title: "Signed in through",
+                    detail: "Krog drives the Codex CLI's browser sign-in; the token stays with it."
+                ) {
+                    SettingsValue(text: version)
+                }
+            }
+            if auth?.mode == "api_key" {
+                SettingsRow(
+                    title: "Key storage",
+                    detail: "Held in the login Keychain on the Mac running Krog Core."
+                ) {
+                    SettingsValue(text: "Keychain")
+                }
+            }
+            SettingsRow(title: "") {
+                HStack {
+                    Spacer()
+                    Button("Disconnect", role: .destructive) { showingDisconnect = true }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var choices: some View {
+        if isEnteringKey {
+            SettingsSection("API key") {
+                SettingsRow(
+                    title: "Key",
+                    detail: "From platform.openai.com. Billed per token against your OpenAI account.",
+                    isFirst: true
+                ) {
+                    SecureField("sk-…", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(width: 220)
+                        .onSubmit(submitKey)
+                }
+                SettingsRow(title: "") {
+                    HStack(spacing: 8) {
+                        Spacer()
+                        Button("Cancel") { withAnimation { isEnteringKey = false; failure = nil } }
+                        Button("Connect", action: submitKey)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(apiKey.isEmpty || isWorking)
+                    }
+                }
+            }
+        } else {
+            SettingsSection("Connect") {
+                SettingsRow(
+                    title: "Use my ChatGPT account",
+                    detail: cliDetail,
+                    isFirst: true
+                ) {
+                    Button(isWorking ? "Connecting…" : "Connect") { connectAccount() }
+                        .disabled(isWorking || !(auth?.cli.installed ?? false))
+                }
+                SettingsRow(
+                    title: "Use an API key",
+                    detail: "Billed per token. Good if you don't have a ChatGPT plan."
+                ) {
+                    Button("Enter Key") { withAnimation { isEnteringKey = true; failure = nil } }
+                        .disabled(isWorking)
+                }
+            }
+        }
+    }
+
+    private var cliDetail: String {
+        guard let cli = auth?.cli else { return "Checking for the Codex CLI…" }
+        if !cli.installed {
+            return "Needs the Codex CLI on the Mac running Krog Core. Install it with `npm install -g @openai/codex`."
+        }
+        if cli.loggedIn {
+            return "Already signed in on that Mac\(cli.account.map { " using \($0)" } ?? ""). No per-token billing."
+        }
+        return "Opens OpenAI in the browser on the Mac running Krog Core. No per-token billing."
+    }
+
+    private func connectAccount() {
+        failure = nil
+        isWorking = true
+        Task {
+            do {
+                try await model.providerLogin(provider.id)
+            } catch {
+                failure = error.localizedDescription
+            }
+            isWorking = false
+        }
+    }
+
+    private func submitKey() {
+        guard !apiKey.isEmpty else { return }
+        failure = nil
+        isWorking = true
+        Task {
+            do {
+                try await model.providerSetApiKey(provider.id, key: apiKey)
+                apiKey = ""
+                isEnteringKey = false
+            } catch {
+                failure = error.localizedDescription
+            }
+            isWorking = false
         }
     }
 }

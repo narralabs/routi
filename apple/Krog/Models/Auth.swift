@@ -6,6 +6,26 @@ struct AuthStatus: Codable, Hashable {
     var mode: String?
     var subscription: Subscription
     var apiKey: ApiKey
+    /// Providers configured after onboarding, keyed by id. Anthropic keeps the flat
+    /// fields above because setup is built on it.
+    var providers: [String: ProviderAuth] = [:]
+
+    struct ProviderAuth: Codable, Hashable {
+        var configured: Bool
+        var mode: String?
+        var cli: Cli
+        var apiKey: ApiKey
+
+        struct Cli: Codable, Hashable {
+            var installed: Bool
+            var version: String?
+            var loggedIn: Bool
+            /// How the CLI is signed in, in the vendor's own words.
+            var account: String?
+        }
+    }
+
+    func provider(_ id: String) -> ProviderAuth? { providers[id] }
 
     struct Subscription: Codable, Hashable {
         var cliInstalled: Bool

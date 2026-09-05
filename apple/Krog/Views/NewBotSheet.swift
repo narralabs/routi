@@ -7,6 +7,9 @@ struct NewBotSheet: View {
     @State private var name = ""
     @State private var systemPrompt = ""
     @State private var selectedProvider = "anthropic"
+
+    /// The chosen provider's own models. Ids do not cross providers.
+    private var providerModels: [ModelInfo] { model.models(for: selectedProvider) }
     @State private var selectedModel = "default"
     @State private var selectedEffort = Effort.implicitDefault
     // Defaults to a screen. A bot without one can only talk, and "a bot that does
@@ -18,7 +21,7 @@ struct NewBotSheet: View {
     /// Only offer the levels the chosen model actually accepts — Haiku, for one,
     /// reports none, and a picker of options the API would reject is worse than none.
     private var availableEfforts: [Effort] {
-        let levels = model.models.first { $0.id == selectedModel }?.effortLevels ?? []
+        let levels = providerModels.first { $0.id == selectedModel }?.effortLevels ?? []
         return levels.compactMap(Effort.init(rawValue:))
     }
 
@@ -47,18 +50,18 @@ struct NewBotSheet: View {
                 }
 
                 FormField("Provider") {
-                    ProviderChips(selection: $selectedProvider)
+                    ProviderChips(connected: Set(model.availableProviders), selection: $selectedProvider)
                 }
 
                 FormField("Model") {
                     Picker("", selection: $selectedModel) {
-                        ForEach(model.models) { info in
+                        ForEach(providerModels) { info in
                             Text(info.displayName).tag(info.id)
                         }
                     }
                     .labelsHidden()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .disabled(model.models.isEmpty)
+                    .disabled(providerModels.isEmpty)
                 }
 
                 if supportsEffort {
@@ -93,9 +96,15 @@ struct NewBotSheet: View {
             .padding(.top, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .onChange(of: selectedProvider) { _, new in
-                // Only a configured provider can be chosen; snap back if the user
-                // reaches a "Soon" entry via the keyboard.
-                if !ProviderInfo.find(new).isAvailable { selectedProvider = "anthropic" }
+                // Only a connected provider can be chosen; snap back if the user
+                // reaches an unconfigured entry via the keyboard.
+                if !model.availableProviders.contains(new) {
+                    selectedProvider = model.availableProviders.first ?? "anthropic"
+                    return
+                }
+                // Model ids do not cross providers, so the choice cannot survive the
+                // switch — take the new provider's first.
+                selectedModel = providerModels.first?.id ?? "default"
             }
         } onConfirm: {
             isSubmitting = true
@@ -103,6 +112,7 @@ struct NewBotSheet: View {
                 await model.createBot(
                     name: name,
                     systemPrompt: systemPrompt,
+                    provider: selectedProvider,
                     model: selectedModel,
                     effort: supportsEffort ? selectedEffort : nil,
                     surfaceMode: surfaceMode
@@ -113,7 +123,10 @@ struct NewBotSheet: View {
             dismiss()
         }
         .onAppear {
-            if let first = model.models.first, !model.models.contains(where: { $0.id == selectedModel }) {
+            if !model.availableProviders.contains(selectedProvider) {
+                selectedProvider = model.availableProviders.first ?? "anthropic"
+            }
+            if let first = providerModels.first, !providerModels.contains(where: { $0.id == selectedModel }) {
                 selectedModel = first.id
             }
         }
@@ -185,6 +198,10 @@ struct BotSettingsSheet: View {
 /// so the monogram tiles (a filled shape with a label) would be dropped. Chips also
 /// keep every option visible at a glance, which is the point of showing the roster.
 private struct ProviderChips: View {
+    /// Which providers have a working credential right now. A provider that exists as
+    /// an adapter but is not connected reads as "Connect in Settings" rather than as a
+    /// choice, because picking it would make a bot that cannot answer.
+    let connected: Set<String>
     @Binding var selection: String
 
     var body: some View {
@@ -192,8 +209,9 @@ private struct ProviderChips: View {
             ForEach(ProviderInfo.all) { provider in
                 ProviderChip(
                     provider: provider,
+                    isConnected: connected.contains(provider.id),
                     isSelected: provider.id == selection,
-                    action: { selection = provider.id }
+                    action: { if connected.contains(provider.id) { selection = provider.id } }
                 )
             }
         }
@@ -203,6 +221,7 @@ private struct ProviderChips: View {
 
 private struct ProviderChip: View {
     let provider: ProviderInfo
+    let isConnected: Bool
     let isSelected: Bool
     let action: () -> Void
 
@@ -212,7 +231,7 @@ private struct ProviderChip: View {
     // expression past the type-checker's budget.
     private var fill: Color {
         if isSelected { return Color.accentColor.opacity(0.12) }
-        if isHovering && provider.isAvailable { return Color.primary.opacity(0.06) }
+        if isHovering && isConnected { return Color.primary.opacity(0.06) }
         return .clear
     }
 
@@ -221,8 +240,9 @@ private struct ProviderChip: View {
     }
 
     private var helpText: String {
-        provider.isAvailable
-            ? "\(provider.name) · \(provider.models)"
+        if isConnected { return "\(provider.name) · \(provider.models)" }
+        return provider.isAvailable
+            ? "\(provider.name) — connect it in Settings first"
             : "\(provider.name) — not yet available"
     }
 
@@ -235,8 +255,8 @@ private struct ProviderChip: View {
             label
         }
         .buttonStyle(.plain)
-        .disabled(!provider.isAvailable)
-        .opacity(provider.isAvailable ? 1 : 0.5)
+        .disabled(!isConnected)
+        .opacity(isConnected ? 1 : 0.5)
         .onHover { isHovering = $0 }
         .help(helpText)
     }

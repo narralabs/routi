@@ -38,6 +38,7 @@ const handlers: Record<RpcMethod, Handler> = {
       name: string; systemPrompt: string; model: string
       effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
       avatarColor?: string; surfaceMode: 'none' | 'container' | 'host'
+      provider?: string
     }
     const created = ctx.store.createBot(params)
     // A bot with a screen gets it now rather than on first use. Pulling a container up
@@ -119,6 +120,29 @@ const handlers: Record<RpcMethod, Handler> = {
   },
 
   'auth.signOut': async (_p, ctx) => ({ auth: await ctx.auth.signOut() }),
+
+  'auth.providerLogin': async (p, ctx) => {
+    const { provider } = p as { provider: string }
+    try {
+      return { auth: await ctx.auth.providerLogin(provider) }
+    } catch (err) {
+      throw new RpcError('login_failed', err instanceof Error ? err.message : String(err))
+    }
+  },
+
+  'auth.providerSetApiKey': async (p, ctx) => {
+    const { provider, key } = p as { provider: string; key: string }
+    try {
+      return { auth: await ctx.auth.providerSetApiKey(provider, key) }
+    } catch (err) {
+      throw new RpcError('invalid_key', err instanceof Error ? err.message : String(err))
+    }
+  },
+
+  'auth.providerSignOut': async (p, ctx) => {
+    const { provider } = p as { provider: string }
+    return { auth: await ctx.auth.providerSignOut(provider) }
+  },
 
   'surface.status': async (p, ctx) => {
     const desktop = ctx.desktops.for((p as { botId: string }).botId)

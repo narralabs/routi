@@ -15,6 +15,9 @@ final class AppModel {
     var conversations: [String: Conversation] = [:]
     var messages: [Message] = []
     var models: [ModelInfo] = []
+    /// Model lists per provider. Each provider names its own, so the picker never
+    /// offers a bot a model its provider cannot serve.
+    var modelsByProvider: [String: [ModelInfo]] = [:]
 
     // Selection
     var selectedBotID: String?
@@ -285,6 +288,55 @@ final class AppModel {
         await refreshAll()
     }
 
+    func models(for provider: String) -> [ModelInfo] {
+        provider == "anthropic" ? models : (modelsByProvider[provider] ?? [])
+    }
+
+    func loadModels(for provider: String) async {
+        let list = (try? await client.rpc(
+            "models.list", ["provider": provider], field: "models", as: [ModelInfo].self
+        )) ?? []
+        modelsByProvider[provider] = list
+        if provider == "anthropic" { models = list }
+    }
+
+    /// Providers a new bot can actually be built on.
+    var availableProviders: [String] {
+        var ids: [String] = auth.configured ? ["anthropic"] : []
+        ids += auth.providers.filter { $0.value.configured }.keys.sorted()
+        return ids
+    }
+
+    // MARK: - Providers beyond the first
+
+    /// Signs a provider in through its vendor's CLI, on the Mac running the core.
+    ///
+    /// The browser opens there, not here — the credential belongs to the machine that
+    /// holds the bots, which is the whole premise of the split.
+    func providerLogin(_ provider: String) async throws {
+        let status = try await client.rpc(
+            "auth.providerLogin", ["provider": provider], field: "auth", as: AuthStatus.self, timeout: 360
+        )
+        auth = status
+        await refreshAll()
+    }
+
+    func providerSetApiKey(_ provider: String, key: String) async throws {
+        let status = try await client.rpc(
+            "auth.providerSetApiKey", ["provider": provider, "key": key],
+            field: "auth", as: AuthStatus.self, timeout: 60
+        )
+        auth = status
+        await refreshAll()
+    }
+
+    func providerSignOut(_ provider: String) async {
+        guard let status = try? await client.rpc(
+            "auth.providerSignOut", ["provider": provider], field: "auth", as: AuthStatus.self
+        ) else { return }
+        auth = status
+    }
+
     func signOut() async {
         guard let status = try? await client.rpc("auth.signOut", field: "auth", as: AuthStatus.self) else { return }
         auth = status
@@ -325,6 +377,12 @@ final class AppModel {
                 models = (try? await client.rpc(
                     "models.list", ["provider": "anthropic"], field: "models", as: [ModelInfo].self
                 )) ?? []
+                modelsByProvider["anthropic"] = models
+            }
+            // Only providers with a working credential: the daemon answers with an
+            // empty list otherwise, and an empty picker is worse than no picker.
+            for (id, provider) in auth.providers where provider.configured {
+                await loadModels(for: id)
             }
 
             let selectionStillValid = selectedBotID.map { id in bots.contains { $0.id == id } } ?? false
@@ -415,6 +473,7 @@ final class AppModel {
     func createBot(
         name: String,
         systemPrompt: String,
+        provider: String = "anthropic",
         model: String,
         effort: Effort?,
         surfaceMode: SurfaceMode
@@ -424,6 +483,7 @@ final class AppModel {
                 "name": name,
                 "systemPrompt": systemPrompt,
                 "model": model,
+                "provider": provider,
                 "surfaceMode": surfaceMode.rawValue,
             ]
             if let effort { params["effort"] = effort.rawValue }

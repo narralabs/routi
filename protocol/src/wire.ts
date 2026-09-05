@@ -28,6 +28,8 @@ export const RpcMethods = {
       effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
       avatarColor: z.string().optional(),
       surfaceMode: SurfaceMode.default('none'),
+      /** Fixed at creation, like the model. Defaults to the provider onboarding set up. */
+      provider: z.string().default('anthropic'),
     }),
     result: z.object({ bot: Bot, conversation: Conversation }),
   },
@@ -71,6 +73,21 @@ export const RpcMethods = {
   'auth.loginWithClaude': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
   'auth.setApiKey': { params: z.object({ key: z.string().min(1) }), result: z.object({ auth: AuthStatus }) },
   'auth.signOut': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
+
+  // Providers configured after onboarding. `provider` names which one, so a third
+  // vendor needs no new methods.
+  'auth.providerLogin': {
+    params: z.object({ provider: z.string() }),
+    result: z.object({ auth: AuthStatus }),
+  },
+  'auth.providerSetApiKey': {
+    params: z.object({ provider: z.string(), key: z.string().min(1) }),
+    result: z.object({ auth: AuthStatus }),
+  },
+  'auth.providerSignOut': {
+    params: z.object({ provider: z.string() }),
+    result: z.object({ auth: AuthStatus }),
+  },
 
   // Every surface call names a bot: desktops are per-bot, so there is no such thing
   // as "the" desktop to address.

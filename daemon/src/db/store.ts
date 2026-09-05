@@ -102,7 +102,7 @@ export class Store {
 
   createBot(input: {
     name: string; systemPrompt?: string; model?: string; effort?: Bot['effort']
-    avatarColor?: string; surfaceMode?: Bot['surfaceMode']
+    avatarColor?: string; surfaceMode?: Bot['surfaceMode']; provider?: string
   }): { bot: Bot; conversation: Conversation } {
     const count = this.db.prepare('SELECT COUNT(*) AS n FROM bots').get() as { n: number }
     const t = now()
@@ -111,7 +111,7 @@ export class Store {
       name: input.name,
       avatarColor: input.avatarColor ?? PALETTE[count.n % PALETTE.length]!,
       systemPrompt: input.systemPrompt ?? '',
-      provider: 'anthropic',
+      provider: input.provider ?? 'anthropic',
       model: input.model ?? 'default',
       effort: input.effort,
       surfaceMode: input.surfaceMode ?? 'none',

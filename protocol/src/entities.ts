@@ -68,6 +68,22 @@ export const AccountInfo = z.object({
 })
 
 /** Everything onboarding needs to decide what to show next. */
+/** How one provider is authenticated. */
+export const ProviderAuth = z.object({
+  configured: z.boolean(),
+  mode: AuthMode.nullable(),
+  /** The vendor CLI that holds a personal-account login, when there is one. */
+  cli: z.object({
+    installed: z.boolean(),
+    version: z.string().nullable(),
+    loggedIn: z.boolean(),
+    /** How the CLI is signed in, in its own words — "ChatGPT", a plan name. */
+    account: z.string().optional(),
+  }),
+  apiKey: z.object({ present: z.boolean() }),
+})
+export type ProviderAuth = z.infer<typeof ProviderAuth>
+
 export const AuthStatus = z.object({
   /** True once a provider can actually reach Anthropic. Gates the main UI. */
   configured: z.boolean(),
@@ -81,6 +97,16 @@ export const AuthStatus = z.object({
     subscriptionType: z.string().optional(),
   }),
   apiKey: z.object({ present: z.boolean() }),
+  /**
+   * Every provider beyond the first, keyed by id.
+   *
+   * Anthropic keeps the flat fields above because onboarding is built on them and a
+   * bot needs one working provider before anything else can happen. Providers added
+   * later are configured in Settings instead, so they arrive as a map rather than as
+   * more top-level fields — adding the next one costs a row in the UI and nothing in
+   * the wire format.
+   */
+  providers: z.record(z.string(), ProviderAuth).default({}),
 })
 export type AuthStatus = z.infer<typeof AuthStatus>
 

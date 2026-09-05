@@ -3,7 +3,7 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources'
 import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
 import { PushQueue } from './push-queue.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
-import type { Desktop } from '../surfaces/desktop.js'
+import type { DesktopPool } from '../surfaces/pool.js'
 import { desktopToolServer, DESKTOP_TOOL_NAMES } from '../surfaces/tools.js'
 
 /**
@@ -34,7 +34,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
   private modelCache: ModelInfo[] | null = null
   private accountCache: AccountInfo | null = null
 
-  constructor(private readonly opts: { cwd: string; desktop?: Desktop }) {}
+  constructor(private readonly opts: { cwd: string; desktops?: DesktopPool }) {}
 
   // ------------------------------------------------------------ capabilities
 
@@ -89,7 +89,10 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
 
     const input = new PushQueue<SDKUserMessage>()
     // A bot with a screen gets hands; one without stays a pure chat bot.
-    const withDesktop = req.hasSurface === true && this.opts.desktop !== undefined
+    // Resolved per request rather than held on the adapter: one adapter serves every
+    // bot, and each bot drives its own desktop.
+    const desktop = this.opts.desktops?.for(req.botId)
+    const withDesktop = req.hasSurface === true && desktop !== undefined
     const q = query({
       prompt: input,
       options: {
@@ -100,7 +103,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         systemPrompt: { type: 'custom', prompt: composeSystemPrompt(req.systemPrompt, withDesktop) },
         ...(withDesktop
           ? {
-              mcpServers: { desktop: desktopToolServer(this.opts.desktop!) },
+              mcpServers: { desktop: desktopToolServer(desktop!) },
               // Pre-approved: the user granted this by giving the bot a screen, and
               // a permission prompt per click would make any real task unusable.
               allowedTools: DESKTOP_TOOL_NAMES,

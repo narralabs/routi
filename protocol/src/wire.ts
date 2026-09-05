@@ -72,15 +72,17 @@ export const RpcMethods = {
   'auth.setApiKey': { params: z.object({ key: z.string().min(1) }), result: z.object({ auth: AuthStatus }) },
   'auth.signOut': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
 
-  'surface.status': { params: z.object({}), result: z.object({ surface: SurfaceStatus }) },
-  'surface.start': { params: z.object({}), result: z.object({ surface: SurfaceStatus }) },
-  'surface.stop': { params: z.object({}), result: z.object({ surface: SurfaceStatus }) },
+  // Every surface call names a bot: desktops are per-bot, so there is no such thing
+  // as "the" desktop to address.
+  'surface.status': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },
+  'surface.start': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },
+  'surface.stop': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },
   /**
    * One frame, pulled. The client asks at whatever rate it can draw, so an idle
    * window costs nothing and no stream runs with nobody watching.
    */
   'surface.frame': {
-    params: z.object({ quality: z.number().int().min(1).max(10).default(6) }),
+    params: z.object({ botId: z.string(), quality: z.number().int().min(1).max(10).default(6) }),
     result: z.object({
       jpeg: z.string().nullable(),
       width: z.number().int(),
@@ -89,6 +91,7 @@ export const RpcMethods = {
   },
   'surface.input': {
     params: z.object({
+      botId: z.string(),
       input: z.discriminatedUnion('kind', [
         z.object({ kind: z.literal('click'), x: z.number(), y: z.number(), button: z.number().int().min(1).max(3).optional() }),
         z.object({ kind: z.literal('doubleClick'), x: z.number(), y: z.number() }),
@@ -169,7 +172,7 @@ export const ServerEvent = z.discriminatedUnion('e', [
   z.object({ e: z.literal('conversation.updated'), conversation: Conversation }),
   z.object({ e: z.literal('bot.updated'), bot: Bot }),
   z.object({ e: z.literal('bot.deleted'), botId: z.string() }),
-  z.object({ e: z.literal('surface.state'), surface: SurfaceStatus }),
+  z.object({ e: z.literal('surface.state'), botId: z.string(), surface: SurfaceStatus }),
   /** Drives the typing indicator and the interrupt button. */
   z.object({ e: z.literal('conversation.busy'), conversationId: z.string(), busy: z.boolean() }),
   z.object({ e: z.literal('error'), conversationId: z.string().nullable().default(null), code: z.string(), message: z.string() }),

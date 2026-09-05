@@ -160,16 +160,30 @@ final class AppModel {
 
     // MARK: - Desktop
 
+    /// Every desktop call names its bot: a desktop belongs to one bot, so there is no
+    /// "the" desktop to ask about.
+    private var surfaceBotID: String? { selectedBot?.id }
+
     func refreshSurface() async {
-        guard let status = try? await client.rpc("surface.status", field: "surface", as: SurfaceStatus.self) else { return }
+        guard let botID = surfaceBotID else { return }
+        guard let status = try? await client.rpc(
+            "surface.status", ["botId": botID], field: "surface", as: SurfaceStatus.self
+        ) else { return }
         surface = status
     }
 
+    /// Brings up this bot's desktop, and does nothing if it is already up.
+    ///
+    /// Called wherever the screen becomes visible. A bot with a screen is meant to
+    /// have one running — nobody should have to ask for it — and the daemon starts the
+    /// same container on bot creation, so this is usually a confirmation.
     func startSurface() async {
+        guard let botID = surfaceBotID else { return }
+        if surface.state == .running || surface.state == .starting { return }
         surface = SurfaceStatus(state: .starting, width: surface.width, height: surface.height)
         // Starting pulls an image and waits for X, so allow well past the default.
         guard let status = try? await client.rpc(
-            "surface.start", field: "surface", as: SurfaceStatus.self, timeout: 180
+            "surface.start", ["botId": botID], field: "surface", as: SurfaceStatus.self, timeout: 180
         ) else {
             await refreshSurface()
             return
@@ -178,9 +192,10 @@ final class AppModel {
     }
 
     func stopSurface() async {
+        guard let botID = surfaceBotID else { return }
         surfaceFrame = nil
         guard let status = try? await client.rpc(
-            "surface.stop", field: "surface", as: SurfaceStatus.self, timeout: 60
+            "surface.stop", ["botId": botID], field: "surface", as: SurfaceStatus.self, timeout: 60
         ) else { return }
         surface = status
     }
@@ -197,7 +212,8 @@ final class AppModel {
             while !Task.isCancelled {
                 guard let self else { return }
                 if self.surface.state == .running,
-                   let result = try? await self.client.rpc("surface.frame", ["quality": 6]),
+                   let botID = self.surfaceBotID,
+                   let result = try? await self.client.rpc("surface.frame", ["botId": botID, "quality": 6]),
                    let base64 = result["jpeg"] as? String,
                    let data = Data(base64Encoded: base64) {
                     self.surfaceFrame = data
@@ -213,7 +229,8 @@ final class AppModel {
     }
 
     func sendSurfaceInput(_ input: [String: Any]) async {
-        try? await client.rpc("surface.input", ["input": input])
+        guard let botID = surfaceBotID else { return }
+        try? await client.rpc("surface.input", ["botId": botID, "input": input])
     }
 
     // MARK: - Auth
@@ -491,6 +508,9 @@ final class AppModel {
             if let index = bots.firstIndex(where: { $0.id == bot.id }) { bots[index] = bot }
 
         case "surface.state":
+            // Desktops are per-bot and this event is broadcast, so anything about a
+            // bot other than the one on screen is not ours to display.
+            if let botID = event.payload["botId"] as? String, botID != selectedBot?.id { return }
             if let raw = event.payload["surface"],
                let data = try? JSONSerialization.data(withJSONObject: raw),
                let status = try? JSONDecoder().decode(SurfaceStatus.self, from: data) {

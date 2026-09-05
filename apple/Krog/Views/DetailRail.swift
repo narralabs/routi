@@ -22,6 +22,14 @@ struct DetailRail: View {
         // Only pull frames while the rail is actually on screen.
         .onAppear { model.startFrames() }
         .onDisappear { model.stopFrames() }
+        // A bot with a screen has one running, always. The daemon starts the container
+        // when the bot is created; this covers every other way the panel can arrive at
+        // a bot whose desktop is not up — an older bot, a restarted Docker, a daemon
+        // that came back. `startSurface` is a no-op when one is already running.
+        .task(id: bot.id) {
+            await model.refreshSurface()
+            await model.startSurface()
+        }
     }
 
     @ViewBuilder
@@ -62,20 +70,12 @@ struct DetailRail: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
 
-                Button("Stop Desktop") { Task { await model.stopSurface() } }
-                    .controlSize(.small)
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-
-            case .starting:
-                placeholder(icon: "hourglass", title: "Starting the desktop…") {
+            // Stopped and starting read the same to the eye, because a stopped desktop
+            // is only ever on its way back: nothing here can leave one switched off, so
+            // offering a Start button would be offering to do what is already happening.
+            case .starting, .stopped:
+                placeholder(icon: "display", title: "Starting the desktop…") {
                     ProgressView().controlSize(.small)
-                }
-
-            case .stopped:
-                placeholder(icon: "display", title: "No desktop running") {
-                    Button("Start Desktop") { Task { await model.startSurface() } }
-                        .controlSize(.small)
                 }
 
             case .unavailable:
@@ -92,17 +92,29 @@ struct DetailRail: View {
         }
     }
 
+    /// Stands in for the screen at the screen's own shape.
+    ///
+    /// The ratio comes from the desktop rather than a constant, so the placeholder
+    /// occupies exactly the space the picture will when it arrives and nothing below
+    /// it shifts. It is a ZStack because `aspectRatio` has to act on the flexible
+    /// background — applied to the text stack it inherits that stack's intrinsic
+    /// height, which is where the near-square box came from.
     private func placeholder<Content: View>(
         icon: String, title: String, @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: icon).font(.system(size: 24)).foregroundStyle(.tertiary)
-            Text(title).font(.system(size: 12)).foregroundStyle(.secondary)
-            content()
+        ZStack {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.background)
+
+            VStack(spacing: 10) {
+                Image(systemName: icon).font(.system(size: 22)).foregroundStyle(.tertiary)
+                Text(title).font(.system(size: 12)).foregroundStyle(.secondary)
+                content()
+            }
+            .padding(18)
         }
+        .aspectRatio(model.surface.aspectRatio, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .aspectRatio(16.0 / 10.0, contentMode: .fit)
-        .background(.background, in: .rect(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(.separator, lineWidth: 0.5)

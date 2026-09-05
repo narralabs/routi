@@ -4,7 +4,6 @@ import { promisify } from 'node:util'
 const run = promisify(execFile)
 
 const IMAGE = 'krog-desktop:latest'
-const CONTAINER = 'krog-desktop'
 const DISPLAY = ':99'
 
 export type DesktopState = 'stopped' | 'starting' | 'running' | 'unavailable'
@@ -29,15 +28,24 @@ export type DesktopInput =
   | { kind: 'open'; url: string }
 
 /**
- * The shared Linux desktop.
+ * One bot's Linux desktop.
  *
- * One container for all bots, deliberately. The value of a desktop is its
- * accumulated state — a signed-in Booking.com, a browser profile, downloaded files —
- * and a container per bot would throw that away on every new bot. Bots take turns:
- * turns are already serialised per conversation, and `claim` extends that to the
- * screen so two bots never fight over the pointer.
+ * A container each, not one shared between them. Bots are given separate jobs and
+ * separate errands — one pricing an ice machine, another booking a hotel — and a
+ * shared screen would mean they queued for the pointer and read each other's tabs.
+ * Isolation also means a bot's logins and cookies are its own, which is the state
+ * worth keeping.
+ *
+ * `claim` remains: within a single desktop, turns still take it in order.
  */
 export class Desktop {
+  /** Container name, derived from the bot so restarts find the same desktop. */
+  private readonly container: string
+
+  constructor(readonly botId: string) {
+    this.container = `krog-desktop-${botId}`
+  }
+
   private state: DesktopState = 'stopped'
   private detail: string | undefined
   private width = 1280
@@ -91,7 +99,7 @@ export class Desktop {
   private async isRunning(): Promise<boolean> {
     try {
       const { stdout } = await run('docker', [
-        'ps', '--filter', `name=^/${CONTAINER}$`, '--filter', 'status=running', '-q',
+        'ps', '--filter', `name=^/${this.container}$`, '--filter', 'status=running', '-q',
       ], { timeout: 8_000 })
       return stdout.trim().length > 0
     } catch {
@@ -112,12 +120,12 @@ export class Desktop {
 
     this.state = 'starting'
     // Remove any stopped container of the same name; `docker run` refuses otherwise.
-    await run('docker', ['rm', '-f', CONTAINER], { timeout: 20_000 }).catch(() => {})
+    await run('docker', ['rm', '-f', this.container], { timeout: 20_000 }).catch(() => {})
 
     try {
       await run('docker', [
         'run', '-d',
-        '--name', CONTAINER,
+        '--name', this.container,
         // Chromium needs more than the default 64MB of /dev/shm or it crashes on
         // any real page.
         '--shm-size=1g',
@@ -142,7 +150,7 @@ export class Desktop {
     const deadline = Date.now() + 45_000
     while (Date.now() < deadline) {
       try {
-        await run('docker', ['exec', CONTAINER, 'xdpyinfo', '-display', DISPLAY], { timeout: 5_000 })
+        await run('docker', ['exec', this.container, 'xdpyinfo', '-display', DISPLAY], { timeout: 5_000 })
         this.state = 'running'
         await this.readGeometry()
         return this.status()
@@ -159,12 +167,12 @@ export class Desktop {
   async stop(): Promise<void> {
     this.heldBy = null
     this.state = 'stopped'
-    await run('docker', ['rm', '-f', CONTAINER], { timeout: 30_000 }).catch(() => {})
+    await run('docker', ['rm', '-f', this.container], { timeout: 30_000 }).catch(() => {})
   }
 
   private async readGeometry(): Promise<void> {
     try {
-      const { stdout } = await run('docker', ['exec', CONTAINER, 'xdpyinfo', '-display', DISPLAY], {
+      const { stdout } = await run('docker', ['exec', this.container, 'xdpyinfo', '-display', DISPLAY], {
         timeout: 8_000,
       })
       const match = /dimensions:\s+(\d+)x(\d+)/.exec(stdout)
@@ -191,7 +199,7 @@ export class Desktop {
     if (this.state !== 'running') return null
     return new Promise((resolve) => {
       const child = spawn('docker', [
-        'exec', CONTAINER, 'bash', '-lc',
+        'exec', this.container, 'bash', '-lc',
         `DISPLAY=${DISPLAY} import -window root -quality ${quality * 10} jpeg:-`,
       ])
       const chunks: Buffer[] = []
@@ -240,6 +248,6 @@ export class Desktop {
       }
     })()
 
-    await run('docker', ['exec', CONTAINER, 'act', ...args], { timeout: 20_000 })
+    await run('docker', ['exec', this.container, 'act', ...args], { timeout: 20_000 })
   }
 }

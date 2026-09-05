@@ -3,14 +3,15 @@ import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import type { SessionManager } from '../sessions/manager.js'
 import type { AuthManager } from '../auth/manager.js'
-import type { Desktop, DesktopInput } from '../surfaces/desktop.js'
+import type { DesktopInput } from '../surfaces/desktop.js'
+import type { DesktopPool } from '../surfaces/pool.js'
 
 export interface RpcContext {
   store: Store
   sessions: SessionManager
   providers: Map<string, ProviderAdapter>
   auth: AuthManager
-  desktop: Desktop
+  desktops: DesktopPool
 }
 
 export class RpcError extends Error {
@@ -39,6 +40,10 @@ const handlers: Record<RpcMethod, Handler> = {
       avatarColor?: string; surfaceMode: 'none' | 'container' | 'host'
     }
     const created = ctx.store.createBot(params)
+    // A bot with a screen gets it now rather than on first use. Pulling a container up
+    // takes tens of seconds, and a bot is expected to start working the moment it is
+    // made — waiting until its first tool call would strand it mid-greeting.
+    if (params.surfaceMode === 'container') ctx.desktops.warm(created.bot.id)
     // Fire and forget: the client should get its bot back immediately and watch the
     // greeting stream in, exactly as it would any other reply.
     void ctx.sessions.greet(created.conversation.id)
@@ -57,6 +62,8 @@ const handlers: Record<RpcMethod, Handler> = {
   'bots.delete': async (p, ctx) => {
     const { id } = p as { id: string }
     if (!ctx.store.deleteBot(id)) throw new RpcError('not_found', `No such bot: ${id}`)
+    // The bot is gone; its container should not outlive it.
+    void ctx.desktops.for(id).stop().catch(() => {})
     return { ok: true as const }
   },
 
@@ -113,23 +120,27 @@ const handlers: Record<RpcMethod, Handler> = {
 
   'auth.signOut': async (_p, ctx) => ({ auth: await ctx.auth.signOut() }),
 
-  'surface.status': async (_p, ctx) => ({
-    surface: { ...(await ctx.desktop.status()), heldBy: ctx.desktop.holder },
-  }),
+  'surface.status': async (p, ctx) => {
+    const desktop = ctx.desktops.for((p as { botId: string }).botId)
+    return { surface: { ...(await desktop.status()), heldBy: desktop.holder } }
+  },
 
-  'surface.start': async (_p, ctx) => ({
-    surface: { ...(await ctx.desktop.start()), heldBy: ctx.desktop.holder },
-  }),
+  'surface.start': async (p, ctx) => {
+    const desktop = ctx.desktops.for((p as { botId: string }).botId)
+    return { surface: { ...(await desktop.start()), heldBy: desktop.holder } }
+  },
 
-  'surface.stop': async (_p, ctx) => {
-    await ctx.desktop.stop()
-    return { surface: { ...(await ctx.desktop.status()), heldBy: ctx.desktop.holder } }
+  'surface.stop': async (p, ctx) => {
+    const desktop = ctx.desktops.for((p as { botId: string }).botId)
+    await desktop.stop()
+    return { surface: { ...(await desktop.status()), heldBy: desktop.holder } }
   },
 
   'surface.frame': async (p, ctx) => {
-    const { quality } = p as { quality: number }
-    const status = await ctx.desktop.status()
-    const frame = await ctx.desktop.captureFrame(quality)
+    const { botId, quality } = p as { botId: string; quality: number }
+    const desktop = ctx.desktops.for(botId)
+    const status = await desktop.status()
+    const frame = await desktop.captureFrame(quality)
     return {
       jpeg: frame ? frame.toString('base64') : null,
       width: status.width,
@@ -138,9 +149,9 @@ const handlers: Record<RpcMethod, Handler> = {
   },
 
   'surface.input': async (p, ctx) => {
-    const { input } = p as { input: DesktopInput }
+    const { botId, input } = p as { botId: string; input: DesktopInput }
     try {
-      await ctx.desktop.send(input)
+      await ctx.desktops.for(botId).send(input)
       return { ok: true as const }
     } catch (err) {
       throw new RpcError('surface_input_failed', err instanceof Error ? err.message : String(err))

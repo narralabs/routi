@@ -19,6 +19,8 @@ export type ProviderEvent =
 
 export interface ChatRequest {
   conversationId: string
+  /** Which bot is speaking — also selects the desktop its tools drive. */
+  botId: string
   systemPrompt: string
   model: string
   effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'

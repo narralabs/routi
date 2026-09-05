@@ -42,7 +42,8 @@ struct ScreenWindow: View {
             .buttonStyle(.plain)
             .keyboardShortcut(.escape, modifiers: [])
 
-            Text("Shared desktop")
+            // Named for its bot: desktops are no longer shared between them.
+            Text(model.selectedBot.map { "\($0.name)'s desktop" } ?? "Desktop")
                 .font(.system(size: 13, weight: .semibold))
 
             Spacer()

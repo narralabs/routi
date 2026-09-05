@@ -155,6 +155,7 @@ export class SessionManager {
           effort: bot.effort,
           history,
           input,
+          botId: bot.id,
           hasSurface: bot.surfaceMode !== 'none',
         },
         ac.signal,

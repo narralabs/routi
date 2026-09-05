@@ -1,4 +1,4 @@
-import { RpcMethods, type RpcMethod } from '@korg/protocol'
+import { RpcMethods, type RpcMethod } from '@krog/protocol'
 import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import type { SessionManager } from '../sessions/manager.js'

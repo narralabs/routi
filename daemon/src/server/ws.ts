@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { ClientMessage, PROTOCOL_VERSION, type ServerEvent, type ServerMessage } from '@korg/protocol'
+import { ClientMessage, PROTOCOL_VERSION, type ServerEvent, type ServerMessage } from '@krog/protocol'
 import { dispatch, RpcError, type RpcContext } from './rpc.js'
 
 const VERSION = '0.0.1'
@@ -14,7 +14,7 @@ interface Client {
   subscriptions: Set<string>
 }
 
-export class KorgServer {
+export class KrogServer {
   private readonly http: Server
   private readonly wss: WebSocketServer
   private readonly clients = new Set<Client>()

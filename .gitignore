@@ -2,11 +2,13 @@ node_modules/
 dist/
 *.log
 .DS_Store
-korg.db
-korg.db-*
+krog.db
+krog.db-*
 .env
 .env.*
-app/build/
-app/.dart_tool/
-app/ios/Pods/
-app/macos/Pods/
+
+# Apple
+apple/Local.xcconfig
+apple/*.xcodeproj/xcuserdata/
+apple/build/
+DerivedData/

@@ -1,11 +1,11 @@
 /**
  * M0 auth spike.
  *
- * Proves the single assumption the whole architecture rests on: that korgd, running
+ * Proves the single assumption the whole architecture rests on: that krogd, running
  * as a background process on the Mac mini, can stream from Claude using the
  * subscription login already on the box — with no ANTHROPIC_API_KEY anywhere.
  *
- * Run: pnpm --filter korgd spike
+ * Run: pnpm --filter krogd spike
  */
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
@@ -24,7 +24,7 @@ let model: string | null = null
 let sawStreamEvents = false
 
 const q = query({
-  prompt: 'In one short sentence, what is a Korg synthesizer?',
+  prompt: 'In one short sentence, what is a synthesizer?',
   options: {
     model: 'claude-opus-5',
     // A chat bot, not a coding agent: no tools, no claude_code preset.

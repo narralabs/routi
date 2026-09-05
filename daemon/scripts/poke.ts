@@ -5,14 +5,14 @@
  * already on :7171 — it's how you verify the client's streaming render path without
  * driving the UI.
  *
- * Usage: pnpm --filter korgd poke "your message"
+ * Usage: pnpm --filter krogd poke "your message"
  */
 import { randomUUID } from 'node:crypto'
 import WebSocket from 'ws'
-import { PROTOCOL_VERSION, type ServerMessage } from '@korg/protocol'
+import { PROTOCOL_VERSION, type ServerMessage } from '@krog/protocol'
 
 const text = process.argv.slice(2).join(' ') || 'Say hello in one short sentence.'
-const port = Number(process.env['KORG_PORT'] ?? 7171)
+const port = Number(process.env['KROG_PORT'] ?? 7171)
 const ws = new WebSocket(`ws://127.0.0.1:${port}`)
 
 const pending = new Map<string, (v: Record<string, unknown>) => void>()
@@ -63,6 +63,6 @@ ws.on('message', async (raw) => {
 })
 
 ws.on('error', (err) => {
-  console.error('  could not reach korgd:', err.message)
+  console.error('  could not reach krogd:', err.message)
   process.exit(1)
 })

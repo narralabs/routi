@@ -1,7 +1,7 @@
 /**
  * M0 spike #2: warm sessions.
  *
- * The first spike showed ~3.5-4.2s TTFT, nearly all of it CLI process spawn. If korgd
+ * The first spike showed ~3.5-4.2s TTFT, nearly all of it CLI process spawn. If krogd
  * spawned a process per message, every message in the app would carry that penalty.
  *
  * This proves the alternative: hold ONE query() open per conversation, feed it user
@@ -9,7 +9,7 @@
  * accountInfo() which credential is actually in use, and lists the models available
  * to it for the per-bot model picker.
  *
- * Run: pnpm --filter korgd spike:session
+ * Run: pnpm --filter krogd spike:session
  */
 import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 
@@ -78,7 +78,7 @@ for (const m of models) {
 }
 
 // --- two turns on one warm process ------------------------------------------
-const turns = ['Name one Korg synth.', 'Now name a different one.']
+const turns = ['Name one analog synthesizer.', 'Now name a different one.']
 let turnIdx = 0
 let t0 = Date.now()
 let ttft: number | null = null

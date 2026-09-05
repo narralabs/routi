@@ -1,0 +1,56 @@
+name: Krog
+options:
+  bundleIdPrefix: com.narralabs
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Ad-hoc signing ("Sign to Run Locally"). Needs no Apple account and still
+    # satisfies the sandbox entitlement, so a fresh clone builds and runs on this Mac
+    # immediately.
+    #
+    # For iPhone/iPad: sign in under Xcode > Settings > Accounts, then run
+    # ./bootstrap.sh --ios, which switches to automatic signing against your team and
+    # adds iOS to the target's destinations. The app code is already universal — this
+    # is purely a provisioning switch.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: YES
+    CODE_SIGNING_ALLOWED: YES
+    ENABLE_HARDENED_RUNTIME: NO
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+targets:
+  Krog:
+    # NavigationSplitView adapts the same views to Mac, iPad, and iPhone; the handful
+    # of genuine differences sit behind `#if os(macOS)`. Adding iOS to
+    # supportedDestinations is all that's needed once signing is set up.
+    type: application
+    supportedDestinations: [macOS]
+    sources:
+      - path: Krog
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.narralabs.krog
+        INFOPLIST_KEY_CFBundleDisplayName: Krog
+        GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: YES
+        ENABLE_APP_SANDBOX: YES
+        CODE_SIGN_ENTITLEMENTS: Krog/Krog.entitlements
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: >-
+          UIInterfaceOrientationPortrait
+          UIInterfaceOrientationPortraitUpsideDown
+          UIInterfaceOrientationLandscapeLeft
+          UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: >-
+          UIInterfaceOrientationPortrait
+          UIInterfaceOrientationLandscapeLeft
+          UIInterfaceOrientationLandscapeRight

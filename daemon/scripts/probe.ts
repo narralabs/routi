@@ -1,11 +1,11 @@
 /**
  * End-to-end protocol probe.
  *
- * Drives korgd over the real WebSocket exactly as the Flutter client will, so the
+ * Drives krogd over the real WebSocket exactly as the Flutter client will, so the
  * protocol and the streaming path can be verified without any UI. Also asserts the
  * durability property that matters most: a conversation survives a daemon restart.
  *
- * Run: pnpm --filter korgd probe
+ * Run: pnpm --filter krogd probe
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -15,11 +15,11 @@ import { randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import WebSocket from 'ws'
-import { PROTOCOL_VERSION, type ServerEvent, type ServerMessage } from '@korg/protocol'
+import { PROTOCOL_VERSION, type ServerEvent, type ServerMessage } from '@krog/protocol'
 
 const PORT = 7399
 const WS_URL = `ws://127.0.0.1:${PORT}`
-const DATA_DIR = mkdtempSync(join(tmpdir(), 'korg-probe-'))
+const DATA_DIR = mkdtempSync(join(tmpdir(), 'krog-probe-'))
 
 let failures = 0
 function check(label: string, ok: boolean, detail = ''): void {
@@ -115,7 +115,7 @@ const DAEMON_DIR = fileURLToPath(new URL('..', import.meta.url))
 const TSX_CLI = createRequire(import.meta.url).resolve('tsx/cli')
 
 function startDaemon(): Promise<ChildProcess> {
-  const env: NodeJS.ProcessEnv = { ...process.env, KORG_DATA_DIR: DATA_DIR, KORG_PORT: String(PORT) }
+  const env: NodeJS.ProcessEnv = { ...process.env, KROG_DATA_DIR: DATA_DIR, KROG_PORT: String(PORT) }
   // Prove the subscription path, never a stray key in the developer's shell.
   delete env['ANTHROPIC_API_KEY']
 
@@ -128,13 +128,13 @@ function startDaemon(): Promise<ChildProcess> {
     const timer = setTimeout(() => reject(new Error('daemon did not start in time')), 30_000)
     child.stdout!.on('data', (b: Buffer) => {
       const s = b.toString()
-      if (process.env['PROBE_VERBOSE']) process.stdout.write(`    [korgd] ${s}`)
+      if (process.env['PROBE_VERBOSE']) process.stdout.write(`    [krogd] ${s}`)
       if (s.includes('listening on')) {
         clearTimeout(timer)
         resolve(child)
       }
     })
-    child.stderr!.on('data', (b: Buffer) => process.stderr.write(`    [korgd!] ${b}`))
+    child.stderr!.on('data', (b: Buffer) => process.stderr.write(`    [krogd!] ${b}`))
     child.on('exit', (code) => reject(new Error(`daemon exited early with code ${code}`)))
   })
 }
@@ -148,7 +148,7 @@ async function stopDaemon(child: ChildProcess): Promise<void> {
 // -------------------------------------------------------------------- main
 
 async function main(): Promise<void> {
-  console.log(`\n  korgd protocol probe   (data: ${DATA_DIR})\n`)
+  console.log(`\n  krogd protocol probe   (data: ${DATA_DIR})\n`)
 
   let daemon = await startDaemon()
   let client = new ProbeClient()
@@ -178,7 +178,7 @@ async function main(): Promise<void> {
   const t0 = Date.now()
   await client.rpc('messages.send', {
     conversationId,
-    blocks: [{ type: 'text', text: 'Name one Korg synthesizer.' }],
+    blocks: [{ type: 'text', text: 'Name one analog synthesizer.' }],
   })
 
   const completed = await client.waitFor((e) => e.e === 'message.completed')

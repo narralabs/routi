@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
-import type { Block, Bot, Conversation, Message, Role } from '@korg/protocol'
+import type { Block, Bot, Conversation, Message, Role } from '@krog/protocol'
 
 const now = () => Date.now()
 

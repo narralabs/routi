@@ -3,7 +3,7 @@ import { Block } from './blocks.js'
 import { AccountInfo, Bot, Conversation, Message, ModelInfo, SurfaceMode } from './entities.js'
 
 /**
- * The korgd wire protocol: one WebSocket carrying request/response RPCs and
+ * The krogd wire protocol: one WebSocket carrying request/response RPCs and
  * server-pushed events.
  *
  * Streaming rule: deltas are addressed by `blockIndex`, never appended to a running

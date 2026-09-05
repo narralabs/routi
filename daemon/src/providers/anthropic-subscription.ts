@@ -1,6 +1,6 @@
 import { query, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources'
-import type { AccountInfo, Block, ModelInfo } from '@korg/protocol'
+import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
 import { PushQueue } from './push-queue.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 
@@ -8,7 +8,7 @@ import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
  * Anthropic via the user's personal Claude plan.
  *
  * Uses @anthropic-ai/claude-agent-sdk, which picks up the subscription login already
- * present on this machine (macOS Keychain). korgd never sees or stores the credential.
+ * present on this machine (macOS Keychain). krogd never sees or stores the credential.
  * Verified in the M0 spike: subscriptionType "Claude Max", apiKeySource none, and it
  * works from a scrubbed launchd-style environment.
  *
@@ -135,7 +135,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         const ev = msg.event
         switch (ev.type) {
           case 'content_block_start': {
-            const block = anthropicBlockToKorg(ev.content_block)
+            const block = anthropicBlockToKrog(ev.content_block)
             return block ? { type: 'block_start', index: ev.index, block } : null
           }
           case 'content_block_delta':
@@ -221,7 +221,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
 
 // ------------------------------------------------------------------ mapping
 
-function anthropicBlockToKorg(raw: { type: string }): Block | null {
+function anthropicBlockToKrog(raw: { type: string }): Block | null {
   // The SDK's content-block union is far wider than the handful the UI renders, so
   // narrow through an indexable view and match on the discriminant.
   const cb = raw as { type: string } & Record<string, unknown>

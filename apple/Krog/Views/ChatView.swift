@@ -94,14 +94,25 @@ struct ChatView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             /**
-             * The bottom is where a conversation lives.
+             * Follows a reply without chasing it.
              *
-             * This does the work that an animated scrollTo per token was doing badly:
-             * the view opens at the end, stays pinned there as a reply streams in, and
-             * lets go the moment someone scrolls up to read back — which a repeated
-             * scrollTo cannot do, because it drags them down again on the next token.
+             * Scrolling used to fire on a signature that summed the text of every block,
+             * so it ran on every streamed token — an animation restarting several times
+             * a second, which is what made this judder. It now moves when a message
+             * arrives or finishes, which is a handful of times a turn.
+             *
+             * `defaultScrollAnchor(.bottom)` did this more elegantly and took text
+             * selection with it: an anchored scroll view re-pins its content as it lays
+             * out, and that swallows the drag a selection needs.
              */
-            .defaultScrollAnchor(.bottom)
+            .onChange(of: model.messages.count) {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+                }
+            }
+            .onChange(of: model.isBusy) {
+                proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+            }
             /**
              * Switching bots lands at the latest message.
              *

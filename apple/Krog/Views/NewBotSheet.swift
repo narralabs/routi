@@ -71,7 +71,6 @@ struct NewBotSheet: View {
                         .foregroundStyle(.tertiary)
                 }
 
-                Spacer(minLength: 0)
             }
             .padding(.horizontal, 22)
             .padding(.top, 6)
@@ -143,7 +142,6 @@ struct BotSettingsSheet: View {
                     .labelsHidden()
                 }
 
-                Spacer(minLength: 0)
             }
             .padding(.horizontal, 22)
             .padding(.top, 6)
@@ -293,7 +291,14 @@ struct SheetScaffold<Content: View>: View {
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
                 .padding(.bottom, 10)
-            content
+
+            // Scrolls rather than clips: the form grows when a model exposes effort
+            // levels, and a fixed-height sheet silently cut the last field off.
+            ScrollView {
+                content.padding(.bottom, 18)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+
             Divider()
             HStack {
                 Spacer()
@@ -305,7 +310,7 @@ struct SheetScaffold<Content: View>: View {
             }
             .padding(14)
         }
-        .frame(width: 520, height: 440)
+        .frame(width: 540, height: 560)
         #else
         NavigationStack {
             content

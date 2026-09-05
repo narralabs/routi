@@ -77,6 +77,13 @@ class Host {
          * boundary instead.
          */
         '--security-opt', 'seccomp=unconfined',
+        /**
+         * Each screen's Chromium listens for DevTools on 9222 + its display offset, so
+         * a bot can read a page's structure rather than read it off a JPEG. Published
+         * on loopback only: this is a full remote-control channel into a browser and
+         * has no business on the network.
+         */
+        '-p', '127.0.0.1:9222-9271:9222-9271',
         IMAGE,
       ], { timeout: 60_000 })
       return null
@@ -291,6 +298,18 @@ export class Desktop {
 
   get holder(): string | null {
     return this.heldBy
+  }
+
+  /**
+   * Where this screen's browser answers DevTools, or null when no screen is up.
+   *
+   * Derived from the display number rather than discovered, so it is knowable before
+   * the browser has started and stays the same across restarts of it.
+   */
+  get cdpPort(): number | null {
+    if (!this.display) return null
+    const n = Number(this.display.slice(1))
+    return Number.isFinite(n) ? 9222 + (n - 99) : null
   }
 
   async send(input: DesktopInput): Promise<void> {

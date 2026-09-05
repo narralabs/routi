@@ -1,5 +1,6 @@
 import { createSdkMcpServer, type SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
+import { Browser } from './browser.js'
 import type { Desktop } from './desktop.js'
 
 /**
@@ -33,149 +34,62 @@ type ToolResult = { content: Array<TextContent | ImageContent> }
 const say = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] })
 
 export function desktopToolServer(desktop: Desktop) {
-
-  const tools: ToolDef[] = [
-    {
-      name: 'screenshot',
-      description:
-        'Look at the desktop. Returns a picture of the current screen. Use it before ' +
-        'acting to find what you need, and again afterwards to confirm what happened.',
-      inputSchema: {},
-      handler: async (_args): Promise<ToolResult> => {
-        const result = await runDesktopTool(desktop, 'screenshot', {})
-        return result.imageDataUrl
-          ? {
-              content: [
-                { type: 'image', data: result.imageDataUrl.split(',')[1] ?? '', mimeType: 'image/jpeg' },
-                { type: 'text', text: result.output },
-              ],
-            }
-          : say(result.output)
-      },
+  /**
+   * Built from the same specs every other provider gets, rather than written out
+   * again here. The two lists drifted the moment the browser verbs were added — the
+   * OpenAI path had them and Claude did not — which is exactly the bug a second
+   * source of truth guarantees.
+   */
+  const tools: ToolDef[] = desktopToolSpecs().map((spec) => ({
+    name: spec.name,
+    description: spec.description,
+    inputSchema: zodShapeOf(spec.parameters),
+    handler: async (args: Record<string, unknown>): Promise<ToolResult> => {
+      const result = await runDesktopTool(desktop, spec.name, args ?? {})
+      if (!result.imageDataUrl) return say(result.output)
+      return {
+        content: [
+          { type: 'image', data: result.imageDataUrl.split(',')[1] ?? '', mimeType: 'image/jpeg' },
+          { type: 'text', text: result.output },
+        ],
+      }
     },
-
-    {
-      name: 'open_url',
-      description: 'Open a URL in Chromium on the desktop. Pass the full URL including https://.',
-      inputSchema: { url: z.string() },
-      handler: async (args): Promise<ToolResult> => {
-        const result = await runDesktopTool(desktop, 'open_url', args)
-        return result.imageDataUrl
-          ? {
-              content: [
-                { type: 'image', data: result.imageDataUrl.split(',')[1] ?? '', mimeType: 'image/jpeg' },
-                { type: 'text', text: result.output },
-              ],
-            }
-          : say(result.output)
-      },
-    },
-
-    {
-      name: 'click',
-      description:
-        'Click a point on the screen. x and y are pixels from the top-left; take a ' +
-        'screenshot first to find them. Set right for a right-click, double for a ' +
-        'double-click.',
-      inputSchema: {
-        x: z.number(),
-        y: z.number(),
-        right: z.boolean().optional(),
-        double: z.boolean().optional(),
-      },
-      handler: async (args): Promise<ToolResult> => {
-        const result = await runDesktopTool(desktop, 'click', args)
-        return result.imageDataUrl
-          ? {
-              content: [
-                { type: 'image', data: result.imageDataUrl.split(',')[1] ?? '', mimeType: 'image/jpeg' },
-                { type: 'text', text: result.output },
-              ],
-            }
-          : say(result.output)
-      },
-    },
-
-    {
-      name: 'type_text',
-      description: 'Type text wherever the keyboard focus is. Click a field first.',
-      inputSchema: { text: z.string() },
-      handler: async (args): Promise<ToolResult> => {
-        const result = await runDesktopTool(desktop, 'type_text', args)
-        return result.imageDataUrl
-          ? {
-              content: [
-                { type: 'image', data: result.imageDataUrl.split(',')[1] ?? '', mimeType: 'image/jpeg' },
-                { type: 'text', text: result.output },
-              ],
-            }
-          : say(result.output)
-      },
-    },
-
-    {
-      name: 'press_key',
-      description:
-        'Press a key or chord using X key names: Return, Tab, Escape, BackSpace, Up, ' +
-        'Down, Left, Right, ctrl+l, ctrl+a.',
-      inputSchema: { keys: z.string() },
-      handler: async (args): Promise<ToolResult> => {
-        const result = await runDesktopTool(desktop, 'press_key', args)
-        return result.imageDataUrl
-          ? {
-              content: [
-                { type: 'image', data: result.imageDataUrl.split(',')[1] ?? '', mimeType: 'image/jpeg' },
-                { type: 'text', text: result.output },
-              ],
-            }
-          : say(result.output)
-      },
-    },
-
-    {
-      name: 'scroll',
-      description: 'Scroll at a point. Negative amount scrolls up, positive scrolls down.',
-      inputSchema: { x: z.number(), y: z.number(), amount: z.number() },
-      handler: async (args): Promise<ToolResult> => {
-        const result = await runDesktopTool(desktop, 'scroll', args)
-        return result.imageDataUrl
-          ? {
-              content: [
-                { type: 'image', data: result.imageDataUrl.split(',')[1] ?? '', mimeType: 'image/jpeg' },
-                { type: 'text', text: result.output },
-              ],
-            }
-          : say(result.output)
-      },
-    },
-  ]
+  }))
 
   return createSdkMcpServer({
     name: 'desktop',
     version: '0.1.0',
     instructions:
-      'A shared Linux desktop with Chromium. Screenshot first to see the current ' +
-      'state, then act. Coordinates are screen pixels with the origin at the top ' +
-      'left. After anything that changes the screen, screenshot again to confirm.',
+      'A Linux desktop with Chromium, and the browser on it. Prefer read_page over ' +
+      'screenshot: it returns the page as text with refs you can click, which is both ' +
+      'cheaper and exact. Fall back to screenshot and coordinates for anything that is ' +
+      'not a web page, or when a page will not cooperate. After anything that changes ' +
+      'the screen, look again before acting.',
     tools,
   })
 }
 
 /**
- * Names the SDK gives these tools once the server is registered.
+ * The JSON Schema a spec carries, as the zod shape the agent SDK wants.
  *
- * Listed in `allowedTools` so a bot can use its own desktop without a permission
- * prompt per action — the user granted that by giving the bot a screen, and asking
- * per click would make any real task unusable.
+ * Only the shapes these tools actually use. Written by hand rather than pulled from a
+ * converter library because the alternative is a dependency for six tools, and
+ * because `tool()`'s own inference already had to be avoided here: its generics
+ * compound across an array until tsc reports "Type instantiation is excessively
+ * deep".
  */
-export const DESKTOP_TOOL_NAMES = [
-  'mcp__desktop__screenshot',
-  'mcp__desktop__open_url',
-  'mcp__desktop__click',
-  'mcp__desktop__type_text',
-  'mcp__desktop__press_key',
-  'mcp__desktop__scroll',
-]
+function zodShapeOf(parameters: Record<string, unknown>): Record<string, z.ZodTypeAny> {
+  const properties = (parameters['properties'] ?? {}) as Record<string, { type?: string }>
+  const required = new Set((parameters['required'] ?? []) as string[])
+
+  const shape: Record<string, z.ZodTypeAny> = {}
+  for (const [name, schema] of Object.entries(properties)) {
+    const base: z.ZodTypeAny =
+      schema.type === 'number' ? z.number() : schema.type === 'boolean' ? z.boolean() : z.string()
+    shape[name] = required.has(name) ? base : base.optional()
+  }
+  return shape
+}
 
 // --------------------------------------------------------------- shared core
 
@@ -201,8 +115,48 @@ const object = (properties: Record<string, unknown>, required: string[] = []) =>
   additionalProperties: false,
 })
 
+/**
+ * Browsers, one per bot, kept between calls.
+ *
+ * A ref is only meaningful between the snapshot that produced it and the action taken
+ * against it, so the object holding those refs has to outlive a single tool call.
+ */
+const browsers = new Map<string, Browser>()
+
+function browserFor(desktop: Desktop): Browser {
+  let browser = browsers.get(desktop.botId)
+  if (!browser) {
+    browser = new Browser(desktop)
+    browsers.set(desktop.botId, browser)
+  }
+  return browser
+}
+
 export function desktopToolSpecs(): DesktopToolSpec[] {
   return [
+    {
+      name: 'read_page',
+      description:
+        'Read the page in the browser as structure: its title, its text, and every ' +
+        'button, link and field with a ref you can act on. Prefer this over a ' +
+        'screenshot — it is far cheaper and the text is exact rather than read off a ' +
+        'picture. Take a fresh one after anything that changes the page.',
+      parameters: object({}),
+    },
+    {
+      name: 'click_ref',
+      description:
+        'Click an element by the ref from read_page, like "e12". Use this rather than ' +
+        'clicking coordinates whenever the thing you want has a ref.',
+      parameters: object({ ref: { type: 'string' } }, ['ref']),
+    },
+    {
+      name: 'fill_ref',
+      description:
+        'Type into a field by its ref from read_page, replacing what is there. Follow ' +
+        'with press_key Return to submit a search box.',
+      parameters: object({ ref: { type: 'string' }, text: { type: 'string' } }, ['ref', 'text']),
+    },
     {
       name: 'screenshot',
       description:
@@ -294,6 +248,30 @@ export async function runDesktopTool(
 
   try {
     switch (name) {
+      case 'read_page': {
+        const browser = browserFor(desktop)
+        const outline = await browser.snapshot()
+        const text = await browser.text(4_000)
+        return {
+          ok: true,
+          output: [outline, '', '--- page text ---', text].join('\n'),
+          summary: outline.split('\n')[0] ?? 'Read the page',
+        }
+      }
+
+      case 'click_ref': {
+        const ref = String(args['ref'] ?? '')
+        const said = await browserFor(desktop).click(ref)
+        return { ok: true, output: said, summary: said }
+      }
+
+      case 'fill_ref': {
+        const ref = String(args['ref'] ?? '')
+        const text = String(args['text'] ?? '')
+        const said = await browserFor(desktop).fill(ref, text)
+        return { ok: true, output: said, summary: said }
+      }
+
       case 'screenshot': {
         const frame = await desktop.captureFrame(7)
         if (!frame) return { ok: false, output: 'Could not capture the screen.', summary: 'Screenshot failed' }
@@ -308,12 +286,23 @@ export async function runDesktopTool(
 
       case 'open_url': {
         const url = String(args['url'] ?? '')
-        await desktop.send({ kind: 'open', url })
-        return {
-          ok: true,
-          output: `Opening ${url}. Take a screenshot in a few seconds to see it load.`,
-          summary: url,
+        const browser = browserFor(desktop)
+
+        // A browser already running on this screen is navigated rather than launched
+        // again — a second Chromium on the same profile would refuse to start.
+        if (await browser.available()) {
+          const title = await browser.open(url)
+          return { ok: true, output: `Opened ${url} — "${title}". Use read_page to see it.`, summary: url }
         }
+
+        await desktop.send({ kind: 'open', url })
+        // Chromium has to come up and bind its debugging port before the page is
+        // readable; waiting here saves the model a wasted turn discovering that.
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 700))
+          if (await browser.available()) break
+        }
+        return { ok: true, output: `Opened ${url}. Use read_page to see it.`, summary: url }
       }
 
       case 'click': {
@@ -354,3 +343,13 @@ export async function runDesktopTool(
     return { ok: false, output: message, summary: 'Failed' }
   }
 }
+
+/**
+ * Names the SDK gives these tools once the server is registered.
+ *
+ * Listed in `allowedTools` so a bot can use its own screen without a permission
+ * prompt per action — the user granted that by giving the bot a screen, and asking
+ * per click would make any real task unusable. Derived from the specs so a new verb
+ * is allowed by existing.
+ */
+export const DESKTOP_TOOL_NAMES = desktopToolSpecs().map((spec) => `mcp__desktop__${spec.name}`)

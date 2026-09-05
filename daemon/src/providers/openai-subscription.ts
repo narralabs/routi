@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { Codex, type Thread, type ThreadEvent, type ThreadItem } from '@openai/codex-sdk'
 import type { AccountInfo, ModelInfo } from '@krog/protocol'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
@@ -116,6 +117,32 @@ function isolatedCodexHome(dataDir: string): string {
   return home
 }
 
+/**
+ * How to launch the stdio MCP server, from wherever this daemon is running.
+ *
+ * A compiled daemon has a .js beside it and node runs it directly. A daemon running
+ * from source does not: node cannot read a .ts entry at all, so the child has to be
+ * given the same loader flags this process was started with. Pointing at a .js that
+ * was never built is silent — Codex drops a server it cannot start and simply carries
+ * on without those tools, which reads as a model choosing not to use its screen.
+ */
+function mcpServerCommand(): { command: string; args: string[] } {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const built = join(here, '..', 'surfaces', 'mcp-stdio.js')
+  if (existsSync(built)) return { command: process.execPath, args: [built] }
+
+  const source = join(here, '..', 'surfaces', 'mcp-stdio.ts')
+  const loader: string[] = []
+  for (let i = 0; i < process.execArgv.length; i++) {
+    const flag = process.execArgv[i]
+    if (flag === '--require' || flag === '--import') {
+      const value = process.execArgv[i + 1]
+      if (value) { loader.push(flag, value); i++ }
+    }
+  }
+  return { command: process.execPath, args: [...loader, source] }
+}
+
 interface Session {
   thread: Thread
   threadId: string | null
@@ -123,9 +150,12 @@ interface Session {
 
 export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   readonly id = 'openai'
-  readonly supportsSurface = false
+  readonly supportsSurface = true
   private readonly codex: Codex
   private readonly sessions = new Map<string, Session>()
+  /** One Codex client per bot, each declaring that bot's screen as an MCP server. */
+  private readonly withTools = new Map<string, Codex>()
+  private readonly env: Record<string, string>
 
   constructor(private readonly opts: { cwd: string; dataDir: string; apiKey?: string }) {
     const home = isolatedCodexHome(opts.dataDir)
@@ -136,14 +166,15 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     // `env` is given in full because supplying it stops the SDK inheriting
     // process.env — which is the point. CODEX_HOME moves the agent off the operator's
     // personal Codex setup and onto Krog's own.
+    this.env = {
+      CODEX_HOME: home,
+      PATH: process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin',
+      HOME: process.env['HOME'] ?? homedir(),
+      ...(process.env['TMPDIR'] ? { TMPDIR: process.env['TMPDIR'] } : {}),
+    }
     this.codex = new Codex({
       ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
-      env: {
-        CODEX_HOME: home,
-        PATH: process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin',
-        HOME: process.env['HOME'] ?? homedir(),
-        ...(process.env['TMPDIR'] ? { TMPDIR: process.env['TMPDIR'] } : {}),
-      },
+      env: this.env,
     })
   }
 
@@ -252,6 +283,14 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     const existing = this.sessions.get(req.conversationId)
     if (existing) return existing
 
+    // Codex takes custom tools only from MCP servers it launches itself, so the bot's
+    // screen is registered as one — the same verbs the other providers get, delivered
+    // the one way this harness accepts. Per bot, because the server is bound to a bot's
+    // own screen.
+    if (req.hasSurface === true) {
+      this.codexWithTools(req.botId)
+    }
+
     const options = {
       workingDirectory: this.opts.cwd,
       skipGitRepoCheck: true,
@@ -269,11 +308,37 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     // under ~/.codex/sessions and `resumeThread` could pick one up after a restart —
     // that is a thread id we now record in `meta`, and the same unfinished business
     // as on the Claude side, where resume is wired but never yet asked for.
-    const thread = this.codex.startThread(options)
+    const client = (req.hasSurface === true ? this.withTools.get(req.botId) : undefined) ?? this.codex
+    const thread = client.startThread(options)
 
     const session: Session = { thread, threadId: null }
     this.sessions.set(req.conversationId, session)
     return session
+  }
+
+  /**
+   * A Codex client whose config declares this bot's screen.
+   *
+   * Config overrides rather than a written file: `mcp_servers` is per-run here, and a
+   * file would have to be rewritten for every bot and would race between them.
+   */
+  private codexWithTools(botId: string): void {
+    if (this.withTools.has(botId)) return
+    this.withTools.set(
+      botId,
+      new Codex({
+        ...(this.opts.apiKey ? { apiKey: this.opts.apiKey } : {}),
+        env: this.env,
+        config: {
+          mcp_servers: {
+            krog: (() => {
+              const entry = mcpServerCommand()
+              return { command: entry.command, args: [...entry.args, botId] }
+            })(),
+          },
+        },
+      }),
+    )
   }
 
   release(conversationId: string): void {

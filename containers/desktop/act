@@ -17,9 +17,27 @@ case "${1:-}" in
   # A profile per screen: two Chromium instances cannot share one user-data-dir, and
   # a bot's logins are its own. Downloads stay shared, which is the point of one
   # machine — a file one bot fetches, another can open.
-  open)     chromium --no-first-run --no-default-browser-check \
+  #
+  # The debugging port is what lets a bot read the page's structure instead of
+  # squinting at pixels. It is derived from the display so screens never collide, and
+  # bound to 0.0.0.0 only because the daemon reaches it from outside the container —
+  # the published port itself is bound to loopback on the host.
+  open)     offset=$((${DISPLAY#:} - 99))
+            inner=$((19222 + offset))
+            outer=$((9222 + offset))
+            chromium --no-first-run --no-default-browser-check \
               --user-data-dir="$HOME/.chromium-$DISPLAY" \
               --disable-features=TranslateUI \
-              "$2" >/dev/null 2>&1 & ;;
+              --remote-debugging-port="$inner" \
+              "$2" >/dev/null 2>&1 &
+            # Chromium binds DevTools to the container's loopback and ignores
+            # --remote-debugging-address outside headless mode, so a published port
+            # reaches nothing. socat bridges the two: it listens where the daemon can
+            # reach it and forwards to where Chromium actually is.
+            pgrep -f "TCP-LISTEN:$outer," >/dev/null 2>&1 || \
+              socat TCP-LISTEN:$outer,fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:$inner \
+                >/dev/null 2>&1 & ;;
+  # The port this screen's browser answers on, from outside the container.
+  cdpport)  echo $((9222 + ${DISPLAY#:} - 99)) ;;
   *)        echo "usage: act {click|dblclick|move|scroll|type|key|open} ..." >&2; exit 2 ;;
 esac

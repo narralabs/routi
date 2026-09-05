@@ -15,23 +15,14 @@ struct ChatView: View {
     @FocusState private var composerFocused: Bool
 
     var body: some View {
-        HStack(spacing: 0) {
-            content
-            #if os(macOS)
-            if showRail {
-                DetailRail(bot: bot, showingSettings: $showingSettings)
-                    .frame(width: 300)
-                    .transition(.move(edge: .trailing))
+        // Just the chat. The screen is a sibling column now, not a panel nested here.
+        content
+            .navigationTitle(bot.name)
+            .toolbar { toolbarContent }
+            .sheet(isPresented: $showingSettings) {
+                BotSettingsSheet(bot: bot)
             }
-            #endif
-        }
-        .animation(.snappy(duration: 0.22), value: showRail)
-        .navigationTitle(bot.name)
-        .toolbar { toolbarContent }
-        .sheet(isPresented: $showingSettings) {
-            BotSettingsSheet(bot: bot)
-        }
-        .onChange(of: model.selectedConversationID) { draft = "" }
+            .onChange(of: model.selectedConversationID) { draft = "" }
     }
 
     @ViewBuilder

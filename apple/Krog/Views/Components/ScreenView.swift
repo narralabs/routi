@@ -18,35 +18,17 @@ struct ScreenView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack {
-                Rectangle().fill(.black.opacity(0.92))
+            let fitted = fittedSize(in: proxy.size)
 
-                if let frame, let image = decode(frame) {
-                    image
-                        .resizable()
-                        .interpolation(.medium)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ProgressView().controlSize(.small).tint(.white)
-                }
+            ZStack {
+                // The screen sits centred on its own ground rather than being stretched
+                // to the pane; a desktop letterboxed against black reads as a display,
+                // and it keeps the aspect honest at any window size.
+                Color.black.opacity(0.92)
+
+                screen(fitted: fitted)
             }
-            .contentShape(.rect)
-            .onTapGesture { location in
-                guard isInteractive else { return }
-                isFocused = true
-                if let point = desktopPoint(from: location, in: proxy.size) {
-                    onInput(["kind": "click", "x": point.x, "y": point.y])
-                }
-            }
-            #if os(macOS)
-            // The pointer should say "this is clickable". `.pointerStyle` is macOS 15,
-            // and the deployment target is 14, so this pushes the cursor directly.
-            .onHover { inside in
-                guard isInteractive else { return }
-                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-            }
-            #endif
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .focusable(isInteractive)
         .focused($isFocused)
@@ -62,21 +44,52 @@ struct ScreenView: View {
         .onAppear { if isInteractive { isFocused = true } }
     }
 
-    /// Maps a point in the view onto the desktop, accounting for the letterboxing
-    /// `aspectRatio(contentMode: .fit)` introduces.
-    private func desktopPoint(from location: CGPoint, in viewSize: CGSize) -> (x: Int, y: Int)? {
-        guard size.width > 0, size.height > 0 else { return nil }
-        let scale = min(viewSize.width / size.width, viewSize.height / size.height)
-        let drawn = CGSize(width: size.width * scale, height: size.height * scale)
-        let origin = CGPoint(
-            x: (viewSize.width - drawn.width) / 2,
-            y: (viewSize.height - drawn.height) / 2
-        )
-        let local = CGPoint(x: location.x - origin.x, y: location.y - origin.y)
-        guard local.x >= 0, local.y >= 0, local.x <= drawn.width, local.y <= drawn.height else {
-            return nil  // the letterbox, not the screen
+    @ViewBuilder
+    private func screen(fitted: CGSize) -> some View {
+        Group {
+            if let frame, let image = decode(frame) {
+                image.resizable().interpolation(.medium)
+            } else {
+                ZStack {
+                    Color.black
+                    ProgressView().controlSize(.small).tint(.white)
+                }
+            }
         }
-        return (Int(local.x / scale), Int(local.y / scale))
+        // Sizing the image to the fitted rect means the gesture's own local
+        // coordinates *are* screen coordinates, scaled. The previous version laid a
+        // tap over the whole pane and subtracted the letterbox by hand, so any click
+        // in the margin silently did nothing.
+        .frame(width: fitted.width, height: fitted.height)
+        .clipShape(.rect(cornerRadius: isInteractive ? 6 : 0, style: .continuous))
+        .shadow(color: .black.opacity(isInteractive ? 0.5 : 0), radius: 18, y: 6)
+        .contentShape(.rect)
+        .onTapGesture { location in
+            guard isInteractive, fitted.width > 0 else { return }
+            isFocused = true
+            let scale = size.width / fitted.width
+            onInput([
+                "kind": "click",
+                "x": Int((location.x * scale).rounded()),
+                "y": Int((location.y * scale).rounded()),
+            ])
+        }
+        #if os(macOS)
+        // `.pointerStyle` is macOS 15 and the target is 14, so push the cursor.
+        .onHover { inside in
+            guard isInteractive else { return }
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+        #endif
+    }
+
+    /// Largest rect with the desktop's aspect ratio that fits the available space.
+    private func fittedSize(in available: CGSize) -> CGSize {
+        guard size.width > 0, size.height > 0, available.width > 0, available.height > 0 else {
+            return .zero
+        }
+        let scale = min(available.width / size.width, available.height / size.height)
+        return CGSize(width: size.width * scale, height: size.height * scale)
     }
 
     private func decode(_ data: Data) -> Image? {

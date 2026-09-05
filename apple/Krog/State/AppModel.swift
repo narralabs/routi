@@ -22,6 +22,9 @@ final class AppModel {
 
     // Transient
     var busyConversations: Set<String> = []
+    /// Last failure per conversation, shown inline in that thread rather than only
+    /// as an alert — an alert that fires while you are looking elsewhere is lost.
+    var conversationErrors: [String: String] = [:]
     var connection: KrogClient.ConnectionState = .disconnected
     var errorMessage: String?
     var isLoadingMessages = false
@@ -123,6 +126,16 @@ final class AppModel {
     var isBusy: Bool {
         guard let id = selectedConversationID else { return false }
         return busyConversations.contains(id)
+    }
+
+    /// Failure in the thread on screen, if any.
+    var selectedError: String? {
+        selectedConversationID.flatMap { conversationErrors[$0] }
+    }
+
+    func dismissSelectedError() {
+        guard let id = selectedConversationID else { return }
+        conversationErrors[id] = nil
     }
 
     func isBusy(botID: String) -> Bool {
@@ -468,7 +481,12 @@ final class AppModel {
             }
 
         case "error":
-            errorMessage = event.payload["message"] as? String
+            let text = event.payload["message"] as? String
+            if let conversationID = event.payload["conversationId"] as? String, let text {
+                conversationErrors[conversationID] = text
+            } else {
+                errorMessage = text
+            }
 
         default:
             break

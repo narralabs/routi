@@ -123,6 +123,17 @@ export class KrogServer {
 }
 
 function conversationIdOf(event: ServerEvent): string | null {
+  /**
+   * Busy and error are broadcast to everyone, not just subscribers.
+   *
+   * Creating a bot starts its greeting immediately, before the client has had a
+   * chance to subscribe to the brand-new conversation — so a scoped `busy` went to
+   * nobody and the reply simply appeared with no sign anything was happening. These
+   * two are also what the sidebar needs to show activity on conversations the user
+   * is not currently looking at, which is the same requirement from the other side.
+   */
+  if (event.e === 'conversation.busy' || event.e === 'error') return null
+
   if ('conversationId' in event && typeof event.conversationId === 'string') return event.conversationId
   if (event.e === 'message.created') return event.message.conversationId
   if (event.e === 'conversation.updated') return event.conversation.id

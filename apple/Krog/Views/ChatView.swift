@@ -89,6 +89,10 @@ struct ChatView: View {
                     if model.isBusy {
                         TypingIndicator().padding(.top, 10)
                     }
+                    if let failure = model.selectedError {
+                        TurnErrorRow(message: failure) { model.dismissSelectedError() }
+                            .padding(.top, 10)
+                    }
                     // Clearance so the floating composer never covers the last message.
                     Color.clear.frame(height: 96).id(Self.tailAnchor)
                 }
@@ -229,6 +233,34 @@ private struct ToolbarIcon: View {
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .help(help)
+    }
+}
+
+/// Shown where the reply would have been, so a failed turn is visible in context.
+private struct TurnErrorRow: View {
+    let message: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button {
+                onDismiss()
+            } label: {
+                Image(systemName: "xmark").font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .frame(maxWidth: 560, alignment: .leading)
+        .background(.orange.opacity(0.10), in: .rect(cornerRadius: 12, style: .continuous))
     }
 }
 

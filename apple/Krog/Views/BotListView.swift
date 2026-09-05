@@ -102,13 +102,15 @@ private struct BotRow: View {
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    if let stamp = conversation?.lastMessageAt {
+                    if isBusy {
+                        WorkingDots()
+                    } else if let stamp = conversation?.lastMessageAt {
                         Text(Self.relative(stamp))
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                     }
                 }
-                Text(subtitle)
+                Text(isBusy ? "Thinking…" : subtitle)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -130,6 +132,31 @@ private struct BotRow: View {
             return date.formatted(.dateTime.weekday(.wide))
         }
         return date.formatted(.dateTime.month(.defaultDigits).day().year(.twoDigits))
+    }
+}
+
+/// Three quiet dots, in place of the timestamp, while a bot is working.
+private struct WorkingDots: View {
+    @State private var phase = 0.0
+
+    var body: some View {
+        HStack(spacing: 2.5) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .fill(.tertiary)
+                    .frame(width: 4, height: 4)
+                    .opacity(opacity(i))
+            }
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) { phase = 1 }
+        }
+    }
+
+    private func opacity(_ index: Int) -> Double {
+        let t = (phase - Double(index) * 0.18).truncatingRemainder(dividingBy: 1.0)
+        let clamped = t < 0 ? t + 1 : t
+        return 0.25 + 0.75 * (clamped < 0.5 ? clamped * 2 : (1 - clamped) * 2)
     }
 }
 

@@ -28,11 +28,14 @@ struct NewBotSheet: View {
                         .textFieldStyle(.roundedBorder)
                 }
 
-                FormField("Personality") {
+                FormField(
+                    "Description",
+                    footnote: "What this bot does, and how it should go about it. This is the bot's whole identity — it introduces itself from this, and works from it."
+                ) {
                     TextField(
                         "",
                         text: $systemPrompt,
-                        prompt: Text("You are a sharp research assistant. Be concise."),
+                        prompt: Text("Finds hotels and flights. Knows travel deals cold, and always checks the cancellation terms."),
                         axis: .vertical
                     )
                     .textFieldStyle(.roundedBorder)
@@ -126,7 +129,7 @@ struct BotSettingsSheet: View {
                         .textFieldStyle(.roundedBorder)
                 }
 
-                FormField("Personality") {
+                FormField("Description", footnote: "What this bot does, and how it should go about it.") {
                     TextField("", text: $systemPrompt, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(4...10)

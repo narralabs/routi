@@ -244,8 +244,8 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
  * So the framing is handled where it can be: the bot is told that its description is
  * the source of its identity and that incidental tools are not.
  */
-function composeSystemPrompt(persona: string): string {
-  const description = persona.trim() || 'You are a helpful, concise assistant.'
+function composeSystemPrompt(description_: string): string {
+  const description = description_.trim() || 'You are a helpful, concise assistant.'
   return [
     description,
     '',

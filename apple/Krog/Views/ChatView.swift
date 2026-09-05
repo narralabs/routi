@@ -130,7 +130,7 @@ struct ChatView: View {
     /// what the bot runs on rather than a control — which is why it sits below the bar
     /// as a caption instead of inside it as a picker.
     private var configLine: some View {
-        Text(BotConfig(bot: bot, models: model.models).summary)
+        Text(BotConfig(bot: bot, models: model.models(for: bot.provider)).summary)
             .font(.system(size: 11))
             .foregroundStyle(.tertiary)
             .textSelection(.enabled)
@@ -275,7 +275,12 @@ struct BotConfig {
     /// `claude-opus-5[1m]`, tomorrow to whatever Anthropic points it at. Printing
     /// "Default" would tell the reader nothing about the model in use, so the resolved
     /// id is shown instead whenever the provider reports one.
-    private var modelName: String {
+    ///
+    /// `models` must be the bot's *own* provider's list. Ids are not unique across
+    /// providers — every provider has a `default` — so looking one up in the wrong
+    /// list silently resolves to the wrong vendor's model. That is how an OpenAI bot
+    /// came to describe itself as running Opus.
+    var modelName: String {
         let info = models.first { $0.id == bot.model }
         if let resolved = info?.resolvedModel { return ModelName.pretty(resolved) }
         let full = info?.displayName ?? bot.model

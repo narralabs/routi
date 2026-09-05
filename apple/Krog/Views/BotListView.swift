@@ -80,9 +80,12 @@ struct BotListView: View {
 }
 
 private struct BotRow: View {
+    @Environment(AppModel.self) private var model
     let bot: Bot
     let conversation: Conversation?
     let isBusy: Bool
+
+    private var provider: ProviderInfo { ProviderInfo.find(bot.provider) }
 
     /// The last thing said, as in the reference — falling back to the chat's title,
     /// then to a placeholder for a bot that has not spoken yet.
@@ -115,6 +118,19 @@ private struct BotRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+
+                // Which mind is behind this bot. Fixed for its lifetime, so it belongs
+                // beside the name rather than buried in a settings sheet — and with
+                // more than one provider connected, it is the difference between two
+                // bots that otherwise look identical.
+                HStack(spacing: 4) {
+                    ProviderIcon(provider: provider, size: 11)
+                    Text(BotConfig(bot: bot, models: model.models(for: bot.provider)).modelName)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+                .padding(.top, 1)
             }
         }
         .padding(.vertical, 4)

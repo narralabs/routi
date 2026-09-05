@@ -121,6 +121,17 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
          * prompt and nothing else.
          */
         settingSources: [],
+        /**
+         * Keeps the operator's claude.ai connectors out of their bots.
+         *
+         * `settingSources: []` stops local configuration being read but not this: cloud
+         * connectors are attached to the account and fetched by the CLI regardless, so a
+         * bot created to compare ice machines could see — and offer — whatever the person
+         * happens to have connected to their own Claude. It is the same failure as the
+         * one that made bots introduce themselves as the operator's tooling, and no
+         * amount of prompting fixes a tool actually being there.
+         */
+        settings: { disableClaudeAiConnectors: true },
         includePartialMessages: true,
         ...(resumeId ? { resume: resumeId } : {}),
       },

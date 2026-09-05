@@ -184,12 +184,7 @@ struct ChatView: View {
         }
         .flatBackground()
 
-        // Always present, at the trailing edge of the chat pane. Hiding it while the
-        // rail was open meant the control disappeared exactly when you might want to
-        // put the screen away.
-        flexibleToolbarSpacer()
-
-        ToolbarItem(placement: .primaryAction) {
+        ToolbarItem(placement: .navigation) {
             ToolbarIcon(
                 systemName: "desktopcomputer",
                 help: showRail ? "Hide Screen" : "Show Screen",

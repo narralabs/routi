@@ -328,7 +328,7 @@ private struct OpenAiPane: View {
         case "openai-codex":
             return "Billed per token, but run by the Codex agent rather than by Krog. Choose this for Codex's behaviour without a ChatGPT plan."
         case "deepseek":
-            return "Billed per token. Krog runs the tool loop, so a bot here can use its screen — on the Chat model; Reasoner takes no tools."
+            return "Billed per token. Krog runs the tool loop, so a bot here can use its screen."
         default:
             return "Billed per token. The setup where a bot can use its screen: Krog runs the tool loop and hands it the desktop."
         }

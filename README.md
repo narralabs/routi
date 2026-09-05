@@ -44,8 +44,12 @@ pnpm --filter @korg/protocol build
 pnpm --filter korgd dev            # ws://127.0.0.1:7171, data in ~/.korg
 
 # terminal 2 — the app
-cd app && flutter run -d macos
+cd app && flutter run -d macos --no-tree-shake-icons
 ```
+
+The `--no-tree-shake-icons` flag works around a broken font-subset tool in Flutter
+3.41.6 — without it the macOS release build fails in `ReleaseMacOSBundleFlutterAssets`
+with a bare `dart help` dump. It costs about 1 MB of bundle and nothing else.
 
 For the phone, run `flutter run -d <device>` and point `KorgClient` at the mini's
 address. Remote access over Tailscale lands in M2.
@@ -97,6 +101,17 @@ what lets a tool card appear between two paragraphs mid-stream.
 on a warm one — the difference is CLI process spawn. `korgd` holds one `query()` open
 per conversation and feeds it through a push queue, so only the first message in a
 conversation pays that cost.
+
+**The macOS chrome is native, not simulated.** `macos_window_utils` gives the window a
+real `NSVisualEffectView` sidebar material, so the side panes are genuinely translucent
+rather than painted grey. The title bar is hidden with the traffic lights kept and
+inset into the sidebar's top padding; drag-to-move is restored by handing that strip's
+mouse events back to the native titlebar via `MacosToolbarPassthrough`, since the
+plugin has no Dart-side drag call.
+
+**No `fontFamily` anywhere.** On Apple platforms Flutter already resolves to the system
+UI font, correctly optical-sized. Naming a family string opts out of that and is the
+single most common reason a Flutter app reads as not-quite-native on macOS.
 
 **Streams, not VNC, for the surface.** From M3 the container is captured with ffmpeg,
 encoded to H.264, and sent over WebRTC with input returning on a data channel. An

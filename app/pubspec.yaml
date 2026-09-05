@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^2.6.1
   google_fonts: ^8.2.1
+  gpt_markdown: ^1.2.1
+  macos_window_utils: ^1.9.1
   web_socket_channel: ^3.0.3
 
 dev_dependencies:

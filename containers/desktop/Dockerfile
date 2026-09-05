@@ -1,12 +1,12 @@
-# The shared desktop every bot drives.
+# The one desktop machine, with a screen for each bot.
 #
-# One container, one X display. Bots take turns on it, which is the point: a login to
-# Booking.com or a Gmail session made by one bot is there for the next. Per-bot
-# containers would mean signing in again for every bot you create.
+# A screen is an X display, not a container: every bot gets its own Xvfb, XFCE session
+# and browser, so no two bots share a pointer — while the machine underneath is shared,
+# so tools are installed once, downloads land in one place, and bringing a screen up
+# takes seconds rather than the tens a container start costs.
 FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    DISPLAY=:99 \
     SCREEN_WIDTH=1280 \
     SCREEN_HEIGHT=800 \
     SCREEN_DEPTH=24
@@ -39,8 +39,9 @@ RUN useradd -ms /bin/bash krog
 WORKDIR /home/krog
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY screenctl /usr/local/bin/screenctl
 COPY act /usr/local/bin/act
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/act
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/screenctl /usr/local/bin/act
 
 USER krog
 EXPOSE 5900

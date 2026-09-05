@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 const run = promisify(execFile)
 
 const IMAGE = 'krog-desktop:latest'
-const DISPLAY = ':99'
+const CONTAINER = 'krog-desktop'
 
 export type DesktopState = 'stopped' | 'starting' | 'running' | 'unavailable'
 
@@ -28,54 +28,61 @@ export type DesktopInput =
   | { kind: 'open'; url: string }
 
 /**
- * One bot's Linux desktop.
+ * The one machine every screen lives on.
  *
- * A container each, not one shared between them. Bots are given separate jobs and
- * separate errands — one pricing an ice machine, another booking a hotel — and a
- * shared screen would mean they queued for the pointer and read each other's tabs.
- * Isolation also means a bot's logins and cookies are its own, which is the state
- * worth keeping.
+ * A container is not a screen. Bots need separate screens so they never fight over a
+ * pointer or read each other's tabs, and that is an X display — one Xvfb, one desktop
+ * session, one browser. Running a whole container per bot bought none of that and cost
+ * a slow start, a separate filesystem, and tools installed over and over.
  *
- * `claim` remains: within a single desktop, turns still take it in order.
+ * So there is exactly one container. It starts empty and holds itself open; screens
+ * come and go inside it in a couple of seconds each.
  */
-export class Desktop {
-  /** Container name, derived from the bot so restarts find the same desktop. */
-  private readonly container: string
+class Host {
+  private ensuring: Promise<string | null> | null = null
 
-  constructor(readonly botId: string) {
-    this.container = `krog-desktop-${botId}`
+  /** Brings the machine up if it is not already. Resolves to a reason on failure. */
+  async ensure(): Promise<string | null> {
+    // Several bots can call this at once on a cold daemon; one start is enough.
+    this.ensuring ??= this.ensureOnce().finally(() => {
+      this.ensuring = null
+    })
+    return this.ensuring
   }
 
-  private state: DesktopState = 'stopped'
-  private detail: string | undefined
-  private width = 1280
-  private height = 800
-
-  /** Conversation currently allowed to send input, if any. */
-  private heldBy: string | null = null
-
-  async status(): Promise<DesktopStatus> {
-    if (this.state === 'running' || this.state === 'starting') {
-      return { state: this.state, width: this.width, height: this.height, detail: this.detail }
-    }
-
+  private async ensureOnce(): Promise<string | null> {
     if (!(await this.dockerAvailable())) {
-      return {
-        state: 'unavailable',
-        width: this.width,
-        height: this.height,
-        detail: 'Docker is not running on this Mac. Start Docker Desktop, then try again.',
-      }
+      return 'Docker is not running on this Mac. Start Docker Desktop, then try again.'
     }
     if (!(await this.imageExists())) {
-      return {
-        state: 'unavailable',
-        width: this.width,
-        height: this.height,
-        detail: 'The desktop image is missing. Build it with: docker build -t krog-desktop containers/desktop',
-      }
+      return 'The desktop image is missing. Build it with: docker build -t krog-desktop containers/desktop'
     }
-    return { state: this.state, width: this.width, height: this.height }
+    if (await this.isRunning()) return null
+
+    // Remove any stopped container of the same name; `docker run` refuses otherwise.
+    await run('docker', ['rm', '-f', CONTAINER], { timeout: 20_000 }).catch(() => {})
+
+    try {
+      await run('docker', [
+        'run', '-d',
+        '--name', CONTAINER,
+        // Chromium needs more than the default 64MB of /dev/shm or it crashes on any
+        // real page — and now several Chromiums share this.
+        '--shm-size=2g',
+        /**
+         * Chromium's own sandbox creates user namespaces, which Docker's default
+         * seccomp profile denies — it fails with "Failed to move to new namespace".
+         * The alternative is launching with --no-sandbox, which disables Chromium's
+         * isolation outright; this keeps it, and leans on the container as the
+         * boundary instead.
+         */
+        '--security-opt', 'seccomp=unconfined',
+        IMAGE,
+      ], { timeout: 60_000 })
+      return null
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
+    }
   }
 
   private async dockerAvailable(): Promise<boolean> {
@@ -96,10 +103,10 @@ export class Desktop {
     }
   }
 
-  private async isRunning(): Promise<boolean> {
+  async isRunning(): Promise<boolean> {
     try {
       const { stdout } = await run('docker', [
-        'ps', '--filter', `name=^/${this.container}$`, '--filter', 'status=running', '-q',
+        'ps', '--filter', `name=^/${CONTAINER}$`, '--filter', 'status=running', '-q',
       ], { timeout: 8_000 })
       return stdout.trim().length > 0
     } catch {
@@ -107,75 +114,109 @@ export class Desktop {
     }
   }
 
-  /** Idempotent: safe to call on every attach. */
-  async start(): Promise<DesktopStatus> {
-    if (await this.isRunning()) {
-      this.state = 'running'
-      return this.status()
-    }
+  async exec(args: string[], timeout = 20_000): Promise<string> {
+    const { stdout } = await run('docker', ['exec', CONTAINER, ...args], { timeout })
+    return stdout.trim()
+  }
 
-    const available = await this.dockerAvailable()
-    if (!available) return this.status()
-    if (!(await this.imageExists())) return this.status()
+  /** As `exec`, with DISPLAY set so the command lands on one bot's screen. */
+  async execOn(display: string, args: string[], timeout = 20_000): Promise<string> {
+    const { stdout } = await run('docker', ['exec', '-e', `DISPLAY=${display}`, CONTAINER, ...args], {
+      timeout,
+    })
+    return stdout.trim()
+  }
 
-    this.state = 'starting'
-    // Remove any stopped container of the same name; `docker run` refuses otherwise.
-    await run('docker', ['rm', '-f', this.container], { timeout: 20_000 }).catch(() => {})
+  spawnOn(display: string, command: string) {
+    return spawn('docker', ['exec', '-e', `DISPLAY=${display}`, CONTAINER, 'bash', '-lc', command])
+  }
+}
 
-    try {
-      await run('docker', [
-        'run', '-d',
-        '--name', this.container,
-        // Chromium needs more than the default 64MB of /dev/shm or it crashes on
-        // any real page.
-        '--shm-size=1g',
-        /**
-         * Chromium's own sandbox creates user namespaces, which Docker's default
-         * seccomp profile denies — it fails with "Failed to move to new namespace".
-         * The alternative is launching with --no-sandbox, which disables Chromium's
-         * isolation outright; this keeps it, and leans on the container as the
-         * boundary instead. The container is disposable and holds nothing but the
-         * desktop, which is what makes that trade acceptable here.
-         */
-        '--security-opt', 'seccomp=unconfined',
-        IMAGE,
-      ], { timeout: 60_000 })
-    } catch (err) {
-      this.state = 'unavailable'
-      this.detail = err instanceof Error ? err.message : String(err)
-      return this.status()
-    }
+const host = new Host()
 
-    // Wait for X rather than sleeping a guess; the desktop is useless before then.
-    const deadline = Date.now() + 45_000
-    while (Date.now() < deadline) {
-      try {
-        await run('docker', ['exec', this.container, 'xdpyinfo', '-display', DISPLAY], { timeout: 5_000 })
+/**
+ * One bot's screen.
+ *
+ * Holds a display number rather than a container. `claim` remains: within a single
+ * screen, turns still take the pointer in order.
+ */
+export class Desktop {
+  private state: DesktopState = 'stopped'
+  private detail: string | undefined
+  private display: string | null = null
+  private width = 1280
+  private height = 800
+
+  /** Conversation currently allowed to send input, if any. */
+  private heldBy: string | null = null
+
+  constructor(readonly botId: string) {}
+
+  async status(): Promise<DesktopStatus> {
+    // A daemon restart forgets which display belongs to this bot while the screen
+    // itself keeps running, so ask the machine before concluding anything.
+    if (this.display === null && (await host.isRunning())) {
+      const found = await host.exec(['screenctl', 'live', this.botId]).catch(() => '')
+      if (found) {
+        this.display = `:${found}`
         this.state = 'running'
         await this.readGeometry()
-        return this.status()
-      } catch {
-        await new Promise((r) => setTimeout(r, 500))
       }
     }
 
-    this.state = 'unavailable'
-    this.detail = 'The desktop container started but its display never came up.'
+    if (this.state === 'running' || this.state === 'starting') {
+      return { state: this.state, width: this.width, height: this.height, detail: this.detail }
+    }
+
+    const failure = await host.ensure()
+    if (failure) {
+      return { state: 'unavailable', width: this.width, height: this.height, detail: failure }
+    }
+    return { state: this.state, width: this.width, height: this.height }
+  }
+
+  /** Idempotent: safe to call on every attach. */
+  async start(): Promise<DesktopStatus> {
+    if (this.state === 'running' && this.display) return this.status()
+
+    this.state = 'starting'
+    const failure = await host.ensure()
+    if (failure) {
+      this.state = 'unavailable'
+      this.detail = failure
+      return { state: 'unavailable', width: this.width, height: this.height, detail: failure }
+    }
+
+    try {
+      // screenctl waits for the display itself and prints its number.
+      const number = await host.exec(['screenctl', 'start', this.botId], 90_000)
+      if (!/^\d+$/.test(number)) throw new Error(number || 'no display number')
+      this.display = `:${number}`
+      this.state = 'running'
+      this.detail = undefined
+      await this.readGeometry()
+    } catch (err) {
+      this.state = 'unavailable'
+      this.detail = err instanceof Error ? err.message : String(err)
+    }
     return this.status()
   }
 
+  /** Stops this bot's screen. The machine stays up for everyone else. */
   async stop(): Promise<void> {
     this.heldBy = null
     this.state = 'stopped'
-    await run('docker', ['rm', '-f', this.container], { timeout: 30_000 }).catch(() => {})
+    const display = this.display
+    this.display = null
+    if (!display) return
+    await host.exec(['screenctl', 'stop', this.botId], 30_000).catch(() => {})
   }
 
   private async readGeometry(): Promise<void> {
+    if (!this.display) return
     try {
-      const { stdout } = await run('docker', ['exec', this.container, 'xdpyinfo', '-display', DISPLAY], {
-        timeout: 8_000,
-      })
-      const match = /dimensions:\s+(\d+)x(\d+)/.exec(stdout)
+      const out = await host.execOn(this.display, ['xdpyinfo'], 8_000)
+      const match = /dimensions:\s+(\d+)x(\d+)/.exec(out)
       if (match) {
         this.width = Number(match[1])
         this.height = Number(match[2])
@@ -190,29 +231,26 @@ export class Desktop {
   /**
    * A single frame as a JPEG, with the pointer's position.
    *
-   * Deliberately a pull, not a push: the panel is a small preview, and the client
-   * asks for frames at whatever rate it can actually draw. That keeps an idle window
-   * from costing anything and avoids a stream nobody is watching. A WebRTC transport
-   * belongs here later, when the surface becomes interactive at full size.
+   * Deliberately a pull, not a push: the panel is a small preview, and the client asks
+   * for frames at whatever rate it can actually draw. That keeps an idle window from
+   * costing anything and avoids a stream nobody is watching.
    *
    * The pointer comes along because an X screenshot does not contain it — `import`
-   * captures the root window's pixels and the cursor is drawn by the server on top,
-   * so a frame alone can never show where the pointer is. Without it there is no way
-   * to see the desktop's cursor at all: not the one following your mouse, and not the
-   * one a bot is moving while it works.
-   *
-   * Both come from one `docker exec` rather than two: the location is printed as a
-   * line first, and the JPEG's own SOI marker says where the text ends and the image
-   * begins, so nothing has to be guessed from lengths.
+   * captures the root window's pixels and the cursor is drawn by the server on top, so
+   * a frame alone can never show where the pointer is. Both come from one exec: the
+   * location is printed as a line first, and the JPEG's own SOI marker says where the
+   * text ends and the image begins.
    */
   async captureFrame(quality = 6): Promise<{ jpeg: Buffer; pointer: { x: number; y: number } | null } | null> {
-    if (this.state !== 'running') return null
+    if (this.state !== 'running' || !this.display) return null
+    const display = this.display
+
     return new Promise((resolve) => {
-      const child = spawn('docker', [
-        'exec', this.container, 'bash', '-lc',
-        `export DISPLAY=${DISPLAY}; eval $(xdotool getmouselocation --shell); ` +
-          `echo "$X $Y"; import -window root -quality ${quality * 10} jpeg:-`,
-      ])
+      const child = host.spawnOn(
+        display,
+        'eval $(xdotool getmouselocation --shell); echo "$X $Y"; ' +
+          `import -window root -quality ${quality * 10} jpeg:-`,
+      )
       const chunks: Buffer[] = []
       child.stdout.on('data', (c: Buffer) => chunks.push(c))
       child.on('error', () => resolve(null))
@@ -238,8 +276,8 @@ export class Desktop {
   /**
    * Claims the pointer for one conversation.
    *
-   * Without this two bots working at once would interleave clicks on a shared screen
-   * and both fail confusingly. The holder is released when its turn ends.
+   * Two turns on the same screen would interleave clicks and both fail confusingly.
+   * The holder is released when its turn ends.
    */
   claim(conversationId: string): boolean {
     if (this.heldBy && this.heldBy !== conversationId) return false
@@ -256,7 +294,7 @@ export class Desktop {
   }
 
   async send(input: DesktopInput): Promise<void> {
-    if (this.state !== 'running') throw new Error('The desktop is not running.')
+    if (this.state !== 'running' || !this.display) throw new Error('This bot has no screen running.')
 
     const args = ((): string[] => {
       switch (input.kind) {
@@ -270,6 +308,6 @@ export class Desktop {
       }
     })()
 
-    await run('docker', ['exec', this.container, 'act', ...args], { timeout: 20_000 })
+    await host.execOn(this.display, ['act', ...args])
   }
 }

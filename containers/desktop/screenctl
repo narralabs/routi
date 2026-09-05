@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# One X display per bot, inside the one shared desktop machine.
+#
+# A screen is a display, not a container. Each bot gets its own Xvfb, its own XFCE
+# session and its own browser, so two bots never fight over a pointer — but they share
+# one filesystem, one set of installed tools and one downloads folder, and starting a
+# screen takes a couple of seconds rather than the tens a container needs.
+set -euo pipefail
+
+STATE=/tmp/krog-screens
+mkdir -p "$STATE"
+
+# Display numbers start above the usual desktop range so nothing collides with an X
+# server a person might be running.
+FIRST=99
+LAST=148
+
+display_of() {
+  local id=$1
+  [ -f "$STATE/$id" ] && cat "$STATE/$id" || true
+}
+
+is_live() {
+  xdpyinfo -display ":$1" >/dev/null 2>&1
+}
+
+next_free() {
+  local n
+  for ((n = FIRST; n <= LAST; n++)); do
+    # A lock file with no server behind it is a leftover; treat it as free.
+    if [ ! -e "/tmp/.X${n}-lock" ] || ! is_live "$n"; then
+      echo "$n"
+      return 0
+    fi
+  done
+  echo "no free display" >&2
+  return 1
+}
+
+start() {
+  local id=$1
+  local n
+  n=$(display_of "$id")
+
+  if [ -n "$n" ] && is_live "$n"; then
+    echo "$n"
+    return 0
+  fi
+
+  n=$(next_free)
+  rm -f "/tmp/.X${n}-lock"
+
+  export DISPLAY=":$n"
+  Xvfb ":$n" -screen 0 "${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH}" -nolisten tcp \
+    >/dev/null 2>&1 &
+
+  # Wait for the display rather than sleeping a fixed guess.
+  local ok=
+  for _ in $(seq 1 60); do
+    is_live "$n" && { ok=1; break; }
+    sleep 0.2
+  done
+  [ -n "$ok" ] || { echo "display :$n never came up" >&2; return 1; }
+
+  # Each screen gets its own session bus. Sharing one would make the second XFCE
+  # session talk to the first one's panel and settings daemon.
+  eval "$(dbus-launch --sh-syntax)"
+  echo "$DBUS_SESSION_BUS_PID" > "$STATE/$id.dbus"
+  startxfce4 >/dev/null 2>&1 &
+
+  echo "$n" > "$STATE/$id"
+  echo "$n"
+}
+
+stop() {
+  local id=$1
+  local n
+  n=$(display_of "$id") || true
+  [ -n "$n" ] || return 0
+
+  # Everything addressed to this display, and nothing addressed to any other.
+  pkill -f "Xvfb :$n" 2>/dev/null || true
+  pkill -f "DISPLAY=:$n" 2>/dev/null || true
+  for pid in $(pgrep -u "$(id -u)" -f . 2>/dev/null); do
+    if tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qx "DISPLAY=:$n"; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+  [ -f "$STATE/$id.dbus" ] && kill "$(cat "$STATE/$id.dbus")" 2>/dev/null || true
+  rm -f "$STATE/$id" "$STATE/$id.dbus" "/tmp/.X${n}-lock"
+}
+
+case "${1:-}" in
+  start)   start "$2" ;;
+  stop)    stop "$2" ;;
+  display) display_of "$2" ;;
+  live)    n=$(display_of "$2"); [ -n "$n" ] && is_live "$n" && echo "$n" ;;
+  list)    for f in "$STATE"/*; do [[ "$f" == *.dbus ]] && continue; [ -e "$f" ] || continue; echo "$(basename "$f") $(cat "$f")"; done ;;
+  *)       echo "usage: screenctl {start|stop|display|live|list} <bot-id>" >&2; exit 2 ;;
+esac

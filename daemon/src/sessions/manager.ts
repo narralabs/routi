@@ -119,7 +119,11 @@ export class SessionManager {
       const stream = provider.stream(
         {
           conversationId,
-          systemPrompt: bot.systemPrompt,
+          // The bot's name belongs in its prompt: without it a bot introduces itself
+          // as "Claude" rather than as the thing the user just named and created.
+          systemPrompt: [`Your name is ${bot.name}.`, bot.systemPrompt.trim()]
+            .filter(Boolean)
+            .join('\n\n'),
           model: bot.model,
           effort: bot.effort,
           history,

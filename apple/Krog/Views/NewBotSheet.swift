@@ -29,29 +29,19 @@ struct NewBotSheet: View {
                     .lineLimit(3...8)
                 }
 
-                HStack(alignment: .top, spacing: 14) {
-                    FormField("Provider") {
-                        Picker("", selection: $selectedProvider) {
-                            ForEach(ProviderInfo.all) { provider in
-                                // Unavailable providers stay visible but unselectable —
-                                // the roster is the roadmap, and hiding them would imply
-                                // Anthropic is the only one ever planned.
-                                Text(provider.isAvailable ? provider.name : "\(provider.name) — Soon")
-                                    .tag(provider.id)
-                            }
-                        }
-                        .labelsHidden()
-                    }
+                FormField("Provider") {
+                    ProviderChips(selection: $selectedProvider)
+                }
 
-                    FormField("Model", footnote: "Fixed once the bot is created.") {
-                        Picker("", selection: $selectedModel) {
-                            ForEach(model.models) { info in
-                                Text(info.displayName).tag(info.id)
-                            }
+                FormField("Model", footnote: "Provider and model are fixed once the bot is created.") {
+                    Picker("", selection: $selectedModel) {
+                        ForEach(model.models) { info in
+                            Text(info.displayName).tag(info.id)
                         }
-                        .labelsHidden()
-                        .disabled(model.models.isEmpty)
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(model.models.isEmpty)
                 }
 
                 Spacer(minLength: 0)
@@ -141,6 +131,84 @@ struct BotSettingsSheet: View {
     }
 }
 
+/// A single row of provider chips: drawn icon beside the name.
+///
+/// A `Picker` menu can't show these — macOS menu items render only `Text` and `Image`,
+/// so the monogram tiles (a filled shape with a label) would be dropped. Chips also
+/// keep every option visible at a glance, which is the point of showing the roster.
+private struct ProviderChips: View {
+    @Binding var selection: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(ProviderInfo.all) { provider in
+                ProviderChip(
+                    provider: provider,
+                    isSelected: provider.id == selection,
+                    action: { selection = provider.id }
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ProviderChip: View {
+    let provider: ProviderInfo
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    // Concrete types throughout: an `if`-branching `some ShapeStyle` here pushed the
+    // expression past the type-checker's budget.
+    private var fill: Color {
+        if isSelected { return Color.accentColor.opacity(0.12) }
+        if isHovering && provider.isAvailable { return Color.primary.opacity(0.06) }
+        return .clear
+    }
+
+    private var stroke: Color {
+        isSelected ? Color.accentColor : Color.primary.opacity(0.12)
+    }
+
+    private var helpText: String {
+        provider.isAvailable
+            ? "\(provider.name) · \(provider.models)"
+            : "\(provider.name) — not yet available"
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            label
+        }
+        .buttonStyle(.plain)
+        .disabled(!provider.isAvailable)
+        .opacity(provider.isAvailable ? 1 : 0.5)
+        .onHover { isHovering = $0 }
+        .help(helpText)
+    }
+
+    private var label: some View {
+        HStack(spacing: 6) {
+            ProviderIcon(provider: provider, size: 18)
+            Text(provider.name)
+                .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity)
+        .background(shape.fill(fill))
+        .overlay(shape.stroke(stroke, lineWidth: isSelected ? 1.5 : 0.5))
+        .contentShape(.rect)
+    }
+}
+
 /// Label above its control, both left aligned.
 ///
 /// macOS `Form` puts the label in a right-aligned leading column and the control
@@ -205,7 +273,7 @@ struct SheetScaffold<Content: View>: View {
             }
             .padding(14)
         }
-        .frame(width: 460, height: 420)
+        .frame(width: 520, height: 440)
         #else
         NavigationStack {
             content

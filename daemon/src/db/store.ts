@@ -100,6 +100,14 @@ export class Store {
     return r ? toBot(r) : null
   }
 
+  /** Repoints every bot on one provider at another. Returns how many moved. */
+  moveBotsToProvider(from: string, to: string): number {
+    const result = this.db
+      .prepare('UPDATE bots SET provider=@to, updated_at=@t WHERE provider=@from')
+      .run({ from, to, t: now() })
+    return result.changes
+  }
+
   createBot(input: {
     name: string; systemPrompt?: string; model?: string; effort?: Bot['effort']
     avatarColor?: string; surfaceMode?: Bot['surfaceMode']; provider?: string

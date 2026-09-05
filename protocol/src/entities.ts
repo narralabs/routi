@@ -90,15 +90,6 @@ export const AccountInfo = z.object({
 export const ProviderAuth = z.object({
   configured: z.boolean(),
   mode: AuthMode.nullable(),
-  /**
-   * Which harness runs the turn, where a provider offers more than one.
-   *
-   * Separate from `mode` because credential and harness vary independently: an API
-   * key can drive either OpenAI's Responses API directly or the Codex agent, and the
-   * two behave differently enough that the choice is the user's.
-   */
-  harness: z.string().nullable().default(null),
-  /** The vendor CLI that holds a personal-account login, when there is one. */
   cli: z.object({
     installed: z.boolean(),
     version: z.string().nullable(),

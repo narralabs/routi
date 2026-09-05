@@ -13,8 +13,6 @@ struct AuthStatus: Codable, Hashable {
     struct ProviderAuth: Codable, Hashable {
         var configured: Bool
         var mode: String?
-        /// Which harness runs the turn, where the provider offers a choice.
-        var harness: String?
         var cli: Cli
         var apiKey: ApiKey
 

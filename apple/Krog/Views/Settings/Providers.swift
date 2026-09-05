@@ -33,6 +33,18 @@ struct ProviderInfo: Identifiable, Hashable {
             tint: Color(red: 0.07, green: 0.07, blue: 0.08),
             isAvailable: true
         ),
+        // Codex is its own entry rather than a setting on OpenAI. The two are
+        // different harnesses with different abilities — only the direct API can drive
+        // a bot's screen — and both can be connected at once, so a bot on the agent
+        // and a bot on a named model can run side by side.
+        ProviderInfo(
+            id: "openai-codex",
+            name: "Codex",
+            models: "GPT via Codex",
+            mark: "ProviderOpenaiCodex",
+            tint: Color(red: 0.22, green: 0.23, blue: 0.25),
+            isAvailable: true
+        ),
         ProviderInfo(
             id: "xai",
             name: "xAI",
@@ -102,7 +114,7 @@ struct ProviderPane: View {
     var body: some View {
         if provider.id == "anthropic" {
             AnthropicPane(provider: provider)
-        } else if provider.id == "openai" {
+        } else if provider.id == "openai" || provider.id == "openai-codex" {
             OpenAiPane(provider: provider)
         } else {
             UnavailableProviderPane(provider: provider)
@@ -275,33 +287,30 @@ private struct OpenAiPane: View {
     /// no API of its own, so an account can only be spent through Codex. That is why
     /// this is one list of three rather than two questions — the fourth combination
     /// does not exist.
-    private enum Setup: String, CaseIterable, Identifiable {
+    private enum Setup: String, Identifiable {
         case account          // ChatGPT plan, through Codex
-        case keyDirect        // API key, straight to the Responses API
-        case keyCodex         // API key, through Codex
+        case key              // an API key, spent by whichever harness this pane is
 
         var id: String { rawValue }
-        var needsKey: Bool { self != .account }
-        var harness: String { self == .keyDirect ? "direct" : "codex" }
 
         var title: String {
             switch self {
             case .account: return "Use my ChatGPT account"
-            case .keyDirect: return "Use an API key"
-            case .keyCodex: return "Use an API key, through Codex"
+            case .key: return "Use an API key"
             }
         }
+    }
 
-        var detail: String {
-            switch self {
-            case .account:
-                return "No per-token billing — it spends the plan you already have. Runs through the Codex agent, which has its own tools and cannot drive a bot's screen yet."
-            case .keyDirect:
-                return "Billed per token. The only setup where a bot can use its screen: Krog runs the tool loop and hands it the desktop."
-            case .keyCodex:
-                return "Billed per token, but run by the Codex agent rather than by Krog. Choose this to get Codex's behaviour without a ChatGPT plan."
-            }
-        }
+    /// A ChatGPT plan has no API of its own, so an account is only spendable through
+    /// Codex. The direct provider therefore offers one way in, and Codex offers two.
+    private var setups: [Setup] {
+        provider.id == "openai-codex" ? [.account, .key] : [.key]
+    }
+
+    private func keyDetail(_ setup: Setup) -> String {
+        provider.id == "openai-codex"
+            ? "Billed per token, but run by the Codex agent rather than by Krog. Choose this for Codex's behaviour without a ChatGPT plan."
+            : "Billed per token. The setup where a bot can use its screen: Krog runs the tool loop and hands it the desktop."
     }
 
     @State private var entering: Setup?
@@ -313,8 +322,7 @@ private struct OpenAiPane: View {
     /// Which of the three is in effect, read back from mode and harness.
     private var current: Setup? {
         guard let auth, auth.configured else { return nil }
-        if auth.mode == "subscription" { return .account }
-        return auth.harness == "codex" ? .keyCodex : .keyDirect
+        return auth.mode == "subscription" ? .account : .key
     }
 
     private var auth: AuthStatus.ProviderAuth? { model.auth.provider(provider.id) }
@@ -323,8 +331,7 @@ private struct OpenAiPane: View {
     private var methodLabel: String {
         switch current {
         case .account: return auth?.cli.account.map { "\($0) account" } ?? "ChatGPT account"
-        case .keyDirect: return "API key"
-        case .keyCodex: return "API key, through Codex"
+        case .key: return "API key"
         case nil: return "Not connected"
         }
     }
@@ -381,7 +388,7 @@ private struct OpenAiPane: View {
         SettingsSection("Credential") {
             SettingsRow(title: "Method", isFirst: true) { SettingsValue(text: methodLabel) }
 
-            if current != .keyDirect, let version = auth?.cli.version {
+            if provider.id == "openai-codex", let version = auth?.cli.version {
                 SettingsRow(
                     title: "Signed in through",
                     detail: current == .account
@@ -414,7 +421,7 @@ private struct OpenAiPane: View {
             SettingsSection(entering.title) {
                 SettingsRow(
                     title: "Key",
-                    detail: "From platform.openai.com. " + entering.detail,
+                    detail: "From platform.openai.com. " + keyDetail(entering),
                     isFirst: true
                 ) {
                     SecureField("sk-…", text: $apiKey)
@@ -435,10 +442,10 @@ private struct OpenAiPane: View {
             }
         } else {
             SettingsSection("Connect") {
-                ForEach(Array(Setup.allCases.enumerated()), id: \.element.id) { index, setup in
+                ForEach(Array(setups.enumerated()), id: \.element.id) { index, setup in
                     SettingsRow(
                         title: setup.title,
-                        detail: setup == .account ? cliDetail : setup.detail,
+                        detail: setup == .account ? cliDetail : keyDetail(setup),
                         isFirst: index == 0
                     ) {
                         if setup == .account {
@@ -492,7 +499,8 @@ private struct OpenAiPane: View {
         isWorking = true
         Task {
             do {
-                try await model.providerSetApiKey(provider.id, key: apiKey, harness: setup.harness)
+                _ = setup
+                try await model.providerSetApiKey(provider.id, key: apiKey)
                 apiKey = ""
                 entering = nil
             } catch {

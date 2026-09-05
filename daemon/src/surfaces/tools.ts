@@ -59,12 +59,7 @@ export function desktopToolServer(desktop: Desktop) {
   return createSdkMcpServer({
     name: 'desktop',
     version: '0.1.0',
-    instructions:
-      'A Linux desktop with Chromium, and the browser on it. Prefer read_page over ' +
-      'screenshot: it returns the page as text with refs you can click, which is both ' +
-      'cheaper and exact. Fall back to screenshot and coordinates for anything that is ' +
-      'not a web page, or when a page will not cooperate. After anything that changes ' +
-      'the screen, look again before acting.',
+    instructions: TOOL_INSTRUCTIONS,
     tools,
   })
 }
@@ -90,6 +85,33 @@ function zodShapeOf(parameters: Record<string, unknown>): Record<string, z.ZodTy
   }
   return shape
 }
+
+/**
+ * How to use this screen, said once for every harness that loads these tools.
+ *
+ * The handover rule is the important one. A bot that meets a login or a captcha has
+ * two bad options and one good one: inventing credentials, grinding at the captcha, or
+ * stopping and letting the person take the screen it is already sharing. The desktop is
+ * live and the user can drive it, so asking is cheap — and it keeps the same profile
+ * and cookies, which a second browser would not.
+ */
+export const TOOL_INSTRUCTIONS = [
+  'A Linux desktop with Chromium, and the browser running on it.',
+  '',
+  'Prefer read_page over screenshot: it returns the page as text with refs you can act',
+  'on, which is both cheaper and exact where a screenshot has to be read. Use screenshot',
+  'and coordinate clicks for anything that is not a web page, or when a page will not',
+  'cooperate.',
+  '',
+  'Refs last only until the page changes. click_ref and fill_ref hand back the page as it',
+  'is afterwards; use those refs and discard the older ones. If a ref is rejected, take a',
+  'fresh read_page rather than trying it again.',
+  '',
+  'If you reach a sign-in, a two-factor prompt, a captcha or a payment step: stop and say',
+  'so. Do not invent credentials and do not try to defeat a captcha. The person you are',
+  'talking to can open this same screen and do it themselves, then tell you to carry on —',
+  'their session is the one you are already using.',
+].join('\n')
 
 // --------------------------------------------------------------- shared core
 
@@ -147,14 +169,17 @@ export function desktopToolSpecs(): DesktopToolSpec[] {
       name: 'click_ref',
       description:
         'Click an element by the ref from read_page, like "e12". Use this rather than ' +
-        'clicking coordinates whenever the thing you want has a ref.',
+        'clicking coordinates whenever the thing you want has a ref. Returns the page ' +
+        'as it is afterwards — the refs in that reply replace the ones you had, which ' +
+        'are no longer valid.',
       parameters: object({ ref: { type: 'string' } }, ['ref']),
     },
     {
       name: 'fill_ref',
       description:
         'Type into a field by its ref from read_page, replacing what is there. Follow ' +
-        'with press_key Return to submit a search box.',
+        'with press_key Return to submit a search box. Returns the page afterwards, ' +
+        'whose refs replace the ones you had.',
       parameters: object({ ref: { type: 'string' }, text: { type: 'string' } }, ['ref', 'text']),
     },
     {
@@ -259,17 +284,25 @@ export async function runDesktopTool(
         }
       }
 
+      /**
+       * Acting returns the page it produced.
+       *
+       * Refs are single-observation tokens, not identifiers: a click that replaces the
+       * DOM invalidates every ref that came before it, and a model holding the old ones
+       * clicks whatever now sits at that node. Handing back a fresh outline with the
+       * result makes the stale set unusable by construction, and saves a round trip —
+       * the model was going to ask what happened anyway.
+       */
       case 'click_ref': {
-        const ref = String(args['ref'] ?? '')
-        const said = await browserFor(desktop).click(ref)
-        return { ok: true, output: said, summary: said }
+        const browser = browserFor(desktop)
+        const said = await browser.click(String(args['ref'] ?? ''))
+        return { ok: true, output: `${said}\n\n${await browser.snapshot(80)}`, summary: said }
       }
 
       case 'fill_ref': {
-        const ref = String(args['ref'] ?? '')
-        const text = String(args['text'] ?? '')
-        const said = await browserFor(desktop).fill(ref, text)
-        return { ok: true, output: said, summary: said }
+        const browser = browserFor(desktop)
+        const said = await browser.fill(String(args['ref'] ?? ''), String(args['text'] ?? ''))
+        return { ok: true, output: `${said}\n\n${await browser.snapshot(60)}`, summary: said }
       }
 
       case 'screenshot': {
@@ -291,8 +324,8 @@ export async function runDesktopTool(
         // A browser already running on this screen is navigated rather than launched
         // again — a second Chromium on the same profile would refuse to start.
         if (await browser.available()) {
-          const title = await browser.open(url)
-          return { ok: true, output: `Opened ${url} — "${title}". Use read_page to see it.`, summary: url }
+          await browser.open(url)
+          return { ok: true, output: await browser.snapshot(80), summary: url }
         }
 
         await desktop.send({ kind: 'open', url })

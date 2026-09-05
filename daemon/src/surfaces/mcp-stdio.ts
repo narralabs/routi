@@ -15,7 +15,7 @@
  * Run as: node mcp-stdio.js <botId>
  */
 import { Desktop } from './desktop.js'
-import { desktopToolSpecs, runDesktopTool } from './tools.js'
+import { TOOL_INSTRUCTIONS, desktopToolSpecs, runDesktopTool } from './tools.js'
 
 const botId = process.argv[2]
 if (!botId) {
@@ -49,6 +49,7 @@ async function handle(request: Request): Promise<void> {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
         serverInfo: { name: 'krog-desktop', version: '0.1.0' },
+        instructions: TOOL_INSTRUCTIONS,
       })
       return
 
@@ -98,6 +99,16 @@ async function handle(request: Request): Promise<void> {
 let inFlight = 0
 let inputClosed = false
 
+/**
+ * One request at a time.
+ *
+ * Calls share state — the refs a snapshot produced are what the next click resolves
+ * against — so answering two at once lets a click run before the snapshot that named
+ * its target. Hosts generally ask in sequence, but nothing in the protocol says they
+ * must, and the failure looks like a stale ref rather than a race.
+ */
+let queue: Promise<void> = Promise.resolve()
+
 /** Leaves only once nothing is still being answered. */
 function exitWhenIdle(): void {
   if (inputClosed && inFlight === 0) process.exit(0)
@@ -116,10 +127,13 @@ process.stdin.on('data', (chunk) => {
       try {
         const request = JSON.parse(line) as Request
         inFlight++
-        void handle(request).finally(() => {
-          inFlight--
-          exitWhenIdle()
-        })
+        queue = queue
+          .then(() => handle(request))
+          .catch(() => {})
+          .finally(() => {
+            inFlight--
+            exitWhenIdle()
+          })
       } catch {
         // A line that is not JSON is not ours to answer.
       }

@@ -64,8 +64,19 @@ struct RootView: View {
         } detail: {
             if let bot = model.selectedBot {
                 ChatView(bot: bot, showBotSidebar: $showBotSidebar)
-                    .inspector(isPresented: $showBotSidebar) {
-                        DetailRail(bot: bot, showingSettings: $showingRailSettings)
+                    .inspector(isPresented: Binding(
+                        get: { showBotSidebar },
+                        // Opening only ever happens through the toolbar button, which
+                        // writes the state directly. AppKit also writes through here
+                        // when it restores the window's saved split-view state, which
+                        // would reopen the panel at launch after any session that left
+                        // it open — so an uninvited `true` is dropped and the panel
+                        // keeps its promise to start closed.
+                        set: { if !$0 { showBotSidebar = false } }
+                    )) {
+                        DetailRail(bot: bot, showingSettings: $showingRailSettings) {
+                            showBotSidebar = false
+                        }
                             .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
                     }
             } else {

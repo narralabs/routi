@@ -66,6 +66,16 @@ export const ModelInfo = z.object({
    * means the provider decides and will not say, so nothing should be claimed.
    */
   defaultEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullish(),
+  /**
+   * What to call this model when reporting what a bot runs, if that differs from its
+   * name in the picker.
+   *
+   * A menu item and a status line want different grammar. "Let Codex decide" is an
+   * instruction and belongs in a list of choices; "Model chosen by Codex" is a
+   * statement and belongs under a bot. One string doing both made a menu look like it
+   * was answering a question.
+   */
+  statusName: z.string().nullish(),
 })
 
 export const AccountInfo = z.object({

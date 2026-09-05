@@ -26,9 +26,9 @@ import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 const MODELS: ModelInfo[] = [
   {
     id: 'default',
-    // Named for who decides, not for the setting's name. "Default" told a reader
-    // nothing — the useful fact is that Codex picks, and will not say what it picked.
-    displayName: 'Chosen by Codex',
+    // Phrased as an instruction, because in the picker it is one.
+    displayName: 'Let Codex decide',
+    statusName: 'Model chosen by Codex',
     description:
       'Codex selects the model from your ChatGPT plan at run time and does not report ' +
       'which. Pick a named model below if you want to know exactly what answered.',

@@ -282,6 +282,8 @@ struct BotConfig {
     /// came to describe itself as running Opus.
     var modelName: String {
         let info = models.first { $0.id == bot.model }
+        // A model that reads differently as a statement than as a menu item says so.
+        if let status = info?.statusName, !status.isEmpty { return status }
         if let resolved = info?.resolvedModel { return ModelName.pretty(resolved) }
         let full = info?.displayName ?? bot.model
         return full.split(separator: "(").first

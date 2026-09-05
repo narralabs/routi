@@ -360,9 +360,7 @@ private struct OpenAiPane: View {
                                 detail: info.description.isEmpty ? nil : info.description,
                                 isFirst: index == 0
                             ) {
-                                if let resolved = info.resolvedModel {
-                                    SettingsValue(text: resolved, monospaced: true)
-                                }
+                                ModelRowValue(info: info, users: users(of: info.id))
                             }
                         }
                     }
@@ -467,6 +465,14 @@ private struct OpenAiPane: View {
         return "Opens OpenAI in the browser on the Mac running Krog Core. No per-token billing."
     }
 
+    /// Bots currently built on a given model. Answers "which of these is it?" by
+    /// naming the bots rather than leaving the reader to infer from a list of choices.
+    private func users(of modelID: String) -> [String] {
+        model.bots
+            .filter { $0.provider == provider.id && $0.model == modelID }
+            .map(\.name)
+    }
+
     private func connectAccount() {
         failure = nil
         isWorking = true
@@ -493,6 +499,29 @@ private struct OpenAiPane: View {
                 failure = error.localizedDescription
             }
             isWorking = false
+        }
+    }
+}
+
+/// The right-hand side of a model row: which bots use it, or its real id.
+private struct ModelRowValue: View {
+    let info: ModelInfo
+    let users: [String]
+
+    var body: some View {
+        if users.isEmpty {
+            if let resolved = info.resolvedModel {
+                SettingsValue(text: resolved, monospaced: true)
+            }
+        } else {
+            HStack(spacing: 5) {
+                Circle().fill(.green).frame(width: 6, height: 6)
+                Text(users.count == 1 ? users[0] : "\(users.count) bots")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .help(users.joined(separator: ", "))
         }
     }
 }

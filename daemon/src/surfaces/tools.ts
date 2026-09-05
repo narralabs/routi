@@ -1,7 +1,7 @@
 import { createSdkMcpServer, type SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import { Browser } from './browser.js'
-import type { Desktop } from './desktop.js'
+import type { Surface } from './pool.js'
 
 /**
  * The desktop, exposed to a bot as tools it can actually call.
@@ -33,7 +33,7 @@ type ToolResult = { content: Array<TextContent | ImageContent> }
 
 const say = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] })
 
-export function desktopToolServer(desktop: Desktop) {
+export function desktopToolServer(desktop: Surface) {
   /**
    * Built from the same specs every other provider gets, rather than written out
    * again here. The two lists drifted the moment the browser verbs were added — the
@@ -145,7 +145,7 @@ const object = (properties: Record<string, unknown>, required: string[] = []) =>
  */
 const browsers = new Map<string, Browser>()
 
-function browserFor(desktop: Desktop): Browser {
+function browserFor(desktop: Surface): Browser {
   let browser = browsers.get(desktop.botId)
   if (!browser) {
     browser = new Browser(desktop)
@@ -250,7 +250,7 @@ export interface DesktopToolResult {
  * a caller can pass whatever its harness handed it.
  */
 export async function runDesktopTool(
-  desktop: Desktop,
+  desktop: Surface,
   rawName: string,
   args: Record<string, unknown>,
 ): Promise<DesktopToolResult> {

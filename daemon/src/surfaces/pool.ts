@@ -1,4 +1,15 @@
+import type { Store } from '../db/store.js'
 import { Desktop } from './desktop.js'
+import { HostSurface } from './host.js'
+
+/**
+ * What every surface can do, whichever machine it is.
+ *
+ * Container screens and this Mac differ in almost everything — one is disposable and
+ * multipliable, the other is the machine you are sitting at — but a bot drives them
+ * with the same verbs, which is what lets one set of tools serve both.
+ */
+export type Surface = Desktop | HostSurface
 
 /**
  * One desktop per bot, created on first mention and kept afterwards.
@@ -10,8 +21,22 @@ import { Desktop } from './desktop.js'
  */
 export class DesktopPool {
   private readonly byBot = new Map<string, Desktop>()
+  /**
+   * One host surface for everyone who asks for it.
+   *
+   * There is a single physical screen and a single pointer, so bots set to This Mac
+   * cannot each have their own — they share this and take turns. That is the opposite
+   * of container screens, and the reason the two are not interchangeable.
+   */
+  private readonly host: HostSurface
 
-  for(botId: string): Desktop {
+  constructor(dataDir: string, private readonly store?: Store) {
+    this.host = new HostSurface(dataDir)
+  }
+
+  for(botId: string): Surface {
+    if (this.store?.getBot(botId)?.surfaceMode === 'host') return this.host
+
     let desktop = this.byBot.get(botId)
     if (!desktop) {
       desktop = new Desktop(botId)
@@ -20,8 +45,8 @@ export class DesktopPool {
     return desktop
   }
 
-  all(): Desktop[] {
-    return [...this.byBot.values()]
+  all(): Surface[] {
+    return [...this.byBot.values(), this.host]
   }
 
   /**

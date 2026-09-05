@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   // can connect and walk the user through onboarding.
   // A desktop per bot, created on demand. Separate containers keep one bot's tabs,
   // logins and pointer out of another's.
-  const desktops = new DesktopPool()
+  const desktops = new DesktopPool(DATA_DIR, store)
 
   const providers = new Map<string, ProviderAdapter>()
   const auth = new AuthManager(

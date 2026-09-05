@@ -1,5 +1,5 @@
 import WebSocket from 'ws'
-import type { Desktop } from './desktop.js'
+import type { Surface } from './pool.js'
 
 /**
  * The page as structure, not pixels.
@@ -106,7 +106,7 @@ class CdpSession {
 export class Browser {
   private refs = new Map<string, Ref>()
 
-  constructor(private readonly desktop: Desktop) {}
+  constructor(private readonly desktop: Surface) {}
 
   private async pageSocket(): Promise<string | null> {
     const port = this.desktop.cdpPort

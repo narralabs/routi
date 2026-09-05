@@ -52,7 +52,7 @@ export class AuthManager {
     private readonly store: Store,
     private readonly providers: Map<string, ProviderAdapter>,
     private readonly sessionCwd: string,
-    dataDir: string,
+    private readonly dataDir: string,
     private readonly desktops?: DesktopPool,
   ) {
     this.credentials = new Credentials(dataDir)
@@ -163,7 +163,10 @@ export class AuthManager {
     if (mode === 'subscription') {
       const cli = await this.codex.status()
       if (cli.installed && cli.loggedIn) {
-        this.providers.set('openai', new OpenAiSubscriptionAdapter({ cwd: this.sessionCwd }))
+        this.providers.set(
+          'openai',
+          new OpenAiSubscriptionAdapter({ cwd: this.sessionCwd, dataDir: this.dataDir }),
+        )
       }
     }
   }

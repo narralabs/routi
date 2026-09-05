@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { Codex, type Thread, type ThreadEvent, type ThreadItem } from '@openai/codex-sdk'
 import type { AccountInfo, ModelInfo } from '@krog/protocol'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
@@ -62,6 +65,50 @@ const GUARDRAIL = [
   'asked for code.',
 ].join('\n')
 
+/**
+ * A Codex home belonging to Krog rather than to whoever owns this Mac.
+ *
+ * Codex reads ~/.codex/config.toml, and a person who uses Codex has a lot in there:
+ * bundled plugins for the browser, documents and spreadsheets, their own MCP servers,
+ * their own skills. Every Krog bot was inheriting the lot — which is how a bot asked
+ * about flight prices ended up invoking a personal browser-control skill and reading
+ * app bundles off the disk. A bot's abilities should come from Krog and its
+ * description, not from the operator's toolbox.
+ *
+ * The same failure as on the Anthropic side, where a bot introduced itself as the
+ * operator's MCP tooling until `settingSources: []` shut that door. This is that door.
+ *
+ * The login is the one thing worth keeping, so auth.json is linked rather than copied:
+ * signing in or out with the CLI stays in effect, and Krog never holds a copy of the
+ * credential.
+ */
+function isolatedCodexHome(dataDir: string): string {
+  const home = join(dataDir, 'codex')
+  mkdirSync(home, { recursive: true })
+
+  // Rewritten every start: this file is Krog's statement of what a bot may use, and it
+  // should not drift because something once wrote to it.
+  writeFileSync(
+    join(home, 'config.toml'),
+    [
+      '# Written by Krog. A bot gets its abilities from Krog and its own description,',
+      '# never from the personal Codex setup on this machine.',
+      '',
+    ].join('\n'),
+  )
+
+  const link = join(home, 'auth.json')
+  const real = join(homedir(), '.codex', 'auth.json')
+  try {
+    rmSync(link, { force: true })
+    if (existsSync(real)) symlinkSync(real, link)
+  } catch {
+    // Without the link Codex reports itself signed out, which the auth status already
+    // surfaces — better than failing to start the daemon.
+  }
+  return home
+}
+
 interface Session {
   thread: Thread
   threadId: string | null
@@ -72,10 +119,22 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   private readonly codex: Codex
   private readonly sessions = new Map<string, Session>()
 
-  constructor(private readonly opts: { cwd: string }) {
+  constructor(private readonly opts: { cwd: string; dataDir: string }) {
+    const home = isolatedCodexHome(opts.dataDir)
     // No apiKey: that is what makes it use the signed-in ChatGPT account rather than
     // billing an organisation per token.
-    this.codex = new Codex({})
+    //
+    // `env` is given in full because supplying it stops the SDK inheriting
+    // process.env — which is the point. CODEX_HOME moves the agent off the operator's
+    // personal Codex setup and onto Krog's own.
+    this.codex = new Codex({
+      env: {
+        CODEX_HOME: home,
+        PATH: process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin',
+        HOME: process.env['HOME'] ?? homedir(),
+        ...(process.env['TMPDIR'] ? { TMPDIR: process.env['TMPDIR'] } : {}),
+      },
+    })
   }
 
   async listModels(): Promise<ModelInfo[]> {

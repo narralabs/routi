@@ -37,7 +37,20 @@ struct Composer: View {
                 .lineLimit(1...10)
                 .font(.system(size: 14))
                 .focused($focused)
-                .onSubmit(onSend)
+                /**
+                 * Return sends; shift-return starts a line.
+                 *
+                 * Handled here rather than through `onSubmit`, which fires on Return
+                 * whatever is held with it — so a message needing two paragraphs had no
+                 * way to get them. Shift is passed back to the field untouched, which
+                 * inserts the newline where the cursor actually is rather than at the
+                 * end of whatever has been typed.
+                 */
+                .onKeyPress(.return, phases: .down) { press in
+                    if press.modifiers.contains(.shift) { return .ignored }
+                    onSend()
+                    return .handled
+                }
                 .padding(.vertical, 7)
 
             Button {

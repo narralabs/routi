@@ -12,7 +12,7 @@ struct MessageRow: View {
         HStack(alignment: .bottom, spacing: 6) {
             if isUser { Spacer(minLength: 40) }
 
-            VStack(alignment: isUser ? .trailing : .leading, spacing: 3) {
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
                 ForEach(message.blocks) { block in
                     blockView(block)
                 }
@@ -30,7 +30,10 @@ struct MessageRow: View {
 
             if !isUser { Spacer(minLength: 40) }
         }
-        .padding(.top, startsGroup ? 20 : 4)
+        // 4pt read as one bubble with a seam in it: two grey bubbles that close
+        // together look like a single message that happens to have a gap. A group still
+        // gets much more, so the two levels stay tellable apart.
+        .padding(.top, startsGroup ? 20 : 9)
     }
 
     @ViewBuilder

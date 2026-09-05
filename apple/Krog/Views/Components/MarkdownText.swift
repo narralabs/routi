@@ -68,6 +68,9 @@ struct MarkdownText: View {
 
         case .rule:
             Divider().padding(.vertical, 2)
+
+        case .table(let header, let rows):
+            TableBlock(header: header, rows: rows)
         }
     }
 
@@ -100,6 +103,7 @@ enum MarkdownBlock {
     case list(items: [String], ordered: Bool)
     case code(String)
     case rule
+    case table(header: [String], rows: [[String]])
 
     static func parse(_ source: String) -> [MarkdownBlock] {
         var blocks: [MarkdownBlock] = []
@@ -139,6 +143,27 @@ enum MarkdownBlock {
             }
 
             if trimmed.isEmpty { flush(); continue }
+
+            /**
+             * A table, before anything else gets to it.
+             *
+             * Rows look like ordinary text, and a paragraph joins its lines with a
+             * space — so a well-formed table arrived as one long run of pipes. Detected
+             * by the separator underneath the header, which is the part that makes a
+             * table a table rather than a line that happens to contain a pipe.
+             */
+            if isTableRow(trimmed), let next = lines.first, isTableSeparator(next) {
+                flush()
+                lines = lines.dropFirst()
+                let header = tableCells(trimmed)
+                var rows: [[String]] = []
+                while let row = lines.first, isTableRow(row.trimmingCharacters(in: .whitespaces)) {
+                    lines = lines.dropFirst()
+                    rows.append(tableCells(row.trimmingCharacters(in: .whitespaces)))
+                }
+                blocks.append(.table(header: header, rows: rows))
+                continue
+            }
 
             if trimmed == "---" || trimmed == "***" || trimmed == "___" {
                 flush()
@@ -181,5 +206,65 @@ enum MarkdownBlock {
 
         flush()
         return blocks
+    }
+
+    private static func isTableRow(_ line: String) -> Bool {
+        line.contains("|") && line.filter { $0 == "|" }.count >= 2
+    }
+
+    /// The `|---|:--:|` line under a header. Without it, pipes are just punctuation.
+    private static func isTableSeparator(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard isTableRow(trimmed) else { return false }
+        return tableCells(trimmed).allSatisfy { cell in
+            !cell.isEmpty && cell.allSatisfy { ":-".contains($0) }
+        }
+    }
+
+    private static func tableCells(_ line: String) -> [String] {
+        var body = line.trimmingCharacters(in: .whitespaces)
+        if body.hasPrefix("|") { body.removeFirst() }
+        if body.hasSuffix("|") { body.removeLast() }
+        return body.components(separatedBy: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+}
+
+/// A markdown table, as an actual table.
+///
+/// Scrolls sideways rather than wrapping cells: a price next to a probability is only
+/// useful while the row still reads as a row, and a bot comparing five bets across five
+/// columns is exactly when that matters.
+private struct TableBlock: View {
+    let header: [String]
+    let rows: [[String]]
+
+    private var columns: Int { max(header.count, rows.map(\.count).max() ?? 0) }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
+                GridRow {
+                    ForEach(0..<columns, id: \.self) { column in
+                        Text(cell(header, column))
+                            .font(.system(size: 12.5, weight: .semibold))
+                    }
+                }
+                Divider().gridCellUnsizedAxes(.horizontal)
+
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    GridRow {
+                        ForEach(0..<columns, id: \.self) { column in
+                            Text(MarkdownText.attributed(cell(row, column)))
+                                .font(.system(size: 12.5))
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func cell(_ row: [String], _ column: Int) -> String {
+        column < row.count ? row[column] : ""
     }
 }

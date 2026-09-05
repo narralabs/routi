@@ -3,6 +3,7 @@ import SwiftUI
 /// One turn. Blocks render as siblings so a tool card can sit between two
 /// paragraphs, exactly as the daemon streamed them.
 struct MessageRow: View {
+    @Environment(AppModel.self) private var model
     let message: Message
     let startsGroup: Bool
 
@@ -17,14 +18,23 @@ struct MessageRow: View {
                     blockView(block)
                 }
             }
-            // Copy lives in the context menu rather than on hover. A button that
-            // appears under the pointer on every message is a lot of movement for
-            // something wanted rarely, and the text is selectable anyway.
+            /**
+             * Copy lives here rather than on hover, and copies whole things rather than
+             * whatever was dragged over.
+             *
+             * Selection cannot cross bubbles: SwiftUI selects within one Text view, and
+             * every message is its own, so dragging down a thread appears to select and
+             * then copies without the structure. Rather than pretend otherwise, this
+             * offers the two units anyone actually wants — this message, or the lot.
+             */
             .contextMenu {
                 if !copyableText.isEmpty {
                     Button("Copy Message", systemImage: "doc.on.doc") {
                         copyToPasteboard(copyableText)
                     }
+                }
+                Button("Copy Conversation", systemImage: "doc.on.doc.fill") {
+                    copyToPasteboard(model.transcript())
                 }
             }
 

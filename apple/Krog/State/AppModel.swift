@@ -168,6 +168,23 @@ final class AppModel {
         client.updateEndpoint(host: host, port: port)
     }
 
+    /// The whole thread as text, labelled by speaker.
+    ///
+    /// Exists because selection cannot cross message bubbles, so "copy what I dragged
+    /// over" is not available to offer. Bot names rather than "assistant", since a room
+    /// has several and a reader needs to know who said what.
+    func transcript() -> String {
+        messages
+            .map { message in
+                let who = message.role == .user
+                    ? (storedUserName.isEmpty ? "You" : storedUserName)
+                    : (bots.first { $0.id == message.botId }?.name ?? selectedBot?.name ?? "Bot")
+                return "\(who): \(message.plainText)"
+            }
+            .filter { !$0.hasSuffix(": ") }
+            .joined(separator: "\n\n")
+    }
+
     // MARK: - Handovers
 
     /// Answers a bot that is waiting. `done` resumes it; `skipped` tells it to go on without.

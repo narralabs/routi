@@ -115,6 +115,9 @@ struct ModelInfo: Codable, Identifiable, Hashable {
     var description: String
     var resolvedModel: String?
     var effortLevels: [String]
+    /// What the provider does when a bot names no effort. Nil means it will not say,
+    /// and nothing should be claimed on its behalf.
+    var defaultEffort: String?
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -123,10 +126,11 @@ struct ModelInfo: Codable, Identifiable, Hashable {
         description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""
         resolvedModel = try c.decodeIfPresent(String.self, forKey: .resolvedModel)
         effortLevels = try c.decodeIfPresent([String].self, forKey: .effortLevels) ?? []
+        defaultEffort = try c.decodeIfPresent(String.self, forKey: .defaultEffort)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, displayName, description, resolvedModel, effortLevels
+        case id, displayName, description, resolvedModel, effortLevels, defaultEffort
     }
 }
 

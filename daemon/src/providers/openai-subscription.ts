@@ -26,16 +26,23 @@ import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 const MODELS: ModelInfo[] = [
   {
     id: 'default',
-    displayName: 'Default',
-    description: "Whatever your ChatGPT plan provides. Follows OpenAI's own default.",
+    // Named for who decides, not for the setting's name. "Default" told a reader
+    // nothing — the useful fact is that Codex picks, and will not say what it picked.
+    displayName: 'Chosen by Codex',
+    description:
+      'Codex selects the model from your ChatGPT plan at run time and does not report ' +
+      'which. Pick a named model below if you want to know exactly what answered.',
     effortLevels: ['low', 'medium', 'high', 'xhigh'],
+    // Codex decides, and no event reports it, so claiming a level would be a guess.
+    defaultEffort: null,
   },
   {
     id: 'gpt-5.2-codex',
     displayName: 'GPT-5.2 Codex',
-    description: 'Tuned for long agentic work.',
+    description: 'Tuned for long agentic work. Named explicitly, so the transcript can say so.',
     resolvedModel: 'gpt-5.2-codex',
     effortLevels: ['low', 'medium', 'high', 'xhigh'],
+    defaultEffort: null,
   },
 ]
 

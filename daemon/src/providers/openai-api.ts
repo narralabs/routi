@@ -26,6 +26,8 @@ const MODELS: ModelInfo[] = [
     description: 'Most capable. Best for hard reasoning and long tasks.',
     resolvedModel: 'gpt-5.2',
     effortLevels: ['low', 'medium', 'high'],
+    // The Responses API reasons at medium unless told otherwise.
+    defaultEffort: 'medium',
   },
   {
     id: 'gpt-5.2-mini',
@@ -33,6 +35,8 @@ const MODELS: ModelInfo[] = [
     description: 'Faster and cheaper, still strong at everyday work.',
     resolvedModel: 'gpt-5.2-mini',
     effortLevels: ['low', 'medium', 'high'],
+    // The Responses API reasons at medium unless told otherwise.
+    defaultEffort: 'medium',
   },
 ]
 

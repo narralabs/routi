@@ -22,6 +22,7 @@ const MODELS: ModelInfo[] = [
     description: 'Most capable. Best for hard reasoning and long tasks.',
     resolvedModel: 'claude-opus-5',
     effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    defaultEffort: 'high',
   },
   {
     id: 'claude-sonnet-5',
@@ -29,6 +30,7 @@ const MODELS: ModelInfo[] = [
     description: 'Balanced speed and capability.',
     resolvedModel: 'claude-sonnet-5',
     effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    defaultEffort: 'high',
   },
   {
     id: 'claude-haiku-4-5',

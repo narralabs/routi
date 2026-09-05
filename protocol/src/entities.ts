@@ -58,6 +58,14 @@ export const ModelInfo = z.object({
   description: z.string().default(''),
   resolvedModel: z.string().optional(),
   effortLevels: z.array(z.enum(['low', 'medium', 'high', 'xhigh', 'max'])).optional(),
+  /**
+   * What the provider does when a bot names no effort.
+   *
+   * Stated by the provider rather than assumed by the client, which used to print a
+   * flat "High" for every bot — true of Anthropic, invented for the others. Null
+   * means the provider decides and will not say, so nothing should be claimed.
+   */
+  defaultEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullish(),
 })
 
 export const AccountInfo = z.object({

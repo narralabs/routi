@@ -288,15 +288,24 @@ struct BotConfig {
             .map { $0.trimmingCharacters(in: .whitespaces) } ?? full
     }
 
-    private var supportsEffort: Bool {
-        !(models.first { $0.id == bot.model }?.effortLevels ?? []).isEmpty
+    private var info: ModelInfo? { models.first { $0.id == bot.model } }
+
+    /// The effort actually in force, or nil when nobody will say what it is.
+    ///
+    /// A bot that names no effort used to print "High" regardless of provider — true
+    /// of Anthropic, invented for everyone else. The provider now states its own
+    /// default, and where it declines to (Codex picks per plan and reports nothing),
+    /// this stays nil rather than fabricating a level.
+    private var effortLabel: String? {
+        guard let info, !info.effortLevels.isEmpty else { return nil }
+        if let chosen = bot.effort, !chosen.isEmpty { return Effort.parse(chosen).label }
+        guard let implied = info.defaultEffort else { return nil }
+        return "\(Effort.parse(implied).label) by default"
     }
 
     var summary: String {
         var parts = [ProviderInfo.find(bot.provider).name, modelName]
-        // Omit rather than guess for models that take no effort setting — Haiku
-        // reports none, and showing "High" there would state something untrue.
-        if supportsEffort { parts.append(Effort.parse(bot.effort).label) }
+        if let effortLabel { parts.append(effortLabel) }
         return parts.joined(separator: " · ")
     }
 }

@@ -50,6 +50,27 @@ export class DesktopPool {
   }
 
   /**
+   * Stops screens whose bot no longer exists.
+   *
+   * A screen outlives its bot when the bot goes away by some route that never told the
+   * pool — a row deleted straight from the database, a restore, a botched migration.
+   * Nothing then ever stops it, and it holds a display and a browser for as long as the
+   * machine runs. Cheap to check and worth doing at boot.
+   */
+  async reapOrphans(liveBotIds: Set<string>): Promise<number> {
+    // Asks the machine directly rather than through the pool: this is a question about
+    // the container, not about any one bot's surface.
+    const listed = await new Desktop('__reaper__').listScreens().catch(() => [])
+    let reaped = 0
+    for (const botId of listed) {
+      if (liveBotIds.has(botId)) continue
+      await this.for(botId).stop().catch(() => {})
+      reaped++
+    }
+    return reaped
+  }
+
+  /**
    * Starts a bot's desktop without making the caller wait.
    *
    * Used where a desktop should simply exist — on bot creation, and when a client

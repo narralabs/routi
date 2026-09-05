@@ -153,6 +153,8 @@ export class Desktop {
   private state: DesktopState = 'stopped'
   private detail: string | undefined
   private display: string | null = null
+  /** When the display was last confirmed to exist, not merely remembered. */
+  private verifiedAt = 0
   private width = 1280
   private height = 800
 
@@ -162,14 +164,31 @@ export class Desktop {
   constructor(readonly botId: string) {}
 
   async status(): Promise<DesktopStatus> {
-    // A daemon restart forgets which display belongs to this bot while the screen
-    // itself keeps running, so ask the machine before concluding anything.
-    if (this.display === null && (await host.isRunning())) {
+    /**
+     * Remembering a screen is not the same as having one.
+     *
+     * A display can go without this object hearing: the container is rebuilt, Docker
+     * restarts, something inside it dies. Reporting the remembered state meant a bot
+     * was told it had a screen, called screenshot, and got "could not capture" —
+     * repeatedly, with nothing anywhere saying the screen was gone.
+     *
+     * So a running screen is re-confirmed against the machine, throttled to once every
+     * few seconds because this is asked far more often than a display disappears.
+     */
+    const stale = Date.now() - this.verifiedAt > 5_000
+    if ((this.display === null || stale) && (await host.isRunning())) {
       const found = await host.exec(['screenctl', 'live', this.botId]).catch(() => '')
+      this.verifiedAt = Date.now()
       if (found) {
-        this.display = `:${found}`
+        if (this.display !== `:${found}`) {
+          this.display = `:${found}`
+          await this.readGeometry()
+        }
         this.state = 'running'
-        await this.readGeometry()
+      } else if (this.state === 'running') {
+        // It was there and now is not. Say so, and let whoever is watching start one.
+        this.display = null
+        this.state = 'stopped'
       }
     }
 
@@ -203,6 +222,7 @@ export class Desktop {
       this.display = `:${number}`
       this.state = 'running'
       this.detail = undefined
+      this.verifiedAt = Date.now()
       await this.readGeometry()
     } catch (err) {
       this.state = 'unavailable'
@@ -211,13 +231,26 @@ export class Desktop {
     return this.status()
   }
 
+  /** Every bot id with a screen on the machine, whether or not the bot still exists. */
+  async listScreens(): Promise<string[]> {
+    if (!(await host.isRunning())) return []
+    const out = await host.exec(['screenctl', 'list']).catch(() => '')
+    return out
+      .split('\n')
+      .map((line) => line.trim().split(/\s+/)[0] ?? '')
+      .filter(Boolean)
+  }
+
   /** Stops this bot's screen. The machine stays up for everyone else. */
   async stop(): Promise<void> {
     this.heldBy = null
     this.state = 'stopped'
-    const display = this.display
     this.display = null
-    if (!display) return
+    this.verifiedAt = 0
+    // Told unconditionally, not only when a display is remembered. A freshly made
+    // object has never seen one, which is exactly the case when stopping a screen whose
+    // bot is gone — so the early return meant orphans could never be cleaned up by the
+    // one thing written to clean them up.
     await host.exec(['screenctl', 'stop', this.botId], 30_000).catch(() => {})
   }
 
@@ -264,7 +297,12 @@ export class Desktop {
       child.stdout.on('data', (c: Buffer) => chunks.push(c))
       child.on('error', () => resolve(null))
       child.on('close', (code) => {
-        if (code !== 0 || chunks.length === 0) return resolve(null)
+        // A capture that fails is the first sign a screen has gone; make the next
+        // status check confirm rather than trust what is remembered.
+        if (code !== 0 || chunks.length === 0) {
+          this.verifiedAt = 0
+          return resolve(null)
+        }
         const all = Buffer.concat(chunks)
         const start = all.indexOf(Buffer.from([0xff, 0xd8]))
         if (start < 0) return resolve(null)

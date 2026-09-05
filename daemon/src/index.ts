@@ -55,6 +55,10 @@ async function main(): Promise<void> {
 
   const status = await auth.status()
   console.log(`krogd listening on ws://${HOST}:${PORT}  (data: ${DATA_DIR})`)
+  // Screens whose bot has gone hold a display and a browser for nothing.
+  const reaped = await desktops.reapOrphans(new Set(store.listBots(true).map((b) => b.id)))
+  if (reaped > 0) console.log(`reaped ${reaped} orphaned screen(s)`)
+
   console.log(scheduler.summary())
   console.log(
     status.configured

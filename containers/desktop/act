@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Input the daemon sends to the desktop. Kept as one small script so the container
+# exposes a deliberate verb list rather than arbitrary shell.
+set -euo pipefail
+export DISPLAY="${DISPLAY:-:99}"
+
+case "${1:-}" in
+  click)    xdotool mousemove "$2" "$3" click "${4:-1}" ;;
+  dblclick) xdotool mousemove "$2" "$3" click --repeat 2 1 ;;
+  move)     xdotool mousemove "$2" "$3" ;;
+  scroll)   # $2=x $3=y $4=amount (negative scrolls up)
+            btn=5; [ "${4:-0}" -lt 0 ] && btn=4
+            xdotool mousemove "$2" "$3" click --repeat "${5:-3}" "$btn" ;;
+  type)     shift; xdotool type --delay 12 -- "$*" ;;
+  key)      shift; xdotool key -- "$@" ;;
+  open)     chromium --no-first-run --no-default-browser-check "$2" >/dev/null 2>&1 & ;;
+  *)        echo "usage: act {click|dblclick|move|scroll|type|key|open} ..." >&2; exit 2 ;;
+esac

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1C87824652C8B1E2FCD38EFD /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF6CC08DB5DCD356ECB1178 /* Effort.swift */; };
 		1EE8E5A5399787E011F2B7A3 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71E25BE43C387D4A05868B48 /* Providers.swift */; };
+		2623D2F1326A43B927333552 /* ModelName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA7019832B13F1009D511DC /* ModelName.swift */; };
 		44D22B926D16E7C173457228 /* DetailRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E6FA1A94CEE9C22CFB566A /* DetailRail.swift */; };
 		488BF2089285F13417005847 /* NewBotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B133E8092EF8FA68F0222731 /* NewBotSheet.swift */; };
 		49DE2E9CEE1236B22B62D172 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E221D6034194D8F4BDB884 /* Composer.swift */; };
@@ -38,6 +39,7 @@
 		1C049368396CD14AB35A3532 /* OnboardingSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSteps.swift; sourceTree = "<group>"; };
 		211A76F272CF10AC6A1C656E /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		41D664BF4CAD9823F7621366 /* Blocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Blocks.swift; sourceTree = "<group>"; };
+		4EA7019832B13F1009D511DC /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
 		55E221D6034194D8F4BDB884 /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
 		5DCF205E969ACC97A3C8222E /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
 		6DDFF0B0A9289DEE414C498C /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
@@ -143,6 +145,7 @@
 				41D664BF4CAD9823F7621366 /* Blocks.swift */,
 				0AF6CC08DB5DCD356ECB1178 /* Effort.swift */,
 				5DCF205E969ACC97A3C8222E /* Entities.swift */,
+				4EA7019832B13F1009D511DC /* ModelName.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -252,6 +255,7 @@
 				51BE75839CA8A64496525819 /* KrogApp.swift in Sources */,
 				C674793AACF4E1F3072E7832 /* KrogClient.swift in Sources */,
 				C674CB9D6178B9844D49C413 /* MessageRow.swift in Sources */,
+				2623D2F1326A43B927333552 /* ModelName.swift in Sources */,
 				488BF2089285F13417005847 /* NewBotSheet.swift in Sources */,
 				B2A0E5602304462975CED032 /* OnboardingSteps.swift in Sources */,
 				E0EB05BB4C805E388C2D3B55 /* OnboardingView.swift in Sources */,

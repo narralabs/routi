@@ -21,9 +21,22 @@ struct BotListView: View {
     }
 
     var body: some View {
+        #if os(macOS)
+        // Below this width the sidebar becomes an icon rail. Dragging the divider in
+        // therefore lands on something usable instead of an empty column the user
+        // cannot get back — there is no toolbar toggle to restore it with.
+        GeometryReader { proxy in
+            list(isCompact: proxy.size.width < 150)
+        }
+        #else
+        list(isCompact: false)
+        #endif
+    }
+
+    private func list(isCompact: Bool) -> some View {
         @Bindable var model = model
 
-        List(selection: Binding(
+        return List(selection: Binding(
             get: { model.selectedBotID },
             set: { newValue in
                 guard let id = newValue else { return }
@@ -34,7 +47,8 @@ struct BotListView: View {
                 BotRow(
                     bot: bot,
                     conversation: model.conversation(for: bot.id),
-                    isBusy: model.isBusy(botID: bot.id)
+                    isBusy: model.isBusy(botID: bot.id),
+                    isCompact: isCompact
                 )
                 .tag(bot.id)
                 .listRowSeparator(.hidden)
@@ -47,7 +61,8 @@ struct BotListView: View {
         }
         .listStyle(.sidebar)
         #if os(macOS)
-        .searchable(text: $search, placement: .sidebar, prompt: "Search")
+        // A search field cannot render usefully in a 68pt rail.
+        .modifier(ConditionalSearchable(isEnabled: !isCompact, text: $search))
         // No toggle: the sidebar is always present, so nothing in the chrome moves.
         .toolbar(removing: .sidebarToggle)
         #else
@@ -63,7 +78,9 @@ struct BotListView: View {
             #endif
         }
         .overlay {
-            if model.bots.isEmpty {
+            if isCompact {
+                EmptyView()
+            } else if model.bots.isEmpty {
                 ContentUnavailableView(
                     "No Bots",
                     systemImage: "sparkles",
@@ -74,7 +91,22 @@ struct BotListView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            SidebarFooter()
+            SidebarFooter(isCompact: isCompact)
+        }
+    }
+}
+
+/// `.searchable` cannot be applied conditionally inline without changing the view's
+/// type, which SwiftUI treats as a different view and re-creates.
+private struct ConditionalSearchable: ViewModifier {
+    let isEnabled: Bool
+    @Binding var text: String
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.searchable(text: $text, placement: .sidebar, prompt: "Search")
+        } else {
+            content
         }
     }
 }
@@ -83,6 +115,7 @@ private struct BotRow: View {
     let bot: Bot
     let conversation: Conversation?
     let isBusy: Bool
+    var isCompact = false
 
     /// The last thing said, as in the reference — falling back to the chat's title,
     /// then to a placeholder for a bot that has not spoken yet.
@@ -93,6 +126,17 @@ private struct BotRow: View {
     }
 
     var body: some View {
+        if isCompact {
+            BotAvatar(color: bot.color, size: 30, isBusy: isBusy)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 3)
+                .help(bot.name)
+        } else {
+            full
+        }
+    }
+
+    private var full: some View {
         HStack(alignment: .top, spacing: 10) {
             BotAvatar(color: bot.color, size: 36, isBusy: isBusy)
 
@@ -135,6 +179,7 @@ private struct BotRow: View {
 
 private struct SidebarFooter: View {
     @Environment(AppModel.self) private var model
+    var isCompact = false
 
     private var statusColor: Color {
         switch model.connection {
@@ -145,6 +190,42 @@ private struct SidebarFooter: View {
     }
 
     var body: some View {
+        if isCompact {
+            compact
+        } else {
+            full
+        }
+    }
+
+    private var compact: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "square.grid.2x2")
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+                .help("Marketplace")
+
+            Button {
+                model.isShowingSettings = true
+            } label: {
+                Text(model.userInitials)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .background(.quaternary, in: .circle)
+                    .overlay(alignment: .bottomTrailing) {
+                        Circle().fill(statusColor).frame(width: 7, height: 7)
+                            .overlay(Circle().stroke(.background, lineWidth: 1.5))
+                            .offset(x: 2, y: 2)
+                    }
+            }
+            .buttonStyle(.plain)
+            .help(model.userName)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 12)
+    }
+
+    private var full: some View {
         VStack(spacing: 0) {
             FooterRow(title: "Marketplace") {
                 Image(systemName: "square.grid.2x2")

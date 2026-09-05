@@ -8,7 +8,6 @@ import SwiftUI
 /// not something reconstructed with width breakpoints.
 struct RootView: View {
     @Environment(AppModel.self) private var model
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showRail = false
     @State private var showingNewBot = false
 
@@ -33,9 +32,15 @@ struct RootView: View {
     private var main: some View {
         @Bindable var model = model
 
-        return NavigationSplitView(columnVisibility: $columnVisibility) {
+        return NavigationSplitView(columnVisibility: Binding(
+            get: { model.sidebarVisibility },
+            set: { model.sidebarVisibility = $0 }
+        )) {
             BotListView(showingNewBot: $showingNewBot)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 340)
+                // The floor is an icon rail, not nothing: dragging the divider in
+                // collapses the sidebar to avatars rather than closing it, so there is
+                // always something left to grab and click.
+                .navigationSplitViewColumnWidth(min: 68, ideal: 268, max: 360)
         } detail: {
             if let bot = model.selectedBot {
                 ChatView(bot: bot, showRail: $showRail)

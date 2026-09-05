@@ -30,6 +30,12 @@ struct KrogApp: App {
                 Button("Settings…") { model.isShowingSettings = true }
                     .keyboardShortcut(",", modifiers: .command)
             }
+            CommandGroup(after: .toolbar) {
+                Button("Show Sidebar") {
+                    withAnimation(.snappy(duration: 0.25)) { model.sidebarVisibility = .all }
+                }
+                .keyboardShortcut("s", modifiers: [.command, .control])
+            }
         }
         #else
         WindowGroup {

@@ -237,9 +237,16 @@ struct BotConfig {
     let bot: Bot
     let models: [ModelInfo]
 
+    /// What the bot actually runs, not the alias that selects it.
+    ///
+    /// `default` is the CLI's own alias and resolves server-side — today to
+    /// `claude-opus-5[1m]`, tomorrow to whatever Anthropic points it at. Printing
+    /// "Default" would tell the reader nothing about the model in use, so the resolved
+    /// id is shown instead whenever the provider reports one.
     private var modelName: String {
-        let full = models.first { $0.id == bot.model }?.displayName ?? bot.model
-        // Trim the parenthetical the CLI adds ("Default (recommended)").
+        let info = models.first { $0.id == bot.model }
+        if let resolved = info?.resolvedModel { return ModelName.pretty(resolved) }
+        let full = info?.displayName ?? bot.model
         return full.split(separator: "(").first
             .map { $0.trimmingCharacters(in: .whitespaces) } ?? full
     }

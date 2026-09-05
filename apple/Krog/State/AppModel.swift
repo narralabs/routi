@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// The app's single source of truth.
 ///
@@ -28,6 +29,10 @@ final class AppModel {
     /// Settings replaces the whole window rather than opening a panel, so its
     /// visibility is app state, not view state — the ⌘, menu command toggles it too.
     var isShowingSettings = false
+
+    /// Held here rather than in the view so the View menu can restore a sidebar the
+    /// user has dragged shut — without a toolbar toggle there is otherwise no way back.
+    var sidebarVisibility: NavigationSplitViewVisibility = .all
 
     // Onboarding
     var auth: AuthStatus = .unknown

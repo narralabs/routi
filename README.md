@@ -105,10 +105,11 @@ scripts/install-core.sh        # Node, dependencies, build, login agent — safe
 then open the app. It looks for the core on this Mac; if the core is elsewhere, Settings
 > Krog Core takes an address, and a Tailscale name works.
 
-**Gatekeeper.** The app is signed to run locally, not with a Developer ID, so the first
-launch is refused as "not opened" — the fix is right-click > Open, or System Settings >
-Privacy & Security > Open Anyway, once. Removing that step means the Apple Developer
-Program and notarization; until then, say so when you send it.
+**Gatekeeper.** `scripts/package.sh` signs with a Developer ID Application certificate
+when one is in the building Mac's keychain, and notarizes when credentials are stored
+(`xcrun notarytool store-credentials krog-notary`); that build opens anywhere with a
+double-click. Without them it is signed to run locally, and the first launch on another
+Mac is right-click > Open, once — say so when you send it.
 
 ## Verifying
 

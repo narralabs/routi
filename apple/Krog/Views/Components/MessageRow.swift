@@ -6,6 +6,13 @@ struct MessageRow: View {
     @Environment(AppModel.self) private var model
     let message: Message
     let startsGroup: Bool
+    /// Both are General settings. "Show reasoning" existed and was read by nothing —
+    /// the same way the send key was — so a person switching it off saw no change.
+    @AppStorage("showThinking") private var showThinking = true
+    /// Off by default: a bot that says "opening Amex now" and then "the search form is
+    /// up" has told a person everything they need. The forty cards behind that are for
+    /// checking its work, which is a thing someone opts into.
+    @AppStorage("showToolActivity") private var showToolActivity = false
 
     private var isUser: Bool { message.role == .user }
 
@@ -61,11 +68,13 @@ struct MessageRow: View {
                 Bubble(text: text, isUser: isUser)
             }
         case .thinking(let text):
-            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if showThinking, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 ThinkingDisclosure(text: text)
             }
         case .toolUse(let tool):
-            ToolCard(tool: tool)
+            if showToolActivity {
+                ToolCard(tool: tool)
+            }
         case .image(let payload):
             ImageBlockView(payload: payload)
         case .toolResult, .surfaceEvent, .unknown:
@@ -293,13 +302,28 @@ func copyToPasteboard(_ string: String) {
 /// and by whom, none of which is the user's business. A bot driving a browser should
 /// read as doing recognisable things.
 enum ToolLabel {
+    /**
+     Keyed by the bare tool name, whichever harness sent it.
+
+     Claude's SDK reports Krog's tools as `mcp__desktop__open_url`, Grok and Codex as
+     `open_url` or `krog__open_url`. Keyed by the routed name, the same click showed as
+     "Opening a page" under one bot and "Open url" with a wrench under another, and the
+     product looked like two products. The prefix is routing, not identity.
+     */
     private static let known: [String: (title: String, icon: String)] = [
-        "mcp__desktop__screenshot": ("Looking at the screen", "eye"),
-        "mcp__desktop__open_url": ("Opening a page", "safari"),
-        "mcp__desktop__click": ("Clicking", "cursorarrow.click"),
-        "mcp__desktop__type_text": ("Typing", "keyboard"),
-        "mcp__desktop__press_key": ("Pressing a key", "keyboard"),
-        "mcp__desktop__scroll": ("Scrolling", "arrow.up.arrow.down"),
+        "screenshot": ("Looking at the screen", "eye"),
+        "read_page": ("Reading the page", "doc.text.magnifyingglass"),
+        "open_url": ("Opening a page", "safari"),
+        "click": ("Clicking", "cursorarrow.click"),
+        "click_ref": ("Clicking", "cursorarrow.click"),
+        "fill_ref": ("Filling in a field", "keyboard"),
+        "type_text": ("Typing", "keyboard"),
+        "press_key": ("Pressing a key", "keyboard"),
+        "scroll": ("Scrolling", "arrow.up.arrow.down"),
+        "ask_to_take_over": ("Asking you to take over", "hand.raised"),
+        "create_routine": ("Scheduling a routine", "clock.arrow.2.circlepath"),
+        "list_routines": ("Checking its routines", "clock"),
+        "delete_routine": ("Removing a routine", "clock.badge.xmark"),
         "WebSearch": ("Searching the web", "magnifyingglass"),
         "WebFetch": ("Reading a page", "doc.text"),
         "Read": ("Reading a file", "doc.text"),
@@ -312,7 +336,14 @@ enum ToolLabel {
         "TodoWrite": ("Updating its plan", "checklist"),
     ]
 
-    static func title(for name: String) -> String { known[name]?.title ?? prettify(name) }
+    /// The tool itself, with any harness's routing prefix removed.
+    private static func bare(_ name: String) -> String {
+        if name.hasPrefix("mcp__"), let last = name.components(separatedBy: "__").last { return last }
+        if name.hasPrefix("krog__") { return String(name.dropFirst("krog__".count)) }
+        return name
+    }
+
+    static func title(for name: String) -> String { known[bare(name)]?.title ?? prettify(name) }
 
     /// A tool's detail reduced to something that fits on one line.
     ///
@@ -334,7 +365,7 @@ enum ToolLabel {
         }
         return String(firstLine.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
     }
-    static func icon(for name: String) -> String { known[name]?.icon ?? "wrench.and.screwdriver" }
+    static func icon(for name: String) -> String { known[bare(name)]?.icon ?? "wrench.and.screwdriver" }
 
     /// Fallback for a tool nobody has named yet: strip the MCP routing prefix and
     /// space out the identifier, so a new tool reads as words rather than as code.

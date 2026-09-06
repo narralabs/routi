@@ -207,6 +207,7 @@ struct GeneralPane: View {
     @AppStorage("appearance") private var appearance = AppearanceMode.system.rawValue
     @AppStorage("sendBehavior") private var sendBehavior = SendBehavior.returnKey.rawValue
     @AppStorage("showThinking") private var showThinking = true
+    @AppStorage("showToolActivity") private var showToolActivity = false
 
     var body: some View {
         SettingsPane(title: "General") {
@@ -247,6 +248,12 @@ struct GeneralPane: View {
                     isFirst: true
                 ) {
                     Toggle("", isOn: $showThinking).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsRow(
+                    title: "Show tool activity",
+                    detail: "Every page opened, click made and screenshot taken, as cards in the transcript. Off, the bot just says what it did."
+                ) {
+                    Toggle("", isOn: $showToolActivity).labelsHidden().toggleStyle(.switch)
                 }
             }
         }

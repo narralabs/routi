@@ -310,8 +310,6 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   }
 }
 
-}
-
 /** A thread item that has just appeared, as one of Routi's blocks. */
 function startBlock(item: Record<string, any>): Block | null {
   switch (item['type']) {

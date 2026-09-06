@@ -24,7 +24,8 @@
     "@openai/codex-sdk": "^0.153.4",
     "better-sqlite3": "^13.0.3",
     "openai": "^7.10.0",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

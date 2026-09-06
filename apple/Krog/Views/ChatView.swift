@@ -239,9 +239,22 @@ struct ChatView: View {
      */
     private var distanceFromEnd: CGFloat {
         guard let scroll = scrollView else { return 0 }
+        return max(0, endOffset(of: scroll) - scroll.contentView.bounds.origin.y)
+    }
+
+    /**
+     The offset at which the transcript is truly at its end.
+
+     The composer is a bottom safe-area inset, which AppKit applies to the scroll view as
+     `contentInsets` — it shortens the clip view *and* lengthens the scrollable range, so
+     leaving it out of this stops short by twice the inset. Measured with an 80pt inset:
+     160pt of transcript still below the fold, on a view that reported itself as being at
+     the end.
+     */
+    private func endOffset(of scroll: NSScrollView) -> CGFloat {
         let visible = scroll.contentView.bounds
         let height = scroll.documentView?.frame.height ?? visible.height
-        return max(0, height - visible.height - visible.origin.y)
+        return max(0, height - visible.height + scroll.contentInsets.bottom)
     }
 
     /**
@@ -270,9 +283,7 @@ struct ChatView: View {
      */
     private func pinToEnd() {
         guard !isUserScrolling, let scroll = scrollView else { return }
-        let visible = scroll.contentView.bounds
-        let height = scroll.documentView?.frame.height ?? visible.height
-        scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, height - visible.height)))
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: endOffset(of: scroll)))
         scroll.reflectScrolledClipView(scroll.contentView)
     }
 

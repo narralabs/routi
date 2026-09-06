@@ -13,11 +13,24 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var showingSettings = false
     @FocusState private var composerFocused: Bool
-    /// Where the end of the transcript sits inside the visible area, and how tall that
-    /// area is. The difference is the whole basis for deciding whether following a
-    /// reply is help or a fight.
-    @State private var tailMaxY: CGFloat = 0
-    @State private var viewportHeight: CGFloat = 0
+    #if os(macOS)
+    /// The AppKit scroll view under the transcript. SwiftUI will not say how tall a lazy
+    /// stack is or where the reader is inside it; this does, exactly.
+    @State private var scrollView: NSScrollView?
+    /// Whether the transcript is riding the end.
+    ///
+    /// The reader owns this. It is set by their own scrolling, and by the two moments
+    /// that mean "show me the end": opening a conversation, and sending a message.
+    /// Nothing else may set it — that was the bug in every earlier version, where
+    /// arriving content decided where the reader should be looking.
+    @State private var isPinned = true
+    /// True while AppKit owns the clip view, between the start and end of a live scroll.
+    /// Moving it underneath a hand on the trackpad is what "it kept pushing me up" was.
+    @State private var isUserScrolling = false
+    /// Where the reader's current gesture began, so the whole drag can be judged rather
+    /// than the last few points of it.
+    @State private var gestureStartOffset: CGFloat = 0
+    #endif
 
     var body: some View {
         // Just the chat. The screen is a sibling column now, not a panel nested here.
@@ -72,12 +85,6 @@ struct ChatView: View {
     }
 
     private var transcript: some View {
-        // The viewport measured here rather than through a preference on the scroll
-        // view: a preference set in a `background` never reaches the parent, so the
-        // height stayed zero and the check below could not tell a reader who had
-        // scrolled up from one sitting at the end. Measured, it reads 320-odd points
-        // and the difference means something.
-        GeometryReader { viewport in
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -95,87 +102,88 @@ struct ChatView: View {
                         TurnErrorRow(message: failure) { model.dismissSelectedError() }
                             .padding(.top, 10)
                     }
-                    // Clearance so the floating composer never covers the last message,
-                    // and the marker that says where the end of the transcript is.
-                    Color.clear
-                        .frame(height: 96)
-                        .id(Self.tailAnchor)
-                        .background {
-                            GeometryReader { tail in
-                                Color.clear.preference(
-                                    key: TailOffsetKey.self,
-                                    value: tail.frame(in: .named(Self.transcriptSpace)).maxY
-                                )
-                            }
-                        }
+                    // Clearance so the floating composer never covers the last message.
+                    Color.clear.frame(height: 96).id(Self.tailAnchor)
                 }
                 .frame(maxWidth: 760)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
+                #if os(macOS)
+                // In the content's background, because that is inside the scroll view —
+                // and unlike a preference, a captured reference does reach out of one.
+                .background { ScrollViewBridge { found in
+                    if scrollView !== found { scrollView = found }
+                } }
+                #endif
             }
             .scrollDismissesKeyboard(.interactively)
-            .coordinateSpace(name: Self.transcriptSpace)
-            .onPreferenceChange(TailOffsetKey.self) { tailMaxY = $0 }
-            .onChange(of: viewport.size.height, initial: true) {
-                viewportHeight = viewport.size.height
-            }
+            #if os(macOS)
             /**
-             * Follows a streaming reply, which nothing did.
+             * The reader's own scrolling, which is the only thing that unpins the view.
              *
-             * A reply grows inside a message that already exists, so the message count
-             * never changes and neither did the scroll: you sent, the answer arrived
-             * below the fold, and you scrolled down to read your own bot.
-             *
-             * Ticking rather than reacting to the text, because reacting to the text is
-             * what made this judder before — an animation restarting several times a
-             * second. Four unanimated moves a second do not animate at all; they just
-             * keep the end in view.
+             * `didLiveScroll` fires for a hand on the trackpad and never for a
+             * programmatic move, so this cannot mistake the app's own scrolling for the
+             * reader's. Identity-checked against our scroll view, because the sidebar
+             * posts these too.
              */
-            .task(id: model.isBusy) {
+            .onReceive(NotificationCenter.default.publisher(for: NSScrollView.willStartLiveScrollNotification)) { note in
+                guard let scroll = note.object as? NSScrollView, scroll === scrollView else { return }
+                isUserScrolling = true
+                gestureStartOffset = scroll.contentView.bounds.origin.y
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSScrollView.didLiveScrollNotification)) { note in
+                guard (note.object as? NSScrollView) === scrollView else { return }
+                isPinned = readerIsAtEnd
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSScrollView.didEndLiveScrollNotification)) { note in
+                guard (note.object as? NSScrollView) === scrollView else { return }
+                isUserScrolling = false
+                isPinned = readerIsAtEnd
+            }
+            /// Follows a reply as it streams, but only for a reader who is at the end.
+            /// A reply grows inside a message that already exists, so no count changes
+            /// and nothing else here would fire.
+            .task(id: "\(model.selectedConversationID ?? "")-\(model.isBusy)") {
                 while model.isBusy && !Task.isCancelled {
-                    if isNearEnd { proxy.scrollTo(Self.tailAnchor, anchor: .bottom) }
-                    try? await Task.sleep(for: .milliseconds(250))
+                    if isPinned { pinToEnd() }
+                    try? await Task.sleep(for: .milliseconds(200))
                 }
             }
+            /// A new row, or the typing indicator appearing and going, both change the
+            /// height under the reader. Settle rather than pin once: the row is not laid
+            /// out at the moment the count changes.
+            .onChange(of: model.messages.count) { Task { await settleAtEnd() } }
+            .onChange(of: model.isBusy) { Task { await settleAtEnd() } }
             /**
-             * Follows a reply without chasing it.
+             * Opening a conversation lands at the end, and stays there.
              *
-             * Scrolling used to fire on a signature that summed the text of every block,
-             * so it ran on every streamed token — an animation restarting several times
-             * a second, which is what made this judder. It now moves when a message
-             * arrives or finishes, which is a handful of times a turn.
-             *
-             * `defaultScrollAnchor(.bottom)` did this more elegantly and took text
-             * selection with it: an anchored scroll view re-pins its content as it lays
-             * out, and that swallows the drag a selection needs.
+             * Messages arrive after the selection changes and a lazy stack gives its rows
+             * their real heights over several frames, so a single scroll — or four, which
+             * is what this used to do — lands halfway down and then drifts as the rows
+             * above it grow. Holding the offset at the end until the height stops moving
+             * is the only version of this that survives both.
              */
+            .task(id: model.selectedConversationID) {
+                isPinned = true
+                await settleAtEnd()
+            }
+            .onAppear {
+                isPinned = true
+                Task { await settleAtEnd() }
+            }
+            #else
+            // iOS has no scroll view to ask, so it keeps the simpler behaviour: the end
+            // is where a transcript belongs, and a phone rarely reads back mid-reply.
             .onChange(of: model.messages.count) {
                 withAnimation(.easeOut(duration: 0.18)) {
                     proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
                 }
             }
-            .onChange(of: model.isBusy) {
-                proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-            }
-            /**
-             * Switching bots lands at the latest message.
-             *
-             * On the id alone this fired before the new conversation's messages had
-             * arrived, so it scrolled an empty list and left the transcript at the top
-             * once the messages appeared. Waiting for the messages themselves is what
-             * makes it land.
-             */
-            .task(id: model.selectedConversationID) {
-                await settleThenScroll(proxy)
-            }
-            /**
-             * Coming back from the full-window desktop rebuilds this view from nothing,
-             * so there is no scroll position to restore — only somewhere sensible to
-             * be, which is the end.
-             */
+            .onChange(of: model.isBusy) { proxy.scrollTo(Self.tailAnchor, anchor: .bottom) }
+            .task(id: model.selectedConversationID) { await settleThenScroll(proxy) }
             .onAppear { proxy.scrollTo(Self.tailAnchor, anchor: .bottom) }
-        }
+            #endif
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
@@ -215,35 +223,84 @@ struct ChatView: View {
     }
 
     private static let tailAnchor = "krog.tail"
-    private static let transcriptSpace = "krog.transcript"
+    /// How far from the end still counts as being at the end. A little over one line, so
+    /// a flick that stops just short does not read as walking away.
+    private static let pinSlack: CGFloat = 40
 
+    #if os(macOS)
     /**
-     Whether the reader is at the end, and so whether following them is help or a fight.
+     How far the end of the transcript is below what the reader can see.
 
-     The tail's position is reported in the scroll view's own coordinate space, where
-     the visible region ends at the view's height — so a tail a little past that is the
-     end of the transcript just off screen, and a tail far past it is a reader who has
-     deliberately scrolled up to re-read something. Only the first case is followed.
-
-     Unmeasured, it follows: a viewport of zero height is a transcript that has not laid
-     out yet, and the end is where a fresh one belongs.
+     Only trustworthy near the end, and that is not a nitpick: a lazy stack *estimates*
+     the height of everything off screen, so once the reader scrolls away the document
+     height stops tracking the reply — measured at 1086pt, then 979pt, then unchanged
+     while text kept arriving. Near the end the rows in question are laid out and the
+     number is real, which is the only place this is asked.
      */
-    private var isNearEnd: Bool {
-        viewportHeight <= 0 || tailMaxY - viewportHeight < 160
+    private var distanceFromEnd: CGFloat {
+        guard let scroll = scrollView else { return 0 }
+        let visible = scroll.contentView.bounds
+        let height = scroll.documentView?.frame.height ?? visible.height
+        return max(0, height - visible.height - visible.origin.y)
     }
 
-    /// Cheap change token: message count plus streamed text length.
+    /**
+     Whether the reader's own gesture left them at the end.
+
+     Two conditions, because the measurement alone can lie in the dangerous direction —
+     an under-reported height reads as "at the end" and would drag someone back down.
+     Dragging upwards means not at the end whatever the arithmetic says; you cannot
+     arrive at the end by moving away from it. Judged across the whole gesture rather
+     than the last few points, so a slow drag does not creep past a per-event threshold.
+     */
+    private var readerIsAtEnd: Bool {
+        guard let scroll = scrollView else { return true }
+        let travelled = scroll.contentView.bounds.origin.y - gestureStartOffset
+        if travelled < -8 { return false }
+        return distanceFromEnd <= Self.pinSlack
+    }
+
+    /**
+     Puts the view at the end, by offset rather than by anchor.
+
+     `scrollTo(id)` cannot do this reliably: the anchor sits at the end of a lazy stack,
+     so it usually is not laid out, and the rows above it take their real heights a frame
+     or two later. That is exactly how opening a conversation landed in the middle and
+     then drifted upwards. An offset is arithmetic, not a guess.
+     */
+    private func pinToEnd() {
+        guard !isUserScrolling, let scroll = scrollView else { return }
+        let visible = scroll.contentView.bounds
+        let height = scroll.documentView?.frame.height ?? visible.height
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, height - visible.height)))
+        scroll.reflectScrolledClipView(scroll.contentView)
+    }
+
+    /// Holds the end in view while the transcript is still arriving and laying out.
+    /// Gives up the moment the reader scrolls away, and as soon as the height is stable.
+    private func settleAtEnd() async {
+        var lastHeight: CGFloat = -1
+        var stable = 0
+        for _ in 0..<40 {
+            guard isPinned, !Task.isCancelled else { return }
+            pinToEnd()
+            let height = scrollView?.documentView?.frame.height ?? 0
+            stable = abs(height - lastHeight) < 0.5 ? stable + 1 : 0
+            lastHeight = height
+            if stable >= 4 && height > 0 { return }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
+    #endif
+
     /// Waits for a conversation's messages to arrive, then goes to the end.
     private func settleThenScroll(_ proxy: ScrollViewProxy) async {
         proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-        // Messages load after the selection changes; a couple of passes covers the gap
-        // without a timer that keeps firing at a transcript nobody is waiting on.
         for _ in 0..<3 {
             try? await Task.sleep(for: .milliseconds(120))
             proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
         }
     }
-
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
@@ -298,9 +355,10 @@ struct ChatView: View {
         guard !text.isEmpty else { return }
         draft = ""
         composerFocused = true
-        // Sending is an act of attention: whatever was being read, the answer to this
-        // is what the reader now wants to see.
-        tailMaxY = 0
+        #if os(macOS)
+        // Sending means "show me the answer", whatever was being read a moment ago.
+        isPinned = true
+        #endif
         Task { await model.send(text) }
     }
 }
@@ -409,11 +467,21 @@ struct BotConfig {
 }
 
 
-/// Where the end of the transcript sits, measured inside the scroll view.
-private struct TailOffsetKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+#if os(macOS)
+/// Hands back the AppKit scroll view SwiftUI drew, since SwiftUI will not say.
+private struct ScrollViewBridge: NSViewRepresentable {
+    let onFound: (NSScrollView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        // After the view is in the hierarchy, or there is no scroll view to find yet.
+        DispatchQueue.main.async { if let scroll = view.enclosingScrollView { onFound(scroll) } }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async { if let scroll = view.enclosingScrollView { onFound(scroll) } }
     }
 }
+#endif
 

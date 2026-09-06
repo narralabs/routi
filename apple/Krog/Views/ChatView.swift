@@ -33,6 +33,9 @@ struct ChatView: View {
     /// One settle at a time. Several at once is several layout passes at once, on a
     /// transcript that may be a hundred tool cards long.
     @State private var isSettling = false
+    /// True while this view is doing the scrolling, so nothing that scrolling sets off
+    /// can come back round and ask for another one.
+    @State private var isPinning = false
     #endif
 
     var body: some View {
@@ -171,16 +174,14 @@ struct ChatView: View {
                 guard isPinned else { return }
                 Task { await settleAtEnd(proxy) }
             }
-            /// Anything else that changes the transcript's height under a reader who is
-            /// at the end — a screenshot finishing its load, a row growing. Cheap: it
-            /// fires on real layout changes only, and a pin already at the end writes
-            /// nothing.
-            .onReceive(NotificationCenter.default.publisher(for: NSView.frameDidChangeNotification)) { note in
-                guard isPinned, !isUserScrolling,
-                      let scroll = scrollView,
-                      (note.object as? NSView) === scroll.documentView else { return }
-                pinToEnd(proxy)
-            }
+            //
+            // There is deliberately nothing here listening to the document view's frame.
+            // Pinning from layout changes spins: the pin scrolls, scrolling changes what
+            // a lazy stack has realised, realising changes its estimated height, and the
+            // height change is another layout notification. The app took 100% of a core
+            // inside `LazyVStackLayout.sizeThatFits` with the height oscillating between
+            // 11882 and 13169 points, which is what that loop looks like from outside.
+            // Everything that moves this view is on a timer or a discrete event instead.
             /**
              * Opening a conversation lands at the end, and stays there.
              *
@@ -340,7 +341,9 @@ struct ChatView: View {
      SwiftUI to lay the end out at all.
      */
     private func pinToEnd(_ proxy: ScrollViewProxy) {
-        guard !isUserScrolling, let scroll = scrollView else { return }
+        guard !isUserScrolling, !isPinning, let scroll = scrollView else { return }
+        isPinning = true
+        defer { isPinning = false }
         let target = endOffset(of: scroll)
         // Already there: a redundant write still posts a bounds change and still costs
         // a pass through everything watching one.

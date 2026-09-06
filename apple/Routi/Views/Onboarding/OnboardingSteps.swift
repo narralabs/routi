@@ -8,7 +8,7 @@ struct WelcomeStep: View {
     var body: some View {
         OnboardingScaffold(
             icon: "sparkles",
-            title: "Welcome to Routi",
+            title: "Welcome to Routi Bot",
             subtitle: "Bots that live on your Mac, work while you're away, and answer from your phone."
         ) {
             VStack(alignment: .leading, spacing: 18) {

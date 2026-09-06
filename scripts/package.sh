@@ -36,9 +36,19 @@ else
   (cd "$root/apple" && xcodebuild -scheme Routi -configuration Release \
     -destination 'generic/platform=macOS' -derivedDataPath "$derived" build >/dev/null)
 fi
-app="$(find "$derived/Build/Products/Release" -maxdepth 1 -name Routi.app)"
-rm -f "$out/Routi.zip"
-ditto -c -k --keepParent "$app" "$out/Routi.zip"
+app="$(find "$derived/Build/Products/Release" -maxdepth 1 -name "Routi Bot.app")"
+
+# A DMG, because that is what a Mac app arrives as: a window with the app and an
+# Applications shortcut, named for the product. A zip downloaded as a bare file people
+# did not recognise.
+dmg="$out/RoutiBot.dmg"
+stage="$out/dmg-stage"
+rm -rf "$stage" "$dmg"; mkdir -p "$stage"
+cp -R "$app" "$stage/"
+ln -s /Applications "$stage/Applications"
+hdiutil create -volname "Routi Bot" -srcfolder "$stage" -ov -format UDZO -quiet "$dmg"
+rm -rf "$stage"
+[ -n "$identity" ] && codesign --sign "$identity" --timestamp "$dmg" >/dev/null
 
 if [ -n "$identity" ]; then
   # The credentials profile: the current name, or the one from before the rename.
@@ -48,7 +58,7 @@ if [ -n "$identity" ]; then
   done
   if [ -n "$profile" ]; then
     echo "Notarizing (this waits on Apple; usually a minute or two)"
-    result="$(xcrun notarytool submit "$out/Routi.zip" --keychain-profile "$profile" --wait 2>&1)"
+    result="$(xcrun notarytool submit "$dmg" --keychain-profile "$profile" --wait 2>&1)"
     echo "$result" | grep -E "^ *(id|status):" | tail -2 | sed 's/^/  /'
     if ! echo "$result" | grep -q "status: Accepted"; then
       id="$(echo "$result" | grep -m1 '  id:' | awk '{print $2}')"
@@ -57,9 +67,7 @@ if [ -n "$identity" ]; then
         | grep -o '"message": *"[^"]*"' | sort -u | sed 's/^/  /' >&2
       exit 1
     fi
-    xcrun stapler staple "$app" >/dev/null
-    rm -f "$out/Routi.zip"
-    ditto -c -k --keepParent "$app" "$out/Routi.zip"
+    xcrun stapler staple "$dmg" >/dev/null
     echo "  notarized and stapled: opens anywhere with a double-click"
   else
     echo "  signed with Developer ID but not notarized: no 'routi-notary' credentials stored"
@@ -73,5 +81,5 @@ git -C "$root" archive --format=tar.gz --prefix=routi-core/ -o "$out/routi-core.
   daemon protocol containers scripts package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json README.md
 
 echo
-ls -la "$out/Routi.zip" "$out/routi-core.tar.gz"
+ls -la "$dmg" "$out/routi-core.tar.gz"
 codesign -dv "$app" 2>&1 | grep -E '^(Authority|Signature)' | head -2 | sed 's/^/  /'

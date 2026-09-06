@@ -393,7 +393,7 @@ struct AboutPane: View {
     var body: some View {
         SettingsPane(title: "About") {
             SettingsSection {
-                SettingsRow(title: "Routi", detail: "Bots that live on your Mac.", isFirst: true) {
+                SettingsRow(title: "Routi Bot", detail: "Bots that live on your Mac.", isFirst: true) {
                     SettingsValue(text: version)
                 }
             }

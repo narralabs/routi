@@ -67,7 +67,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.narralabs.routi
-        INFOPLIST_KEY_CFBundleDisplayName: Routi
+        # "Routi Bot" is the product; `Routi` stays the target and scheme name.
+        PRODUCT_NAME: Routi Bot
+        INFOPLIST_KEY_CFBundleDisplayName: Routi Bot
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_PREVIEWS: YES

@@ -9,8 +9,8 @@ key. Your phone is a window onto the same bots.
 
 ## Install
 
-Download **[Routi.zip](https://github.com/narralabs/routi/releases/latest/download/Routi.zip)**,
-unzip, drag it to Applications, open it.
+Download **[Routi Bot](https://github.com/narralabs/routi/releases/latest/download/RoutiBot.dmg)**,
+open the disk image, drag the app to Applications, open it.
 
 That's it. The app walks you through the rest: it gives you one command to paste into
 Terminal that installs Routi Core — the part that keeps your bots and does the work, and

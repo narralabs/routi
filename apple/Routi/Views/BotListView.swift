@@ -53,7 +53,7 @@ struct BotListView: View {
         #else
         .searchable(text: $search, prompt: "Search")
         #endif
-        .navigationTitle("Routi")
+        .navigationTitle("Routi Bot")
         .toolbar {
             ToolbarItem {
                 Button("New Bot", systemImage: "plus") { showingNewBot = true }

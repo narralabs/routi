@@ -85,7 +85,7 @@ certificate lives on one Mac — so a release is:
 ```bash
 git tag v0.x.y && git push origin main v0.x.y      # core builds and publishes
 scripts/package.sh                                 # app, notarized
-gh release upload v0.x.y build/Routi.zip --clobber
+gh release upload v0.x.y build/RoutiBot.dmg --clobber
 ```
 
 then the checksum from the release into `packaging/homebrew/routi-core.rb` (url and

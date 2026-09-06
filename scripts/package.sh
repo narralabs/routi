@@ -27,7 +27,10 @@ if [ -n "$identity" ]; then
   echo "  signing as: $identity"
   (cd "$root/apple" && xcodebuild -scheme Krog -configuration Release \
     -destination 'generic/platform=macOS' -derivedDataPath "$derived" \
-    CODE_SIGN_IDENTITY="$identity" OTHER_CODE_SIGN_FLAGS="--timestamp" build >/dev/null)
+    CODE_SIGN_IDENTITY="$identity" OTHER_CODE_SIGN_FLAGS="--timestamp" \
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO build >/dev/null)
+  # ^ Xcode adds the get-task-allow debugging entitlement to any non-archive build, and
+  #   Apple rejects notarization for it. Off, this is exactly what an archive would sign.
 else
   echo "  no Developer ID Application certificate in the keychain: signing to run locally"
   (cd "$root/apple" && xcodebuild -scheme Krog -configuration Release \
@@ -40,8 +43,16 @@ ditto -c -k --keepParent "$app" "$out/Krog.zip"
 if [ -n "$identity" ]; then
   if xcrun notarytool history --keychain-profile krog-notary >/dev/null 2>&1; then
     echo "Notarizing (this waits on Apple; usually a minute or two)"
-    xcrun notarytool submit "$out/Krog.zip" --keychain-profile krog-notary --wait
-    xcrun stapler staple "$app"
+    result="$(xcrun notarytool submit "$out/Krog.zip" --keychain-profile krog-notary --wait 2>&1)"
+    echo "$result" | grep -E "^ *(id|status):" | tail -2 | sed 's/^/  /'
+    if ! echo "$result" | grep -q "status: Accepted"; then
+      id="$(echo "$result" | grep -m1 '  id:' | awk '{print $2}')"
+      echo "Apple rejected it. Reasons:" >&2
+      xcrun notarytool log "$id" --keychain-profile krog-notary 2>/dev/null \
+        | grep -o '"message": *"[^"]*"' | sort -u | sed 's/^/  /' >&2
+      exit 1
+    fi
+    xcrun stapler staple "$app" >/dev/null
     rm -f "$out/Krog.zip"
     ditto -c -k --keepParent "$app" "$out/Krog.zip"
     echo "  notarized and stapled: opens anywhere with a double-click"

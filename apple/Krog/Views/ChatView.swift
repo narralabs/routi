@@ -146,15 +146,15 @@ struct ChatView: View {
             /// and nothing else here would fire.
             .task(id: "\(model.selectedConversationID ?? "")-\(model.isBusy)") {
                 while model.isBusy && !Task.isCancelled {
-                    if isPinned { pinToEnd() }
+                    if isPinned { pinToEnd(proxy) }
                     try? await Task.sleep(for: .milliseconds(200))
                 }
             }
             /// A new row, or the typing indicator appearing and going, both change the
             /// height under the reader. Settle rather than pin once: the row is not laid
             /// out at the moment the count changes.
-            .onChange(of: model.messages.count) { Task { await settleAtEnd() } }
-            .onChange(of: model.isBusy) { Task { await settleAtEnd() } }
+            .onChange(of: model.messages.count) { Task { await settleAtEnd(proxy) } }
+            .onChange(of: model.isBusy) { Task { await settleAtEnd(proxy) } }
             /**
              * Opening a conversation lands at the end, and stays there.
              *
@@ -166,11 +166,11 @@ struct ChatView: View {
              */
             .task(id: model.selectedConversationID) {
                 isPinned = true
-                await settleAtEnd()
+                await settleAtEnd(proxy)
             }
             .onAppear {
                 isPinned = true
-                Task { await settleAtEnd() }
+                Task { await settleAtEnd(proxy) }
             }
             #else
             // iOS has no scroll view to ask, so it keeps the simpler behaviour: the end
@@ -281,20 +281,29 @@ struct ChatView: View {
      or two later. That is exactly how opening a conversation landed in the middle and
      then drifted upwards. An offset is arithmetic, not a guess.
      */
-    private func pinToEnd() {
-        guard !isUserScrolling, let scroll = scrollView else { return }
+    private func pinToEnd(_ proxy: ScrollViewProxy) {
+        guard !isUserScrolling else { return }
+        // Both, in this order, because each fixes what the other cannot.
+        //
+        // The anchor is what tells SwiftUI to lay out the end of a lazy stack: moving
+        // the clip view directly changes what is on screen without asking SwiftUI to
+        // realise anything for the new position, which is how a conversation opened to
+        // a blank transcript that filled in the moment it was scrolled. The offset is
+        // what lands exactly on the end, which the anchor alone does not.
+        proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+        guard let scroll = scrollView else { return }
         scroll.contentView.scroll(to: NSPoint(x: 0, y: endOffset(of: scroll)))
         scroll.reflectScrolledClipView(scroll.contentView)
     }
 
     /// Holds the end in view while the transcript is still arriving and laying out.
     /// Gives up the moment the reader scrolls away, and as soon as the height is stable.
-    private func settleAtEnd() async {
+    private func settleAtEnd(_ proxy: ScrollViewProxy) async {
         var lastHeight: CGFloat = -1
         var stable = 0
         for _ in 0..<40 {
             guard isPinned, !Task.isCancelled else { return }
-            pinToEnd()
+            pinToEnd(proxy)
             let height = scrollView?.documentView?.frame.height ?? 0
             stable = abs(height - lastHeight) < 0.5 ? stable + 1 : 0
             lastHeight = height

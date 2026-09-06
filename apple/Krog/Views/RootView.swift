@@ -125,12 +125,15 @@ private struct ConnectingView: View {
                 Text(isLocal ? "Krog Core isn't running on this Mac" : "Can't reach Krog Core at \(host)")
                     .font(.system(size: 15, weight: .semibold))
                 Text(isLocal
-                     ? "The app is a window onto the core, which keeps your bots and does the work. Start it with `krogd`, or install it from the README, and this will connect on its own."
+                     ? "The app is a window onto the core, which keeps your bots and does the work. Install it with the command below; this screen carries on by itself once the core answers."
                      : "Check that Mac is on, that Krog Core is running there, and that this device can see it — a Tailscale name works.")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 380)
+                    .frame(maxWidth: 400)
+                if isLocal {
+                    InstallCommand()
+                }
                 Button("Connect to a different Mac…") { model.isShowingSettings = true }
                     .controlSize(.small)
                     .padding(.top, 4)
@@ -146,5 +149,38 @@ private struct ConnectingView: View {
             try? await Task.sleep(for: .seconds(4))
             slow = true
         }
+    }
+}
+
+
+/// The install one-liner, shown where a person with no core will actually read it.
+///
+/// Copyable, because the whole point of a one-liner is not retyping it. The app keeps
+/// trying the port underneath, so the moment the installer finishes, this screen goes.
+private struct InstallCommand: View {
+    static let command = "curl -fsSL https://krog.narralabs.com/install.sh | sh"
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(Self.command)
+                .font(.system(size: 12, design: .monospaced))
+                .textSelection(.enabled)
+                .lineLimit(1)
+            Button(copied ? "Copied" : "Copy") {
+                #if os(macOS)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(Self.command, forType: .string)
+                #endif
+                copied = true
+                Task { try? await Task.sleep(for: .seconds(2)); copied = false }
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.background.secondary, in: .rect(cornerRadius: 8, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(.separator, lineWidth: 0.5) }
+        .padding(.top, 2)
     }
 }

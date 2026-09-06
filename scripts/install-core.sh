@@ -64,7 +64,7 @@ launchctl bootstrap "gui/$(id -u)" "$agent"
 
 say "Waiting for the core"
 for _ in $(seq 1 20); do
-  if curl -fs http://127.0.0.1:7171/ >/dev/null 2>&1; then
+  if curl -fs http://127.0.0.1:7171/health >/dev/null 2>&1; then
     echo "Routi Core is running on port 7171 and will start at login."
     echo "Open the Routi app. Logs: $logs/routid.log"
     exit 0

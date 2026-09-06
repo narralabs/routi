@@ -52,7 +52,7 @@ class RoutiCore < Formula
     port = free_port
     pid = spawn({ "ROUTI_PORT" => port.to_s, "ROUTI_DATA_DIR" => testpath/"data" }, bin/"routid")
     sleep 4
-    assert_match "ok", shell_output("curl -s http://127.0.0.1:#{port}/")
+    assert_match "ok", shell_output("curl -s http://127.0.0.1:#{port}/health")
   ensure
     Process.kill("TERM", pid) if pid
   end

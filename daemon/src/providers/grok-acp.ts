@@ -15,12 +15,9 @@ import { spawn, type ChildProcess } from 'node:child_process'
  * leaves a bot standing next to a screen it has been told it may not touch.
  */
 
-type Json = Record<string, unknown>
+import { JsonRpcStdio, type Json, type RpcEvent } from './json-rpc-stdio.js'
 
-export interface AcpEvent {
-  method: string
-  params: Json
-}
+export type AcpEvent = RpcEvent
 
 /** The name Krog's tools are mounted under, and so the prefix on their tool ids. */
 export const KROG_MCP_SERVER = 'krog'
@@ -28,41 +25,15 @@ export const KROG_MCP_SERVER = 'krog'
 export interface GrokAcpOptions {
   binary: string
   env: Record<string, string>
-  /** Called for every agent notification; the adapter turns these into blocks. */
   onEvent: (event: AcpEvent) => void
 }
 
-export class GrokAcp {
-  private child: ChildProcess | null = null
-  private seq = 0
-  private buffer = ''
-  private readonly pending = new Map<number, { resolve: (v: Json) => void; reject: (e: Error) => void }>()
-  private starting: Promise<void> | null = null
-
-  constructor(private readonly opts: GrokAcpOptions) {}
-
-  /** Starts the process and completes the handshake. Idempotent. */
-  async ready(): Promise<void> {
-    this.starting ??= this.start()
-    return this.starting
+export class GrokAcp extends JsonRpcStdio {
+  constructor(opts: GrokAcpOptions) {
+    super({ ...opts, args: ['agent', 'stdio'], name: 'Grok' })
   }
 
-  private async start(): Promise<void> {
-    const child = spawn(this.opts.binary, ['agent', 'stdio'], {
-      env: this.opts.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
-    this.child = child
-
-    child.stdout?.setEncoding('utf8')
-    child.stdout?.on('data', (chunk: string) => this.consume(chunk))
-    child.on('exit', () => {
-      for (const waiter of this.pending.values()) waiter.reject(new Error('Grok exited.'))
-      this.pending.clear()
-      this.child = null
-      this.starting = null
-    })
-
+  protected async handshake(): Promise<void> {
     await this.request('initialize', {
       protocolVersion: 1,
       // Stated honestly: Krog gives a bot a screen, not this Mac's filesystem or a
@@ -72,58 +43,14 @@ export class GrokAcp {
     })
   }
 
-  private consume(chunk: string): void {
-    this.buffer += chunk
-    let index = this.buffer.indexOf('\n')
-    while (index >= 0) {
-      const line = this.buffer.slice(0, index).trim()
-      this.buffer = this.buffer.slice(index + 1)
-      if (line) {
-        try {
-          this.route(JSON.parse(line) as Json)
-        } catch {
-          // Not JSON, not ours.
-        }
-      }
-      index = this.buffer.indexOf('\n')
-    }
-  }
-
-  private route(message: Json): void {
-    const method = message['method'] as string | undefined
-    const id = message['id']
-
-    // A method *and* an id means the agent is asking us something.
-    if (method && id !== undefined && id !== null) {
-      this.answerAgentRequest(method, id, (message['params'] ?? {}) as Json)
-      return
-    }
-    if (method) {
-      this.opts.onEvent({ method, params: (message['params'] ?? {}) as Json })
-      return
-    }
-
-    const waiter = typeof id === 'number' ? this.pending.get(id) : undefined
-    if (!waiter) return
-    this.pending.delete(id as number)
-    const error = message['error'] as { message?: string } | undefined
-    if (error) waiter.reject(new Error(error.message ?? 'Grok returned an error.'))
-    else waiter.resolve((message['result'] ?? {}) as Json)
-  }
-
   /**
-   * Answers the questions Grok would otherwise put to a human.
-   *
    * Krog's own tools are approved: the user granted that by giving the bot a screen,
    * and a prompt per click would make any real task unusable. Everything else is
    * refused — a bot here is not meant to be running commands or editing files on the
-   * Mac hosting the core, so a request to do so is a mistake rather than something to
-   * wave through. `--always-approve` would have been one flag and would have said yes
-   * to the shell too.
-   *
-   * When there is a UI for this, it goes here.
+   * Mac hosting the core. `--always-approve` would have been one flag and would have
+   * said yes to the shell too.
    */
-  private answerAgentRequest(method: string, id: unknown, params: Json): void {
+  protected answer(method: string, params: Json): { result: unknown } | { error: string } {
     if (method === 'session/request_permission') {
       const options = (params['options'] ?? []) as { optionId?: string; kind?: string }[]
       const wanted = isKrogTool(params['toolCall'] as Json | undefined)
@@ -134,71 +61,15 @@ export class GrokAcp {
       const chosen = wanted
         .map((kind) => options.find((option) => option.kind === kind))
         .find((option) => option?.optionId)
-      if (chosen?.optionId) {
-        this.reply(id, { outcome: { outcome: 'selected', optionId: chosen.optionId } })
-      } else {
-        // No option we recognise. Cancelling is the one answer that cannot approve
-        // something by accident.
-        this.reply(id, { outcome: { outcome: 'cancelled' } })
-      }
-      return
+      // No option we recognise: cancelling is the one answer that cannot approve
+      // something by accident.
+      const outcome = chosen?.optionId ? { outcome: 'selected', optionId: chosen.optionId } : { outcome: 'cancelled' }
+      return { result: { outcome } }
     }
-
     // Krog declares neither capability, so these should never arrive; if one does,
     // an error is the honest answer and it keeps the turn moving.
-    if (method.startsWith('fs/') || method.startsWith('terminal/')) {
-      this.fail(id, `Krog does not offer ${method}.`)
-      return
-    }
-    this.reply(id, {})
-  }
-
-  private reply(id: unknown, result: unknown): void {
-    this.child?.stdin?.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`)
-  }
-
-  private fail(id: unknown, message: string): void {
-    const error = { code: -32601, message }
-    this.child?.stdin?.write(`${JSON.stringify({ jsonrpc: '2.0', id, error })}\n`)
-  }
-
-  /**
-   * Sends a request. `timeoutMs` of zero waits as long as it takes.
-   *
-   * Which `session/prompt` needs, and did not get. A prompt resolves when the whole
-   * turn is over, so the timeout was a cap on how long a bot may work — and a bot
-   * booking a hotel spent eleven minutes clicking through a travel site before the
-   * ten-minute cap called it a failure, on top of work that was going fine. Setup
-   * calls keep a bound because a handshake that hangs is broken; a turn that takes
-   * an hour is a turn, and the way to end one early is the stop button, which sends
-   * `session/cancel`. A crashed agent still fails everything pending on exit.
-   */
-  request(method: string, params: unknown, timeoutMs = 600_000): Promise<Json> {
-    const id = ++this.seq
-    return new Promise<Json>((resolve, reject) => {
-      const timer = timeoutMs > 0
-        ? setTimeout(() => {
-            this.pending.delete(id)
-            reject(new Error(`${method} timed out`))
-          }, timeoutMs)
-        : undefined
-      this.pending.set(id, {
-        resolve: (v) => { clearTimeout(timer); resolve(v) },
-        reject: (e) => { clearTimeout(timer); reject(e) },
-      })
-      this.child?.stdin?.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
-    })
-  }
-
-  /** Fire-and-forget, for the notifications ACP defines — cancelling a turn. */
-  notify(method: string, params: unknown): void {
-    this.child?.stdin?.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`)
-  }
-
-  dispose(): void {
-    this.child?.kill()
-    this.child = null
-    this.starting = null
+    if (method.startsWith('fs/') || method.startsWith('terminal/')) return { error: `Krog does not offer ${method}.` }
+    return { result: {} }
   }
 }
 

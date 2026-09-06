@@ -1,7 +1,7 @@
 /**
  * Does a custom systemPrompt actually define the bot, or is something else leaking in?
  */
-import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import { query } from '@anthropic-ai/claude-agent-sdk'
 
 delete process.env.ANTHROPIC_API_KEY
 

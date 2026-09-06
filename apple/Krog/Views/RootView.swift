@@ -106,24 +106,42 @@ struct RootView: View {
     }
 }
 
-/// Shown for the moment between launch and the first handshake.
+/// Shown between launch and the first handshake — and, when that never comes, the
+/// only screen a person without a running core will ever see, so it has to say what
+/// to do rather than ask a question they cannot answer.
 private struct ConnectingView: View {
     @Environment(AppModel.self) private var model
+    @AppStorage("daemonHost") private var host = "127.0.0.1"
     @State private var slow = false
+
+    private var isLocal: Bool { host == "127.0.0.1" || host == "localhost" }
 
     var body: some View {
         VStack(spacing: 14) {
-            ProgressView().controlSize(.large)
-            Text("Connecting to Krog…")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
             if slow {
-                Text("Taking longer than usual. Is krogd running?")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                Image(systemName: "externaldrive.badge.xmark")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(.secondary)
+                Text(isLocal ? "Krog Core isn't running on this Mac" : "Can't reach Krog Core at \(host)")
+                    .font(.system(size: 15, weight: .semibold))
+                Text(isLocal
+                     ? "The app is a window onto the core, which keeps your bots and does the work. Start it with `krogd`, or install it from the README, and this will connect on its own."
+                     : "Check that Mac is on, that Krog Core is running there, and that this device can see it — a Tailscale name works.")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 380)
+                Button("Connect to a different Mac…") { model.isShowingSettings = true }
+                    .controlSize(.small)
+                    .padding(.top, 4)
+            } else {
+                ProgressView().controlSize(.large)
+                Text("Connecting to Krog…")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
             }
         }
-        .frame(minWidth: 420, minHeight: 320)
+        .frame(minWidth: 460, minHeight: 320)
         .task {
             try? await Task.sleep(for: .seconds(4))
             slow = true

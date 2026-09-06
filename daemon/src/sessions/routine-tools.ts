@@ -48,10 +48,22 @@ export function routineTools(
       }))
     },
 
+    /**
+     * Forgiving on the name, because the model is not careful with it.
+     *
+     * Asked to remove its scan, a bot passed "US Open Kalshi scan — every 30 minutes":
+     * the name and the schedule together, exactly as `list` had shown them. An exact
+     * match found nothing, the tool said so, and the bot told the person the routine
+     * was gone. So: the exact name first; then a routine whose name the given text
+     * starts with; then, when the bot has only one, that one.
+     */
     remove(name) {
-      const target = store
-        .listRoutines(botId)
-        .find((r) => r.name.toLowerCase() === name.trim().toLowerCase())
+      const routines = store.listRoutines(botId)
+      const wanted = name.trim().toLowerCase()
+      const target =
+        routines.find((r) => r.name.toLowerCase() === wanted) ??
+        routines.find((r) => wanted.startsWith(r.name.toLowerCase())) ??
+        (routines.length === 1 ? routines[0] : undefined)
       if (!target) return false
       store.deleteRoutine(target.id)
       return true

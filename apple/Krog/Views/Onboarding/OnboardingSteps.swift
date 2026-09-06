@@ -72,13 +72,13 @@ struct ConnectionStep: View {
         OnboardingScaffold(
             icon: "externaldrive.connected.to.line.below",
             title: "Where should Krog run?",
-            subtitle: "Krog's core keeps your bots, conversations, and Anthropic connection. It needs a Mac that stays on."
+            subtitle: "Krog's core keeps your bots, conversations, and AI connections. It needs a Mac that stays on."
         ) {
             VStack(spacing: 12) {
                 OptionCard(
                     icon: "desktopcomputer",
-                    title: "Run it on this Mac",
-                    detail: "Best if this is the machine that stays awake. Your phone can connect to it later.",
+                    title: "Use the core on this Mac",
+                    detail: "It's already running here. Best if this is the machine that stays awake; your phone can connect to it later.",
                     isRecommended: true,
                     action: onHostHere
                 )
@@ -218,7 +218,7 @@ struct AnthropicStep: View {
     private var subtitle: String {
         switch mode {
         case .choosing:
-            return "Krog needs a way to reach Claude. You can use the Claude plan you already pay for, or an API key."
+            return "Krog needs one AI connection to start. Use the Claude plan you already pay for, or an API key — OpenAI, Grok and others can be added later in Settings."
         case .apiKey:
             return "Paste a key from console.anthropic.com. It's stored in this Mac's Keychain, never in the app."
         case .signingIn:

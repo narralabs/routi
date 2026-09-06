@@ -2,10 +2,13 @@
   "name": "routi-bot",
   "private": true,
   "version": "0.0.1",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "pnpm --filter routid dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"
-  }
+  },
+  "packageManager": "pnpm@10.6.2"
 }

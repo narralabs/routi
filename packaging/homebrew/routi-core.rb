@@ -16,13 +16,19 @@ class RoutiCore < Formula
   license "Apache-2.0"
 
   depends_on "node@22"
-  depends_on "pnpm"
 
   def install
     ENV.prepend_path "PATH", Formula["node@22"].opt_bin
-    system "pnpm", "install", "--frozen-lockfile"
-    system "pnpm", "--filter", "@routi/protocol", "build"
-    system "pnpm", "--filter", "routid", "build"
+    # The repository pins its pnpm in package.json, and corepack — bundled with Node —
+    # runs exactly that one. Homebrew's own pnpm formula is a major version ahead and
+    # refuses the native build scripts the daemon needs; pinning is what makes a brew
+    # install, the curl installer and a developer checkout all build the same way.
+    ENV["COREPACK_HOME"] = buildpath/"corepack"
+    ENV["COREPACK_ENABLE_DOWNLOAD_PROMPT"] = "0"
+    corepack = Formula["node@22"].opt_bin/"corepack"
+    system corepack, "pnpm", "install", "--frozen-lockfile"
+    system corepack, "pnpm", "--filter", "@routi/protocol", "build"
+    system corepack, "pnpm", "--filter", "routid", "build"
     libexec.install Dir["*"]
     # One command, `routid`, that runs the built daemon on Homebrew's Node.
     (bin/"routid").write <<~SH

@@ -116,7 +116,9 @@ struct ChatView: View {
                 // In the content's background, because that is inside the scroll view —
                 // and unlike a preference, a captured reference does reach out of one.
                 .background { ScrollViewBridge { found in
-                    if scrollView !== found { scrollView = found }
+                    guard scrollView !== found else { return }
+                    found.documentView?.postsFrameChangedNotifications = true
+                    scrollView = found
                 } }
                 #endif
             }
@@ -149,27 +151,33 @@ struct ChatView: View {
             /// and nothing else here would fire.
             .task(id: "\(model.selectedConversationID ?? "")-\(model.isBusy)") {
                 while model.isBusy && !Task.isCancelled {
-                    if isPinned { pinToEnd(proxy, realise: false) }
+                    if isPinned { pinToEnd(proxy) }
                     try? await Task.sleep(for: .milliseconds(200))
                 }
             }
             /// A new row, or the typing indicator appearing and going, both change the
             /// height under the reader. Settle rather than pin once: the row is not laid
             /// out at the moment the count changes.
-            /// A new row, or the typing indicator coming and going. Two passes rather
-            /// than a settle loop: the row needs one frame to get its height, and a
-            /// message arriving is not the moment to start re-laying out the thread.
+            /// Rows arriving — a conversation loading, a new message, the typing
+            /// indicator coming and going. Each needs the staged version, because each
+            /// changes heights that are not known in the same frame.
             .onChange(of: model.messages.count) {
                 guard isPinned else { return }
-                pinToEnd(proxy, realise: true)
-                Task {
-                    try? await Task.sleep(for: .milliseconds(80))
-                    if isPinned { pinToEnd(proxy, realise: true) }
-                }
+                Task { await settleAtEnd(proxy) }
             }
             .onChange(of: model.isBusy) {
                 guard isPinned else { return }
-                pinToEnd(proxy, realise: false)
+                Task { await settleAtEnd(proxy) }
+            }
+            /// Anything else that changes the transcript's height under a reader who is
+            /// at the end — a screenshot finishing its load, a row growing. Cheap: it
+            /// fires on real layout changes only, and a pin already at the end writes
+            /// nothing.
+            .onReceive(NotificationCenter.default.publisher(for: NSView.frameDidChangeNotification)) { note in
+                guard isPinned, !isUserScrolling,
+                      let scroll = scrollView,
+                      (note.object as? NSView) === scroll.documentView else { return }
+                pinToEnd(proxy)
             }
             /**
              * Opening a conversation lands at the end, and stays there.
@@ -298,23 +306,15 @@ struct ChatView: View {
      then drifted upwards. An offset is arithmetic, not a guess.
      */
     /**
-     Puts the view at the end.
+     Puts the view exactly at the end, by offset.
 
-     `realise` asks SwiftUI to lay out the end of the lazy stack first. Moving the clip
-     view alone lands exactly on the end but changes what is on screen without asking
-     SwiftUI to lay anything out for the new position — a conversation opened to a blank
-     transcript that filled in as soon as it was scrolled. The anchor alone lands in the
-     middle. So both, when arriving somewhere new.
-
-     Not both while a reply streams, though: the end is already laid out there, because it
-     is where the text is arriving, and asking for it several times a second is a layout
-     pass over the whole transcript several times a second on top of the one the new text
-     already costs. That is a beachball on a long thread, not a scroll.
+     Arithmetic, not an anchor: the anchor lives at the end of a lazy stack, so it is
+     usually not laid out and the rows above it take their real heights a frame later.
+     This is the half that lands precisely; `settleAtEnd` is the half that first asks
+     SwiftUI to lay the end out at all.
      */
-    private func pinToEnd(_ proxy: ScrollViewProxy, realise: Bool = false) {
-        guard !isUserScrolling else { return }
-        if realise { proxy.scrollTo(Self.tailAnchor, anchor: .bottom) }
-        guard let scroll = scrollView else { return }
+    private func pinToEnd(_ proxy: ScrollViewProxy) {
+        guard !isUserScrolling, let scroll = scrollView else { return }
         let target = endOffset(of: scroll)
         // Already there: a redundant write still posts a bounds change and still costs
         // a pass through everything watching one.
@@ -323,8 +323,19 @@ struct ChatView: View {
         scroll.reflectScrolledClipView(scroll.contentView)
     }
 
-    /// Holds the end in view while the transcript is still arriving and laying out.
-    /// Gives up the moment the reader scrolls away, and as soon as the height is stable.
+    /**
+     Holds the end in view while the transcript arrives and lays itself out.
+
+     The two steps are separated in time on purpose. `scrollTo` is applied on SwiftUI's
+     next layout pass, so correcting the offset in the same breath does the arithmetic
+     against a height that has not been recomputed yet — and whichever of the two landed
+     last decided where you ended up. That race is why opening a conversation was fine
+     one time and blank the next.
+
+     It also refuses to finish early. A conversation switch empties the list before the
+     new messages are fetched, so a settle that stops as soon as the height is stable
+     stops on an empty transcript, and everything after that is a guess.
+     */
     private func settleAtEnd(_ proxy: ScrollViewProxy) async {
         guard !isSettling else { return }
         isSettling = true
@@ -332,14 +343,21 @@ struct ChatView: View {
 
         var lastHeight: CGFloat = -1
         var stable = 0
-        for _ in 0..<24 {
+        for _ in 0..<40 {
             guard isPinned, !Task.isCancelled else { return }
-            pinToEnd(proxy, realise: true)
+            proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+            // Two frames: one for SwiftUI to apply the scroll, one for the layout it
+            // causes. Then the offset has something true to be computed from.
+            try? await Task.sleep(for: .milliseconds(32))
+            guard isPinned, !Task.isCancelled else { return }
+            pinToEnd(proxy)
+
             let height = scrollView?.documentView?.frame.height ?? 0
-            stable = abs(height - lastHeight) < 0.5 ? stable + 1 : 0
+            let landed = distanceFromEnd < 1
+            stable = (landed && abs(height - lastHeight) < 0.5) ? stable + 1 : 0
             lastHeight = height
-            if stable >= 3 && height > 0 { return }
-            try? await Task.sleep(for: .milliseconds(50))
+            if stable >= 3, height > 0, !model.isLoadingMessages { return }
+            try? await Task.sleep(for: .milliseconds(32))
         }
     }
     #endif

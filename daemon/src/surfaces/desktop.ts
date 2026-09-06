@@ -3,6 +3,10 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
 const IMAGE = 'routi-desktop:latest'
 const CONTAINER = 'routi-desktop'
 
@@ -57,7 +61,8 @@ class Host {
       return 'Docker is not running on this Mac. Start Docker Desktop, then try again.'
     }
     if (!(await this.imageExists())) {
-      return 'The desktop image is missing. Build it with: docker build -t routi-desktop containers/desktop'
+      const built = await this.buildImage()
+      if (built !== null) return built
     }
     if (await this.isRunning()) return null
 
@@ -100,6 +105,38 @@ class Host {
       return true
     } catch {
       return false
+    }
+  }
+
+  /**
+   * Builds the desktop image from the Dockerfile that ships with the core.
+   *
+   * "Install the app; it does the rest" has to include this, or the first bot with a
+   * screen ends at a message quoting a docker command. The Dockerfile is found by
+   * walking up from this module, which lands on `containers/desktop` from a checkout,
+   * a `dist` build, and a Homebrew `libexec` alike. A build is a couple of minutes of
+   * apt-get; it runs once, and `ensure` already serialises callers so two bots asking
+   * at once wait on the same build.
+   */
+  private async buildImage(): Promise<string | null> {
+    let dir = dirname(fileURLToPath(import.meta.url))
+    let dockerfileDir: string | null = null
+    for (let up = 0; up < 6; up++) {
+      const candidate = join(dir, 'containers', 'desktop')
+      if (existsSync(join(candidate, 'Dockerfile'))) { dockerfileDir = candidate; break }
+      dir = dirname(dir)
+    }
+    if (!dockerfileDir) {
+      return 'The desktop image is missing and its Dockerfile is not with this core. Build it with: docker build -t routi-desktop containers/desktop'
+    }
+    console.log(`building the desktop image from ${dockerfileDir} (a few minutes, once)`)
+    try {
+      await run('docker', ['build', '-t', IMAGE, dockerfileDir], { timeout: 15 * 60_000, maxBuffer: 64 * 1024 * 1024 })
+      console.log('desktop image built')
+      return null
+    } catch (err) {
+      const detail = err instanceof Error ? err.message.split('\n').slice(-3).join(' ') : String(err)
+      return `Building the desktop image failed: ${detail}`
     }
   }
 

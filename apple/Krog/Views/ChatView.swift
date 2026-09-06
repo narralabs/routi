@@ -206,7 +206,7 @@ struct ChatView: View {
                 // was a blank window that reported itself as correctly scrolled. If the
                 // view is still empty, ask for the layout again rather than leaving the
                 // reader with a scroll bar and nothing to read.
-                for _ in 0..<6 {
+                for _ in 0..<4 {
                     try? await Task.sleep(for: .milliseconds(250))
                     guard !Task.isCancelled, model.selectedBotID == bot.id else { return }
                     if isPinned, !isUserScrolling, !viewportHasContent {
@@ -372,13 +372,22 @@ struct ChatView: View {
 
         var lastHeight: CGFloat = -1
         var stable = 0
-        for _ in 0..<40 {
-            guard isPinned, !Task.isCancelled else { return }
-            proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-            // Two frames: one for SwiftUI to apply the scroll, one for the layout it
-            // causes. Then the offset has something true to be computed from.
-            try? await Task.sleep(for: .milliseconds(32))
-            guard isPinned, !Task.isCancelled else { return }
+        for pass in 0..<24 {
+            // A hand on the trackpad ends this. Asking for layout while AppKit is
+            // running a live scroll is two things moving the same view at once, each
+            // making work for the other — the app span at 99% of a core with a gesture
+            // open and no end to it. The reader is where they want to be anyway.
+            guard isPinned, !isUserScrolling, !Task.isCancelled else { return }
+
+            // Layout is asked for on the way in, and after that only if the window is
+            // still empty. It is the expensive half — a pass over the whole thread —
+            // and doing it every time round is what made a settle cost more than the
+            // reply it was following.
+            if pass == 0 || (pass % 4 == 0 && !viewportHasContent) {
+                proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+                try? await Task.sleep(for: .milliseconds(32))
+                guard isPinned, !isUserScrolling, !Task.isCancelled else { return }
+            }
             pinToEnd(proxy)
 
             let height = scrollView?.documentView?.frame.height ?? 0

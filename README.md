@@ -70,6 +70,41 @@ clone build with no Apple account at all. Run plain `./bootstrap.sh` to go back.
 Point the app at a different daemon under Krog > Settings. Remote access over
 Tailscale lands in M2.
 
+## Installing on another Mac
+
+Krog is two pieces, and a friend needs both: the **app** (a window) and **Krog Core**
+(the daemon that keeps the bots and does the work). The core is not bundled into the
+app yet, so it installs separately and runs at login.
+
+What their Mac needs:
+
+- macOS 14 or newer. The app is universal (Apple silicon and Intel).
+- **Node 22+** for the core. The installer gets it through Homebrew if it is missing.
+- **One AI connection**: a Claude plan (needs Claude Code on that Mac —
+  `npm install -g @anthropic-ai/claude-code`) or an Anthropic API key. OpenAI, Codex,
+  DeepSeek, xAI and Grok can be added afterwards in Settings; each is either a key or
+  that vendor's CLI signed in.
+- **Docker Desktop, only for bots with a container screen.** Build the desktop once with
+  `docker build -t krog-desktop containers/desktop`. Bots without a screen, and bots set
+  to *This Mac*, need no Docker — but *This Mac* needs Screen Recording and Accessibility
+  granted to the process running the core, which for a login agent means `node`.
+
+Send them `Krog.zip` and `krog-core.tar.gz` from a build (`scripts/package.sh` makes
+both). They:
+
+```bash
+tar xzf krog-core.tar.gz && cd krog-core
+scripts/install-core.sh        # Node, dependencies, build, login agent — safe to re-run
+```
+
+then open the app. It looks for the core on this Mac; if the core is elsewhere, Settings
+> Krog Core takes an address, and a Tailscale name works.
+
+**Gatekeeper.** The app is signed to run locally, not with a Developer ID, so the first
+launch is refused as "not opened" — the fix is right-click > Open, or System Settings >
+Privacy & Security > Open Anyway, once. Removing that step means the Apple Developer
+Program and notarization; until then, say so when you send it.
+
 ## Verifying
 
 ```bash

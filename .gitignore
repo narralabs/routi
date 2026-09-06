@@ -12,3 +12,6 @@ apple/Local.xcconfig
 apple/*.xcodeproj/xcuserdata/
 apple/build/
 DerivedData/
+
+# Packaged artifacts
+build/

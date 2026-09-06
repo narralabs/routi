@@ -49,6 +49,11 @@ pnpm --filter krogd dev            # ws://127.0.0.1:7171, data in ~/.krog
 cd apple && ./bootstrap.sh && open Krog.xcodeproj
 ```
 
+To develop while a packaged core is serving your real bots on 7171, run the checkout as
+a second, isolated core instead: `pnpm --filter krogd dev:isolated` uses `~/.krog-dev`
+and port 7172, never reaps screens, and the Debug app points at it under Krog Core in
+Settings. The two share nothing but the Docker desktop.
+
 `bootstrap.sh` regenerates the Xcode project from `project.yml` (the `.xcodeproj` is
 disposable). By default it builds Mac only with ad-hoc signing, so a fresh clone runs
 with no Apple account at all.

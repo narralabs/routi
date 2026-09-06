@@ -12,7 +12,7 @@ struct OnboardingView: View {
         case welcome
         case connection   // Mac only: host here, or connect to another Mac
         case endpoint     // point at a remote krogd
-        case anthropic    // choose and complete a credential
+        case credential   // choose and complete a first connection
         case finishing
     }
 
@@ -29,16 +29,16 @@ struct OnboardingView: View {
                     WelcomeStep(onContinue: { advance(to: canHostLocally ? .connection : .endpoint) })
                 case .connection:
                     ConnectionStep(
-                        onHostHere: { advance(to: .anthropic) },
+                        onHostHere: { advance(to: .credential) },
                         onConnectRemote: { advance(to: .endpoint) }
                     )
                 case .endpoint:
                     EndpointStep(
                         onBack: { retreat(to: canHostLocally ? .connection : .welcome) },
-                        onConnected: { advance(to: model.auth.configured ? .finishing : .anthropic) }
+                        onConnected: { advance(to: model.auth.configured ? .finishing : .credential) }
                     )
-                case .anthropic:
-                    AnthropicStep(
+                case .credential:
+                    CredentialStep(
                         onBack: { retreat(to: canHostLocally ? .connection : .endpoint) },
                         onDone: { advance(to: .finishing) }
                     )

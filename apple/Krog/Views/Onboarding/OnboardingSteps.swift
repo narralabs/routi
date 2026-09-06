@@ -174,30 +174,37 @@ struct EndpointStep: View {
     }
 }
 
-// MARK: - Anthropic
+// MARK: - First connection
 
-struct AnthropicStep: View {
+/// The one connection Krog needs to start, from whichever of the four a person has.
+///
+/// This was Anthropic-only, which made the app unusable for someone with a ChatGPT plan
+/// and no Claude account — the daemon supports them; the first screen refused them.
+/// Accounts run through the vendor CLI's own sign-in on the Mac running the core; keys
+/// are checked against the live API before they are stored.
+struct CredentialStep: View {
     @Environment(AppModel.self) private var model
     let onBack: () -> Void
     let onDone: () -> Void
 
-    private enum Mode { case choosing, apiKey, signingIn }
+    private enum Choice: String, Identifiable {
+        case claude, anthropicKey, codex, openaiKey
+        var id: String { rawValue }
+    }
+    private enum Mode { case choosing, key(Choice), signingIn(Choice) }
+
     @State private var mode: Mode = .choosing
     @State private var apiKey = ""
     @State private var failure: String?
     @State private var isWorking = false
 
     var body: some View {
-        OnboardingScaffold(
-            icon: "brain",
-            title: "Connect Claude",
-            subtitle: subtitle
-        ) {
+        OnboardingScaffold(icon: "brain", title: "Connect an AI", subtitle: subtitle) {
             VStack(spacing: 12) {
                 switch mode {
                 case .choosing: choices
-                case .apiKey: apiKeyField
-                case .signingIn: signingIn
+                case .key: keyField
+                case .signingIn(let choice): signingIn(choice)
                 }
 
                 if let failure {
@@ -206,10 +213,10 @@ struct AnthropicStep: View {
                         .foregroundStyle(.red)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 420, alignment: .leading)
+                        .frame(maxWidth: 440, alignment: .leading)
                 }
             }
-            .frame(maxWidth: 440)
+            .frame(maxWidth: 460)
         } actions: {
             actions
         }
@@ -218,66 +225,94 @@ struct AnthropicStep: View {
     private var subtitle: String {
         switch mode {
         case .choosing:
-            return "Krog needs one AI connection to start. Use the Claude plan you already pay for, or an API key — OpenAI, Grok and others can be added later in Settings."
-        case .apiKey:
+            return "Krog needs one connection to start. Use a plan you already pay for, or an API key. More can be added later in Settings."
+        case .key(.anthropicKey):
             return "Paste a key from console.anthropic.com. It's stored in this Mac's Keychain, never in the app."
+        case .key:
+            return "Paste a key from platform.openai.com. It's stored in this Mac's Keychain, never in the app."
         case .signingIn:
-            return "Finish signing in with Anthropic in the browser window that just opened."
+            return "Finish signing in, in the browser window that just opened on the Mac running Krog."
         }
     }
 
     @ViewBuilder
     private var choices: some View {
-        let sub = model.auth.subscription
+        let claude = model.auth.subscription
+        let codex = model.auth.provider("openai-codex")?.cli
 
         OptionCard(
             icon: "person.crop.circle.badge.checkmark",
-            title: sub.loggedIn ? "Continue with \(sub.planLabel)" : "Use my Claude account",
-            detail: sub.loggedIn
+            title: claude.loggedIn ? "Continue with \(claude.planLabel)" : "Use my Claude account",
+            detail: claude.loggedIn
                 ? "Already signed in on this Mac. No extra cost — it uses the plan you have."
                 : "Opens Anthropic in your browser to sign in. No per-token billing.",
-            badge: sub.loggedIn ? sub.email : nil,
+            badge: claude.loggedIn ? claude.email : nil,
             isRecommended: true,
-            action: signInWithClaude
+            action: { signIn(.claude) }
         )
-
+        OptionCard(
+            icon: "person.crop.circle",
+            title: codex?.loggedIn == true ? "Continue with my ChatGPT account" : "Use my ChatGPT account",
+            detail: codex?.loggedIn == true
+                ? "Already signed in on this Mac through Codex. No per-token billing."
+                : "Opens OpenAI in your browser to sign in through Codex. No per-token billing.",
+            badge: codex?.loggedIn == true ? codex?.account : nil,
+            action: { signIn(.codex) }
+        )
         OptionCard(
             icon: "key.horizontal",
             title: "Use an Anthropic API key",
-            detail: "Billed per token against your Anthropic account. Good if you don't have a Claude plan.",
-            action: { withAnimation { mode = .apiKey; failure = nil } }
+            detail: "Billed per token against your Anthropic account.",
+            action: { withAnimation { mode = .key(.anthropicKey); failure = nil } }
+        )
+        OptionCard(
+            icon: "key.horizontal",
+            title: "Use an OpenAI API key",
+            detail: "Billed per token against your OpenAI account.",
+            action: { withAnimation { mode = .key(.openaiKey); failure = nil } }
         )
 
-        if !sub.cliInstalled {
-            // The account option depends on the Claude Code CLI being present, so say
-            // so up front rather than failing after the click.
-            Label(
-                "Signing in with a Claude account needs Claude Code on this Mac. Install it with `npm install -g @anthropic-ai/claude-code`.",
-                systemImage: "info.circle"
-            )
-            .font(.system(size: 11.5))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 4)
+        // Each account option depends on that vendor's CLI being present, so say so up
+        // front rather than failing after the click.
+        VStack(alignment: .leading, spacing: 4) {
+            if !claude.cliInstalled {
+                Label("A Claude account needs Claude Code on this Mac: `npm install -g @anthropic-ai/claude-code`.", systemImage: "info.circle")
+            }
+            if codex?.installed != true {
+                Label("A ChatGPT account needs Codex on this Mac: `npm install -g @openai/codex`.", systemImage: "info.circle")
+            }
         }
+        .font(.system(size: 11.5))
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, 4)
     }
 
-    private var apiKeyField: some View {
+    private var keyField: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SecureField("sk-ant-…", text: $apiKey)
+            SecureField(isAnthropicKey ? "sk-ant-…" : "sk-…", text: $apiKey)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 13, design: .monospaced))
-                .onSubmit(submitApiKey)
-
-            Link("Get a key at console.anthropic.com", destination: URL(string: "https://console.anthropic.com/settings/keys")!)
-                .font(.system(size: 12))
+                .onSubmit(submitKey)
+            Link(
+                isAnthropicKey ? "Get a key at console.anthropic.com" : "Get a key at platform.openai.com",
+                destination: URL(string: isAnthropicKey
+                    ? "https://console.anthropic.com/settings/keys"
+                    : "https://platform.openai.com/api-keys")!
+            )
+            .font(.system(size: 12))
         }
     }
 
-    private var signingIn: some View {
+    private var isAnthropicKey: Bool {
+        if case .key(.anthropicKey) = mode { return true }
+        return false
+    }
+
+    private func signingIn(_ choice: Choice) -> some View {
         VStack(spacing: 14) {
             ProgressView().controlSize(.large)
-            Text("Waiting for you to approve in the browser…")
+            Text(choice == .claude ? "Waiting for you to approve with Anthropic…" : "Waiting for you to approve with OpenAI…")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
             #if !os(macOS)
@@ -295,12 +330,11 @@ struct AnthropicStep: View {
         switch mode {
         case .choosing:
             Button("Back", action: onBack).controlSize(.large)
-
-        case .apiKey:
+        case .key:
             HStack(spacing: 12) {
                 Button("Back") { withAnimation { mode = .choosing; failure = nil } }
                     .controlSize(.large)
-                Button(action: submitApiKey) {
+                Button(action: submitKey) {
                     if isWorking {
                         ProgressView().controlSize(.small).frame(maxWidth: 200)
                     } else {
@@ -312,20 +346,23 @@ struct AnthropicStep: View {
                 .disabled(apiKey.isEmpty || isWorking)
                 .keyboardShortcut(.defaultAction)
             }
-
         case .signingIn:
             Button("Cancel") { withAnimation { mode = .choosing; isWorking = false } }
                 .controlSize(.large)
         }
     }
 
-    private func signInWithClaude() {
+    private func signIn(_ choice: Choice) {
         failure = nil
         isWorking = true
-        withAnimation { mode = .signingIn }
+        withAnimation { mode = .signingIn(choice) }
         Task {
             do {
-                try await model.signInWithClaude()
+                if choice == .claude {
+                    try await model.signInWithClaude()
+                } else {
+                    try await model.providerLogin("openai-codex")
+                }
                 onDone()
             } catch {
                 isWorking = false
@@ -335,13 +372,17 @@ struct AnthropicStep: View {
         }
     }
 
-    private func submitApiKey() {
+    private func submitKey() {
         guard !apiKey.isEmpty else { return }
         failure = nil
         isWorking = true
         Task {
             do {
-                try await model.setApiKey(apiKey)
+                if isAnthropicKey {
+                    try await model.setApiKey(apiKey)
+                } else {
+                    _ = try await model.providerSetApiKey("openai", key: apiKey)
+                }
                 onDone()
             } catch {
                 isWorking = false
@@ -395,9 +436,13 @@ struct FinishingStep: View {
     private var summary: String {
         let auth = model.auth
         if auth.mode == "api_key" { return "Connected to Claude with your API key." }
-        if let email = auth.subscription.email {
+        if auth.mode == "subscription", let email = auth.subscription.email {
             return "Connected as \(email) on \(auth.subscription.planLabel)."
         }
-        return "Connected to Claude."
+        if let codex = auth.provider("openai-codex"), codex.configured {
+            return codex.mode == "api_key" ? "Connected to OpenAI with your API key." : "Connected with your ChatGPT account."
+        }
+        if auth.provider("openai")?.configured == true { return "Connected to OpenAI with your API key." }
+        return "You're connected."
     }
 }

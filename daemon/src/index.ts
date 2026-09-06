@@ -64,8 +64,14 @@ async function main(): Promise<void> {
   const status = await auth.status()
   console.log(`krogd listening on ws://${HOST}:${PORT}  (data: ${DATA_DIR})`)
   // Screens whose bot has gone hold a display and a browser for nothing.
-  const reaped = await desktops.reapOrphans(new Set(store.listBots(true).map((b) => b.id)))
-  if (reaped > 0) console.log(`reaped ${reaped} orphaned screen(s)`)
+  // Only the core on the default data dir reaps. Screens live in one shared container
+  // and are named by bot; a second core pointed at another data dir — a development
+  // one, say — has none of the real bots in its database and would stop every screen
+  // the real core is using. It did, once.
+  if (!process.env['KROG_DATA_DIR']) {
+    const reaped = await desktops.reapOrphans(new Set(store.listBots(true).map((b) => b.id)))
+    if (reaped > 0) console.log(`reaped ${reaped} orphaned screen(s)`)
+  }
 
   console.log(scheduler.summary())
   console.log(

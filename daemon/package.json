@@ -14,7 +14,8 @@
     "poke": "tsx scripts/poke.ts",
     "spike:isolation": "tsx scripts/spike-isolation.ts",
     "spike:grok": "tsx scripts/spike-grok.ts",
-    "parity": "tsx scripts/parity.ts"
+    "parity": "tsx scripts/parity.ts",
+    "dev:isolated": "KROG_DATA_DIR=$HOME/.krog-dev KROG_PORT=7172 tsx watch src/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.261",

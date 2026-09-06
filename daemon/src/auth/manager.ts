@@ -14,7 +14,7 @@ import { GrokCli } from './grok-cli.js'
 import { Credentials } from './credentials.js'
 
 export interface AuthStatus {
-  /** True once a provider can actually reach Anthropic. Gates onboarding. */
+  /** True once any provider has a working credential. Gates onboarding. */
   configured: boolean
   mode: AuthMode | null
   subscription: {
@@ -88,11 +88,28 @@ export class AuthManager {
 
     // A stored mode only counts if its credential still works — a signed-out CLI or
     // a deleted keychain item should send the user back through onboarding.
-    const configured =
+    const anthropicConfigured =
       (mode === 'subscription' && subscriptionUsable) || (mode === 'api_key' && apiUsable)
 
+    const providers: Record<string, ProviderAuth> = {
+      openai: await this.openAiStatus('openai'),
+      'openai-codex': await this.openAiStatus('openai-codex'),
+      'xai-grok': await this.grokStatus(),
+      // Everything that speaks OpenAI's chat API: one shape, key only.
+      ...Object.fromEntries(
+        await Promise.all(
+          Object.keys(COMPATIBLE_PROVIDERS).map(
+            async (id) => [id, await this.keyOnlyStatus(id)] as const,
+          ),
+        ),
+      ),
+    }
+
     return {
-      configured,
+      // Set up means one working connection to anything. It used to mean Anthropic,
+      // which made a person with a ChatGPT plan and no Claude account unable to get
+      // past the first screen of an app that supports them perfectly well.
+      configured: anthropicConfigured || Object.values(providers).some((p) => p.configured),
       mode,
       subscription: {
         cliInstalled: cliStatus.installed,
@@ -103,19 +120,7 @@ export class AuthManager {
         subscriptionType: cliStatus.subscriptionType,
       },
       apiKey: { present: apiUsable },
-      providers: {
-        openai: await this.openAiStatus('openai'),
-        'openai-codex': await this.openAiStatus('openai-codex'),
-        'xai-grok': await this.grokStatus(),
-        // Everything that speaks OpenAI's chat API: one shape, key only.
-        ...Object.fromEntries(
-          await Promise.all(
-            Object.keys(COMPATIBLE_PROVIDERS).map(
-              async (id) => [id, await this.keyOnlyStatus(id)] as const,
-            ),
-          ),
-        ),
-      },
+      providers,
     }
   }
 

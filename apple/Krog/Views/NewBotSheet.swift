@@ -106,6 +106,14 @@ struct NewBotSheet: View {
             .padding(.horizontal, 22)
             .padding(.top, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // The default is Anthropic by habit; a person who connected something
+            // else should not open on a provider with no models in it.
+            .onAppear {
+                if !model.availableProviders.contains(selectedProvider),
+                   let first = model.availableProviders.first {
+                    selectedProvider = first
+                }
+            }
             .onChange(of: selectedProvider) { _, new in
                 // A provider that cannot drive a screen should not appear to offer one.
                 if !model.supportsScreen(new) { surfaceMode = .none }

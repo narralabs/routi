@@ -10,6 +10,9 @@ class RoutiCore < Formula
   homepage "https://github.com/narralabs/routi"
   url "https://github.com/narralabs/routi/releases/download/v0.1.0/routi-core.tar.gz"
   sha256 "REPLACE_WITH_THE_RELEASE_SHA256"
+  # Declared, because the asset is named routi-core.tar.gz on every release and
+  # Homebrew reads versions from file names.
+  version "0.1.0"
   license "Apache-2.0"
 
   depends_on "node@22"

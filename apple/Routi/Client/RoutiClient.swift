@@ -56,10 +56,27 @@ final class RoutiClient: NSObject {
     }
 
     func updateEndpoint(host: String, port: Int) {
-        guard host != self.host || port != self.port else { return }
+        // The same address typed again is a request to try it again, not a no-op —
+        // onboarding's Connect button would otherwise sit through its whole wait.
+        guard host != self.host || port != self.port else {
+            if state != .connected { reconnect(immediately: true) }
+            return
+        }
         self.host = host
         self.port = port
         reconnect(immediately: true)
+    }
+
+    /// Tries now instead of at the end of the backoff.
+    ///
+    /// The backoff climbs to fifteen seconds, which is right for a phone that lost
+    /// Wi-Fi and wrong for a screen that is watching for an installer to finish: the
+    /// core comes up, and the app should notice in a beat, not a quarter minute.
+    func connectNow() {
+        guard !isStopped, state == .disconnected else { return }
+        reconnectTask?.cancel()
+        attempt = 0
+        connect()
     }
 
     // MARK: - Lifecycle

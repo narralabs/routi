@@ -30,6 +30,27 @@ it — including the phone, which is the same app over a different network path.
 Because clients never talk to a vendor, a provider is a daemon-side adapter and nothing
 else changes.
 
+### What the app does at launch
+
+The app starts connecting the moment it opens, and the first screen depends on whether
+this device has been through setup (`hasCompletedSetup` in its defaults):
+
+- **Never set up** — setup opens at once, before any connection; the window stays empty
+  for the few hundred milliseconds a local port takes to answer or refuse, so the
+  welcome screen is not shown only to be replaced. *Get Started* then reads the socket:
+  a core that answered goes to the credential step (or straight to the finish if it
+  already holds one); no core on a Mac asks whether to install one here — the
+  one-line installer, watching the port until the core appears — or to point at
+  another Mac; a phone can only point.
+- **Set up before** — connect quietly. A refused port shows "Routi Core isn't running"
+  immediately, with the installer, not after a timer; only a wait that is felt gets a
+  spinner. Both no-core screens knock on the port every two seconds so the app moves
+  on within a beat of the installer finishing.
+
+Finding a core that already has a credential marks the device set up, so an app
+reinstalled on a working Mac lands in the chat. The saved host and port are read at
+launch — the client is constructed from them, not from the defaults in its signature.
+
 ## Running from source
 
 Node 22+ and pnpm (the version is pinned in `package.json`; `corepack` honours it).

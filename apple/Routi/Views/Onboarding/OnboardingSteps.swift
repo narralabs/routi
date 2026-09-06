@@ -64,34 +64,75 @@ private struct FeatureRow: View {
 
 // MARK: - Where does the core run
 
+/// Reached only when no core answered on this Mac, so the local choice is to install
+/// one rather than to use one.
 struct ConnectionStep: View {
-    let onHostHere: () -> Void
+    let onInstallHere: () -> Void
     let onConnectRemote: () -> Void
 
     var body: some View {
         OnboardingScaffold(
             icon: "externaldrive.connected.to.line.below",
             title: "Where should Routi run?",
-            subtitle: "Routi's core keeps your bots, conversations, and AI connections. It needs a Mac that stays on."
+            subtitle: "Routi Core keeps your bots, conversations, and AI connections, and does the work. It needs a Mac that stays on."
         ) {
             VStack(spacing: 12) {
                 OptionCard(
                     icon: "desktopcomputer",
-                    title: "Use the core on this Mac",
-                    detail: "It's already running here. Best if this is the machine that stays awake; your phone can connect to it later.",
+                    title: "Install Routi Core on this Mac",
+                    detail: "One command in Terminal. Best if this is the machine that stays awake; your phone can connect to it later.",
                     isRecommended: true,
-                    action: onHostHere
+                    action: onInstallHere
                 )
                 OptionCard(
                     icon: "network",
                     title: "Connect to another Mac",
-                    detail: "Routi is already running somewhere else — your Mac mini, or a server.",
+                    detail: "Routi Core is already running somewhere else — your Mac mini, or a server.",
                     action: onConnectRemote
                 )
             }
             .frame(maxWidth: 420)
         } actions: {
             EmptyView()
+        }
+    }
+}
+
+// MARK: - Install the core here
+
+/// The install command, and a watch on the port.
+///
+/// There is nothing to press to continue: the app keeps trying the port while the
+/// installer runs, and moves on the moment the core answers. The one thing a person
+/// does here is paste a line into Terminal, so that is the one thing on the screen.
+struct InstallStep: View {
+    @Environment(AppModel.self) private var model
+    let onBack: () -> Void
+    let onConnected: () -> Void
+
+    var body: some View {
+        OnboardingScaffold(
+            icon: "terminal",
+            title: "Install Routi Core",
+            subtitle: "Paste this into Terminal. It installs the core and starts it at every login. Claude Code and Codex come with it; nothing else to install."
+        ) {
+            VStack(spacing: 18) {
+                InstallCommand()
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Waiting for the core to start… this screen moves on by itself.")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: 460)
+        } actions: {
+            Button("Back", action: onBack)
+                .controlSize(.large)
+        }
+        .task { await model.watchForCore() }
+        .onChange(of: model.connection, initial: true) { _, state in
+            if state == .connected { onConnected() }
         }
     }
 }

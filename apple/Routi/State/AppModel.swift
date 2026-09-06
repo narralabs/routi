@@ -69,23 +69,59 @@ final class AppModel {
     var authKnown = false
     private var onboardingDismissed = false
 
+    /// True once a connection attempt has come back refused or dropped. The client
+    /// starts out disconnected too, so the state alone cannot say "tried and failed";
+    /// this can, and it is what lets the no-core screen appear the moment the port
+    /// refuses instead of after a timer.
+    var connectionFailed = false
+
+    /// Whether this device has been through setup once. Kept on the device, not the
+    /// core: the question it answers is "has this app ever found a core", which is
+    /// exactly the thing a fresh install cannot ask a core about.
+    private(set) var hasCompletedSetup = UserDefaults.standard.bool(forKey: "hasCompletedSetup")
+
     /// Setup is done when the daemon has a working credential and, on a first run,
     /// the user has seen the closing step.
+    ///
+    /// A first launch on this device goes into setup before any connection exists —
+    /// setup is where installing the core, or pointing at one, is offered — so that
+    /// a spinner is never the first thing a new person sees.
     var needsOnboarding: Bool {
+        if !hasCompletedSetup && !authKnown { return true }
         guard authKnown else { return false }
         return !auth.configured || !onboardingDismissed
     }
+
+    /// The first few hundred milliseconds of a first launch, while the socket is
+    /// deciding between a core that answers and a port that refuses. Either lands
+    /// well inside this on a Mac, and showing the welcome screen only to swap it for
+    /// the chat a frame later would be a flash — so the window stays empty until
+    /// the answer is in, or the wait has been long enough that it is worth a screen.
+    private(set) var isSettling = false
 
     @ObservationIgnored private let client: RoutiClient
 
     // Default arguments are evaluated in a nonisolated context, so the client is
     // constructed inside the initializer rather than in the signature.
     init(client: RoutiClient? = nil) {
-        let client = client ?? RoutiClient()
+        // The address lives in defaults (Settings → Routi Core writes it), and the
+        // client has to start from it: a host set once used to hold until the next
+        // launch, when the app quietly went back to this Mac.
+        let defaults = UserDefaults.standard
+        let storedPort = defaults.integer(forKey: "daemonPort")
+        let client = client ?? RoutiClient(
+            host: defaults.string(forKey: "daemonHost") ?? "127.0.0.1",
+            port: storedPort == 0 ? 7171 : storedPort
+        )
         self.client = client
         client.onStateChange = { [weak self] state in
             guard let self else { return }
             self.connection = state
+            switch state {
+            case .connected: self.connectionFailed = false; self.isSettling = false
+            case .disconnected: self.connectionFailed = true; self.isSettling = false
+            case .connecting: break
+            }
             if state == .connected {
                 Task {
                     await self.refreshAuth()
@@ -97,8 +133,12 @@ final class AppModel {
             guard let self else { return }
             self.auth = status
             self.authKnown = true
-            // A daemon that already has a credential shouldn't re-run setup.
-            if status.configured { self.onboardingDismissed = true }
+            // A daemon that already has a credential shouldn't re-run setup — an app
+            // reinstalled on a Mac that was set up before lands straight in the chat.
+            if status.configured {
+                self.onboardingDismissed = true
+                self.markSetupComplete()
+            }
         }
         client.onEvent = { [weak self] event in
             self?.apply(event)
@@ -166,11 +206,33 @@ final class AppModel {
     }
 
     func start() {
+        if !hasCompletedSetup {
+            isSettling = true
+            Task {
+                try? await Task.sleep(for: .milliseconds(400))
+                isSettling = false
+            }
+        }
         client.connect()
     }
 
     func updateEndpoint(host: String, port: Int) {
         client.updateEndpoint(host: host, port: port)
+    }
+
+    /// Retries the core without waiting out the backoff. For screens that are
+    /// watching for one to appear.
+    func connectNow() {
+        client.connectNow()
+    }
+
+    /// Keeps knocking on the port every couple of seconds until the view goes away.
+    /// For the screens that exist because there is no core yet.
+    func watchForCore() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(2))
+            if connection == .disconnected { connectNow() }
+        }
     }
 
     /// The whole thread as text, labelled by speaker.
@@ -464,6 +526,13 @@ final class AppModel {
 
     func completeOnboarding() {
         onboardingDismissed = true
+        markSetupComplete()
+    }
+
+    private func markSetupComplete() {
+        guard !hasCompletedSetup else { return }
+        hasCompletedSetup = true
+        UserDefaults.standard.set(true, forKey: "hasCompletedSetup")
     }
 
     // MARK: - Loading

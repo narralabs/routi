@@ -22,6 +22,7 @@
 		5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */; };
 		7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5427100A411FDE8FAC97666 /* OnboardingSteps.swift */; };
 		7EA963BE5E76CFC3CE262D08 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 46A9147FFCAF8A5BE1C24F7B /* Assets.xcassets */; };
+		87FC4C93BBFD139AA2A0F595 /* InstallCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CC49000AD0941F4B4E281A /* InstallCommand.swift */; };
 		8C1FB2AFAB34503F6F28467B /* ScreenWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C419477237E8F8F539AB6D /* ScreenWindow.swift */; };
 		8E79CDC70EF57C2C8B2B4694 /* RoutiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366F6379C430E013241DB531 /* RoutiClient.swift */; };
 		92ECCE6EDA5BDDF9C5B0CBEF /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */; };
@@ -54,6 +55,7 @@
 		5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
 		75ECC9B53C46B40DF50283ED /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
 		85E91F8038F61343E3273FD7 /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
+		87CC49000AD0941F4B4E281A /* InstallCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallCommand.swift; sourceTree = "<group>"; };
 		97647FF55564F4B40332D6CA /* Routi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Routi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F745F0678DD8714864203C0 /* Handover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Handover.swift; sourceTree = "<group>"; };
 		A0128A80F54B6560A538AC1C /* ScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenView.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 				EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */,
 				75ECC9B53C46B40DF50283ED /* Composer.swift */,
 				12E2F25951C19F693EF8EE16 /* HandoverCard.swift */,
+				87CC49000AD0941F4B4E281A /* InstallCommand.swift */,
 				EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */,
 				DB45665E5E45F01F8945DBB6 /* MessageRow.swift */,
 				A0128A80F54B6560A538AC1C /* ScreenView.swift */,
@@ -295,6 +298,7 @@
 				22565DA9110228003E0B6A11 /* Entities.swift in Sources */,
 				CC0218F546FFF1FC732BBBCB /* Handover.swift in Sources */,
 				AEEE9600AFA8BA8AA7B788BF /* HandoverCard.swift in Sources */,
+				87FC4C93BBFD139AA2A0F595 /* InstallCommand.swift in Sources */,
 				92ECCE6EDA5BDDF9C5B0CBEF /* MarkdownText.swift in Sources */,
 				DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */,
 				5AC5D791694CFB6FB3A4DAC1 /* ModelName.swift in Sources */,

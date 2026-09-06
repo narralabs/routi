@@ -10,7 +10,8 @@ struct OnboardingView: View {
 
     enum Step {
         case welcome
-        case connection   // Mac only: host here, or connect to another Mac
+        case connection   // Mac only, no core found: install here, or connect to another Mac
+        case install      // the install command, watching the port for the core to appear
         case endpoint     // point at a remote routid
         case credential   // choose and complete a first connection
         case finishing
@@ -26,20 +27,25 @@ struct OnboardingView: View {
             Group {
                 switch step {
                 case .welcome:
-                    WelcomeStep(onContinue: { advance(to: canHostLocally ? .connection : .endpoint) })
+                    WelcomeStep(onContinue: { advance(to: afterWelcome) })
                 case .connection:
                     ConnectionStep(
-                        onHostHere: { advance(to: .credential) },
+                        onInstallHere: { advance(to: .install) },
                         onConnectRemote: { advance(to: .endpoint) }
+                    )
+                case .install:
+                    InstallStep(
+                        onBack: { retreat(to: .connection) },
+                        onConnected: { advance(to: afterConnecting) }
                     )
                 case .endpoint:
                     EndpointStep(
                         onBack: { retreat(to: canHostLocally ? .connection : .welcome) },
-                        onConnected: { advance(to: model.auth.configured ? .finishing : .credential) }
+                        onConnected: { advance(to: afterConnecting) }
                     )
                 case .credential:
                     CredentialStep(
-                        onBack: { retreat(to: canHostLocally ? .connection : .endpoint) },
+                        onBack: { retreat(to: canHostLocally ? .welcome : .endpoint) },
                         onDone: { advance(to: .finishing) }
                     )
                 case .finishing:
@@ -53,6 +59,24 @@ struct OnboardingView: View {
         }
         .frame(minWidth: 560, minHeight: 560)
         .animation(.snappy(duration: 0.28), value: step)
+    }
+
+    /// Where "Get Started" leads depends on what the socket has already found.
+    ///
+    /// The app starts connecting the moment it launches, and a port on this Mac
+    /// answers or refuses in milliseconds — so by the time anyone reads the welcome
+    /// screen, the answer is in. A core that is up goes straight to the credential
+    /// (or, if it already has one, to the finish); no core on a Mac asks where it
+    /// should run; a phone can only ever be pointed at one.
+    private var afterWelcome: Step {
+        if model.connection == .connected { return afterConnecting }
+        return canHostLocally ? .connection : .endpoint
+    }
+
+    /// A core that already holds a credential — an app reinstalled on a Mac that was
+    /// set up before — has nothing to ask about AI.
+    private var afterConnecting: Step {
+        model.auth.configured ? .finishing : .credential
     }
 
     /// Only a Mac can run the daemon; a phone always connects to one.

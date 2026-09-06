@@ -31,11 +31,17 @@ struct RootView: View {
         @Bindable var model = model
 
         Group {
-            if !model.authKnown {
-                // Neither onboarding nor chat is correct until the handshake lands.
-                ConnectingView()
+            if model.isSettling {
+                // A first launch, for the few hundred milliseconds it takes the port
+                // to answer or refuse. Nothing yet beats a screen that is replaced.
+                Color.clear
             } else if model.needsOnboarding {
+                // Setup comes first on a fresh install — before any connection, since
+                // finding or installing a core is what setup is for.
                 OnboardingView()
+            } else if !model.authKnown {
+                // Neither chat nor an error is correct until the handshake lands.
+                ConnectingView()
             } else if model.isShowingScreen {
                 ScreenWindow()
             } else {
@@ -44,6 +50,7 @@ struct RootView: View {
         }
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
         .animation(.snappy(duration: 0.3), value: model.authKnown)
+        .animation(.snappy(duration: 0.3), value: model.isSettling)
         .animation(.snappy(duration: 0.25), value: model.isShowingScreen)
         .task { model.start() }
     }
@@ -106,9 +113,12 @@ struct RootView: View {
     }
 }
 
-/// Shown between launch and the first handshake — and, when that never comes, the
-/// only screen a person without a running core will ever see, so it has to say what
-/// to do rather than ask a question they cannot answer.
+/// Shown between launch and the first handshake on a device that has been set up.
+///
+/// A spinner only while the socket is genuinely in flight. A refused port comes back
+/// in milliseconds on this Mac, and the moment it does this says so — with the way to
+/// bring the core back — rather than spinning through a timer first. It keeps trying
+/// underneath, so it leaves by itself once the core answers.
 private struct ConnectingView: View {
     @Environment(AppModel.self) private var model
     @AppStorage("daemonHost") private var host = "127.0.0.1"
@@ -118,14 +128,14 @@ private struct ConnectingView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            if slow {
+            if model.connectionFailed {
                 Image(systemName: "externaldrive.badge.xmark")
                     .font(.system(size: 34, weight: .light))
                     .foregroundStyle(.secondary)
                 Text(isLocal ? "Routi Core isn't running on this Mac" : "Can't reach Routi Core at \(host)")
                     .font(.system(size: 15, weight: .semibold))
                 Text(isLocal
-                     ? "The app is a window onto the core, which keeps your bots and does the work. Install it with the command below; this screen carries on by itself once the core answers."
+                     ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; this screen carries on by itself once the core answers."
                      : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works.")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
@@ -137,50 +147,21 @@ private struct ConnectingView: View {
                 Button("Connect to a different Mac…") { model.isShowingSettings = true }
                     .controlSize(.small)
                     .padding(.top, 4)
-            } else {
+            } else if slow {
                 ProgressView().controlSize(.large)
-                Text("Connecting to Routi…")
+                Text("Connecting to Routi Core…")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
         }
         .frame(minWidth: 460, minHeight: 320)
+        .animation(.snappy(duration: 0.25), value: model.connectionFailed)
+        .task { await model.watchForCore() }
         .task {
-            try? await Task.sleep(for: .seconds(4))
+            // A local core answers before a spinner could be seen; only a wait that
+            // is actually felt — a remote host, a slow network — gets one.
+            try? await Task.sleep(for: .milliseconds(400))
             slow = true
         }
-    }
-}
-
-
-/// The install one-liner, shown where a person with no core will actually read it.
-///
-/// Copyable, because the whole point of a one-liner is not retyping it. The app keeps
-/// trying the port underneath, so the moment the installer finishes, this screen goes.
-private struct InstallCommand: View {
-    static let command = "curl -fsSL https://raw.githubusercontent.com/narralabs/routi/main/scripts/install.sh | sh"
-    @State private var copied = false
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(Self.command)
-                .font(.system(size: 12, design: .monospaced))
-                .textSelection(.enabled)
-                .lineLimit(1)
-            Button(copied ? "Copied" : "Copy") {
-                #if os(macOS)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(Self.command, forType: .string)
-                #endif
-                copied = true
-                Task { try? await Task.sleep(for: .seconds(2)); copied = false }
-            }
-            .controlSize(.small)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.background.secondary, in: .rect(cornerRadius: 8, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(.separator, lineWidth: 0.5) }
-        .padding(.top, 2)
     }
 }

@@ -136,6 +136,7 @@ struct ChatView: View {
                 guard let scroll = note.object as? NSScrollView, scroll === scrollView else { return }
                 isUserScrolling = true
                 gestureStartOffset = scroll.contentView.bounds.origin.y
+                reportLanding("gesture began")
             }
             .onReceive(NotificationCenter.default.publisher(for: NSScrollView.didLiveScrollNotification)) { note in
                 guard (note.object as? NSScrollView) === scrollView else { return }
@@ -145,6 +146,7 @@ struct ChatView: View {
                 guard (note.object as? NSScrollView) === scrollView else { return }
                 isUserScrolling = false
                 isPinned = readerIsAtEnd
+                reportLanding("gesture ended, pinned=\(isPinned)")
             }
             /// Follows a reply as it streams, but only for a reader who is at the end.
             /// A reply grows inside a message that already exists, so no count changes
@@ -189,7 +191,14 @@ struct ChatView: View {
              * is the only version of this that survives both.
              */
             .task(id: model.selectedConversationID) {
+                // The previous conversation's gesture ends with it. A drag that was
+                // still in flight when the sidebar was clicked leaves this set, and a
+                // set flag means every pin from here on quietly does nothing — which is
+                // a transcript that never scrolls anywhere, on a view whose offset
+                // belongs to the conversation before it.
+                isUserScrolling = false
                 isPinned = true
+                reportLanding("opening")
                 await settleAtEnd(proxy)
 
                 // Watch a little longer, because the failure that survived four fixes

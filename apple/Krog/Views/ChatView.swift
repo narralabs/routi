@@ -191,6 +191,23 @@ struct ChatView: View {
             .task(id: model.selectedConversationID) {
                 isPinned = true
                 await settleAtEnd(proxy)
+
+                // Watch a little longer, because the failure that survived four fixes
+                // was a blank window that reported itself as correctly scrolled. If the
+                // view is still empty, ask for the layout again rather than leaving the
+                // reader with a scroll bar and nothing to read.
+                for _ in 0..<6 {
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled, model.selectedBotID == bot.id else { return }
+                    if isPinned, !isUserScrolling, !viewportHasContent {
+                        reportLanding("blank — asking again")
+                        proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+                        try? await Task.sleep(for: .milliseconds(32))
+                        pinToEnd(proxy)
+                    }
+                }
+                guard !Task.isCancelled, model.selectedBotID == bot.id else { return }
+                reportLanding("after watching")
             }
             .onAppear {
                 isPinned = true
@@ -356,9 +373,73 @@ struct ChatView: View {
             let landed = distanceFromEnd < 1
             stable = (landed && abs(height - lastHeight) < 0.5) ? stable + 1 : 0
             lastHeight = height
-            if stable >= 3, height > 0, !model.isLoadingMessages { return }
+            // Landing is not enough. A view can sit exactly at the end of a transcript
+            // that has laid nothing out — the right offset over a blank window — and
+            // every version of this that shipped believed that was success.
+            if stable >= 3, height > 0, !model.isLoadingMessages, viewportHasContent {
+                reportLanding("settled")
+                return
+            }
             try? await Task.sleep(for: .milliseconds(32))
         }
+        reportLanding("gave up")
+    }
+
+    /**
+     How many points of the visible area actually have something drawn in them.
+
+     The number that matters, and the one an offset cannot tell you: the view can be
+     exactly at the end of a transcript that has laid nothing out, which is a blank
+     window with a correct scroll position. Walks only the realized views, which in a
+     lazy stack is a screenful.
+     */
+    private func viewportCoverage() -> CGFloat {
+        guard let scroll = scrollView, let document = scroll.documentView else { return 0 }
+        let visible = scroll.contentView.bounds
+        var covered: CGFloat = 0
+        func walk(_ view: NSView) {
+            if view.subviews.isEmpty {
+                let frame = view.convert(view.bounds, to: scroll.contentView)
+                let hit = frame.intersection(CGRect(origin: .zero, size: visible.size))
+                if hit.width > 4 && hit.height > 4 { covered += hit.height }
+            }
+            for sub in view.subviews { walk(sub) }
+        }
+        walk(document)
+        return min(covered, visible.height)
+    }
+
+    /// Whether the transcript has drawn enough to be worth looking at.
+    ///
+    /// Only asked of a transcript with enough in it to fill the window: a two-line
+    /// conversation covers a fraction of the view and is perfectly correct, and treating
+    /// that as a failure would keep the settle running — and re-laying the thread out —
+    /// for its full two and a half seconds every time one was opened.
+    private var viewportHasContent: Bool {
+        guard let scroll = scrollView else { return true }
+        if model.messages.isEmpty { return true }
+        let visible = scroll.contentView.bounds.height
+        guard (scroll.documentView?.frame.height ?? 0) > visible else { return true }
+        return viewportCoverage() > visible / 2
+    }
+
+    /**
+     Says where the transcript actually ended up, when asked to.
+
+     Set `KROG_SCROLL_DEBUG=1` and run the app from a terminal. Screenshots and probes
+     both failed to explain a transcript that opened blank on one conversation and not
+     another; this is the app answering for itself. Coverage is the number that matters —
+     an offset can be right while nothing is drawn there.
+     */
+    private func reportLanding(_ stage: String) {
+        guard ProcessInfo.processInfo.environment["KROG_SCROLL_DEBUG"] == "1",
+              let scroll = scrollView else { return }
+        let visible = scroll.contentView.bounds
+        print("[scroll] \(stage) bot=\(bot.name) msgs=\(model.messages.count) loading=\(model.isLoadingMessages) "
+            + "height=\(Int(scroll.documentView?.frame.height ?? 0)) offset=\(Int(visible.origin.y)) "
+            + "end=\(Int(endOffset(of: scroll))) distance=\(Int(distanceFromEnd)) "
+            + "covered=\(Int(viewportCoverage()))/\(Int(visible.height))")
+        fflush(stdout)
     }
     #endif
 

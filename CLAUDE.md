@@ -1,7 +1,7 @@
 # Routi Bot — working notes
 
-Read `README.md` for what the product is. This file is the map of the parts that are
-expensive to rediscover.
+Read `README.md` for what the product is and `docs/ENGINEERING.md` for how it is built
+and released. This file is the map of the parts that are expensive to rediscover.
 
 ## Layout
 

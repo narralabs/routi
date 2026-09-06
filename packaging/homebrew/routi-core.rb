@@ -39,6 +39,12 @@ class RoutiCore < Formula
   end
 
   test do
-    assert_match "routid", shell_output("#{bin}/routid --help 2>&1", 1)
+    # The daemon has no --help; starting it is the test, on a port of its own.
+    port = free_port
+    pid = spawn({ "ROUTI_PORT" => port.to_s, "ROUTI_DATA_DIR" => testpath/"data" }, bin/"routid")
+    sleep 4
+    assert_match "ok", shell_output("curl -s http://127.0.0.1:#{port}/")
+  ensure
+    Process.kill("TERM", pid) if pid
   end
 end

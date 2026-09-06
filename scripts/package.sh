@@ -41,14 +41,19 @@ rm -f "$out/Routi.zip"
 ditto -c -k --keepParent "$app" "$out/Routi.zip"
 
 if [ -n "$identity" ]; then
-  if xcrun notarytool history --keychain-profile routi-notary >/dev/null 2>&1; then
+  # The credentials profile: the current name, or the one from before the rename.
+  profile=""
+  for candidate in routi-notary krog-notary; do
+    if xcrun notarytool history --keychain-profile "$candidate" >/dev/null 2>&1; then profile="$candidate"; break; fi
+  done
+  if [ -n "$profile" ]; then
     echo "Notarizing (this waits on Apple; usually a minute or two)"
-    result="$(xcrun notarytool submit "$out/Routi.zip" --keychain-profile routi-notary --wait 2>&1)"
+    result="$(xcrun notarytool submit "$out/Routi.zip" --keychain-profile "$profile" --wait 2>&1)"
     echo "$result" | grep -E "^ *(id|status):" | tail -2 | sed 's/^/  /'
     if ! echo "$result" | grep -q "status: Accepted"; then
       id="$(echo "$result" | grep -m1 '  id:' | awk '{print $2}')"
       echo "Apple rejected it. Reasons:" >&2
-      xcrun notarytool log "$id" --keychain-profile routi-notary 2>/dev/null \
+      xcrun notarytool log "$id" --keychain-profile "$profile" 2>/dev/null \
         | grep -o '"message": *"[^"]*"' | sort -u | sed 's/^/  /' >&2
       exit 1
     fi

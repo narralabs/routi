@@ -130,7 +130,9 @@ struct ChatView: View {
                 .padding(.top, 16)
                 #if os(macOS)
                 .background { ScrollViewBridge { found in
-                    if scrollView !== found { scrollView = found }
+                    // Keep the one on screen. A replacement is only wanted when ours
+                    // has left the window, which is the case after the desktop swap.
+                    if scrollView == nil || scrollView?.window == nil { scrollView = found }
                 } }
                 #endif
             }
@@ -451,15 +453,32 @@ struct BotConfig {
 private struct ScrollViewBridge: NSViewRepresentable {
     let onFound: (NSScrollView) -> Void
 
+    /**
+     Captures once, after the view is in a window.
+
+     This used to report on every SwiftUI update as well, and wrote state whenever the
+     scroll view it saw differed from the one held. Coming back from the full-window
+     desktop rebuilds the chat with an animated swap, during which two copies of it are
+     alive with two scroll views — so each update found the other one, each write
+     re-ran the body, and the swap animation restarted every frame, for as long as the
+     app was left open. A transcript's scroll view does not change under it; asking once
+     is enough, and a second answer is never a better one.
+     */
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
-        // After the view is in the hierarchy, or there is no scroll view to find yet.
-        DispatchQueue.main.async { if let scroll = view.enclosingScrollView { onFound(scroll) } }
+        DispatchQueue.main.async { report(from: view, attempt: 0) }
         return view
     }
 
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async { if let scroll = view.enclosingScrollView { onFound(scroll) } }
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    private func report(from view: NSView, attempt: Int) {
+        if let scroll = view.enclosingScrollView, scroll.window != nil {
+            onFound(scroll)
+        } else if attempt < 5 {
+            // Not in the hierarchy yet; a few frames later it will be.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { report(from: view, attempt: attempt + 1) }
+        }
     }
 }
 #endif

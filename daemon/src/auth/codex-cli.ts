@@ -1,7 +1,27 @@
 import { execFile, spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
+
+/**
+ * The Codex this daemon ships, rather than whichever one is on PATH.
+ *
+ * `@openai/codex` is a dependency, versioned with the SDK that drives it — this machine
+ * once had the SDK spawning a Homebrew Codex twenty versions apart, which is the kind
+ * of gap where a config key one side sends is simply not understood by the other. It
+ * also means nobody installs Codex to use a ChatGPT plan here: the binary is present,
+ * and `login` on it stores the credential where any Codex would find it.
+ */
+export function codexBinary(): string {
+  const configured = process.env['ROUTI_CODEX_BIN']
+  if (configured) return configured
+  try {
+    return createRequire(import.meta.url).resolve('@openai/codex/bin/codex.js')
+  } catch {
+    return 'codex'
+  }
+}
 
 export interface CodexAuthStatus {
   installed: boolean
@@ -24,7 +44,7 @@ export interface CodexAuthStatus {
  * wording changes matters less than whether it says logged in.
  */
 export class CodexCli {
-  constructor(private readonly binary = process.env['ROUTI_CODEX_BIN'] ?? 'codex') {}
+  constructor(private readonly binary = codexBinary()) {}
 
   async version(): Promise<string | null> {
     try {

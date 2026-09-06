@@ -85,10 +85,10 @@ What their Mac needs:
 
 - macOS 14 or newer. The app is universal (Apple silicon and Intel).
 - **Node 22+** for the core. The installer gets it through Homebrew if it is missing.
-- **One AI connection**: a Claude plan (needs Claude Code on that Mac —
-  `npm install -g @anthropic-ai/claude-code`) or an Anthropic API key. OpenAI, Codex,
-  DeepSeek, xAI and Grok can be added afterwards in Settings; each is either a key or
-  that vendor's CLI signed in.
+- **One AI connection**: a Claude plan, a ChatGPT plan, or an API key from either —
+  signed in from the app. Claude Code and Codex ship with the core, so nothing is
+  installed for them. DeepSeek and xAI keys can be added afterwards in Settings; Grok's
+  own CLI is the one exception, installed from x.ai when wanted.
 - **Docker Desktop, only for bots with a container screen.** Build the desktop once with
   `docker build -t routi-desktop containers/desktop`. Bots without a screen, and bots set
   to *This Mac*, need no Docker — but *This Mac* needs Screen Recording and Accessibility

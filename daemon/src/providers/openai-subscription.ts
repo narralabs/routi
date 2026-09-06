@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { codexBinary } from '../auth/codex-cli.js'
 import { CodexAppServer, type AppServerEvent } from './codex-app-server.js'
 import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import { sessionKey } from './types.js'
@@ -310,22 +310,6 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   }
 }
 
-/**
- * The CLI this SDK was written against, rather than whichever one is on PATH.
- *
- * The SDK drives a separate CLI binary, and the two are versioned together — this
- * machine had 0.153 of the SDK spawning 0.133 from Homebrew, twenty versions apart,
- * which is the kind of gap where a config key the SDK sends is simply not understood
- * by the process reading it. Pinning the bundled one also means a user's own Codex can
- * be any version, or absent, without changing how bots behave.
- */
-function codexBinary(): string {
-  try {
-    return createRequire(import.meta.url).resolve('@openai/codex/bin/codex.js')
-  } catch {
-    // Falls back to whatever `codex` is on PATH, which is how it worked before.
-    return 'codex'
-  }
 }
 
 /** A thread item that has just appeared, as one of Routi's blocks. */

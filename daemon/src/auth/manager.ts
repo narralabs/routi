@@ -186,7 +186,7 @@ export class AuthManager {
       const cli = await this.codex.status()
       if (!cli.installed) {
         throw new Error(
-          'Codex is not installed on this Mac. Install it with `npm install -g @openai/codex`, then try again.',
+          'Codex could not be started on this Mac. It ships with Routi Core, so this is worth reporting.',
         )
       }
       if (!cli.loggedIn) await this.codex.login()
@@ -334,7 +334,7 @@ export class AuthManager {
     const cliStatus = await this.cli.status()
     if (!cliStatus.installed) {
       throw new Error(
-        'Claude Code is not installed on this Mac. Install it with `npm install -g @anthropic-ai/claude-code`, then try again.',
+        'Claude Code could not be set up on this Mac. It is fetched automatically the first time; check the connection and try again.',
       )
     }
     if (!cliStatus.loggedIn) await this.cli.login()

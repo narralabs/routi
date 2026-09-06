@@ -532,8 +532,8 @@ private struct ProviderConnectPane: View {
 
     private var installHint: String {
         provider.id == "xai-grok"
-            ? "Install it from grok.com/cli."
-            : "Install it with `npm install -g @openai/codex`."
+            ? "Install it with `curl -fsSL https://x.ai/cli/install.sh | bash` on that Mac."
+            : "It ships with Routi Core, so this shouldn't happen — restart the core."
     }
 
     private var cliDetail: String {

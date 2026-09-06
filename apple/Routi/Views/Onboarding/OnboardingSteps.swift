@@ -272,20 +272,8 @@ struct CredentialStep: View {
             action: { withAnimation { mode = .key(.openaiKey); failure = nil } }
         )
 
-        // Each account option depends on that vendor's CLI being present, so say so up
-        // front rather than failing after the click.
-        VStack(alignment: .leading, spacing: 4) {
-            if !claude.cliInstalled {
-                Label("A Claude account needs Claude Code on this Mac: `npm install -g @anthropic-ai/claude-code`.", systemImage: "info.circle")
-            }
-            if codex?.installed != true {
-                Label("A ChatGPT account needs Codex on this Mac: `npm install -g @openai/codex`.", systemImage: "info.circle")
-            }
-        }
-        .font(.system(size: 11.5))
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.top, 4)
+        // Claude Code and Codex both ship with the core, so neither account option
+        // needs anything installed first; sign-in is the only step.
     }
 
     private var keyField: some View {

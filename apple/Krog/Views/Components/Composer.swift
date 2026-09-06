@@ -22,6 +22,9 @@ struct Composer: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Busy with nothing typed: the one moment Stop is the more useful button.
+    private var showsStop: Bool { isBusy && !canSend }
+
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
             Button {
@@ -43,20 +46,28 @@ struct Composer: View {
                 .focused($focused)
                 .padding(.vertical, 7)
 
+            /**
+             * Stop only when there is nothing to send.
+             *
+             * A message sent mid-reply is queued and answered next, and always was — but
+             * the button became Stop for the whole reply, so a person with something to
+             * say saw no way to say it and read the composer as locked. Typed text now
+             * turns the button back into Send; Stop is what an empty composer offers.
+             */
             Button {
-                isBusy ? onInterrupt() : onSend()
+                showsStop ? onInterrupt() : onSend()
             } label: {
-                Image(systemName: isBusy ? "stop.fill" : "arrow.up")
+                Image(systemName: showsStop ? "stop.fill" : "arrow.up")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(sendForeground)
                     .frame(width: 28, height: 28)
                     .background(sendBackground, in: .circle)
             }
             .buttonStyle(.plain)
-            .disabled(!isBusy && !canSend)
+            .disabled(!showsStop && !canSend)
             .padding(.bottom, 2)
             .animation(.easeOut(duration: 0.15), value: canSend)
-            .help(isBusy ? "Stop" : "Send")
+            .help(showsStop ? "Stop" : (isBusy ? "Send — answered after this reply" : "Send"))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
@@ -126,12 +137,12 @@ struct Composer: View {
     #endif
 
     private var sendForeground: some ShapeStyle {
-        if isBusy { return AnyShapeStyle(.white) }
+        if showsStop { return AnyShapeStyle(.white) }
         return canSend ? AnyShapeStyle(.white) : AnyShapeStyle(.tertiary)
     }
 
     private var sendBackground: some ShapeStyle {
-        if isBusy { return AnyShapeStyle(.primary) }
+        if showsStop { return AnyShapeStyle(.primary) }
         return canSend ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary)
     }
 }

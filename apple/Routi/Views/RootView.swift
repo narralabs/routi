@@ -158,7 +158,7 @@ private struct ConnectingView: View {
 /// Copyable, because the whole point of a one-liner is not retyping it. The app keeps
 /// trying the port underneath, so the moment the installer finishes, this screen goes.
 private struct InstallCommand: View {
-    static let command = "curl -fsSL https://routi.narralabs.com/install.sh | sh"
+    static let command = "curl -fsSL https://raw.githubusercontent.com/narralabs/routi/main/scripts/install.sh | sh"
     @State private var copied = false
 
     var body: some View {

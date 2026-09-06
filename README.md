@@ -309,3 +309,7 @@ app onto web tech.
 - [ ] **M5** — provider adapters: OpenAI, Codex, DeepSeek, xAI and Grok Build done; Kimi left
 
 Full plan: `~/.claude/plans/giggly-growing-parasol.md`.
+
+## License
+
+Apache-2.0, Copyright 2026 Narra Labs, LLC. The provider marks are LobeHub's, under MIT — see `NOTICE`.

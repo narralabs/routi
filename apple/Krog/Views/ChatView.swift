@@ -30,6 +30,9 @@ struct ChatView: View {
     /// Where the reader's current gesture began, so the whole drag can be judged rather
     /// than the last few points of it.
     @State private var gestureStartOffset: CGFloat = 0
+    /// One settle at a time. Several at once is several layout passes at once, on a
+    /// transcript that may be a hundred tool cards long.
+    @State private var isSettling = false
     #endif
 
     var body: some View {
@@ -146,15 +149,28 @@ struct ChatView: View {
             /// and nothing else here would fire.
             .task(id: "\(model.selectedConversationID ?? "")-\(model.isBusy)") {
                 while model.isBusy && !Task.isCancelled {
-                    if isPinned { pinToEnd(proxy) }
+                    if isPinned { pinToEnd(proxy, realise: false) }
                     try? await Task.sleep(for: .milliseconds(200))
                 }
             }
             /// A new row, or the typing indicator appearing and going, both change the
             /// height under the reader. Settle rather than pin once: the row is not laid
             /// out at the moment the count changes.
-            .onChange(of: model.messages.count) { Task { await settleAtEnd(proxy) } }
-            .onChange(of: model.isBusy) { Task { await settleAtEnd(proxy) } }
+            /// A new row, or the typing indicator coming and going. Two passes rather
+            /// than a settle loop: the row needs one frame to get its height, and a
+            /// message arriving is not the moment to start re-laying out the thread.
+            .onChange(of: model.messages.count) {
+                guard isPinned else { return }
+                pinToEnd(proxy, realise: true)
+                Task {
+                    try? await Task.sleep(for: .milliseconds(80))
+                    if isPinned { pinToEnd(proxy, realise: true) }
+                }
+            }
+            .onChange(of: model.isBusy) {
+                guard isPinned else { return }
+                pinToEnd(proxy, realise: false)
+            }
             /**
              * Opening a conversation lands at the end, and stays there.
              *
@@ -281,33 +297,48 @@ struct ChatView: View {
      or two later. That is exactly how opening a conversation landed in the middle and
      then drifted upwards. An offset is arithmetic, not a guess.
      */
-    private func pinToEnd(_ proxy: ScrollViewProxy) {
+    /**
+     Puts the view at the end.
+
+     `realise` asks SwiftUI to lay out the end of the lazy stack first. Moving the clip
+     view alone lands exactly on the end but changes what is on screen without asking
+     SwiftUI to lay anything out for the new position — a conversation opened to a blank
+     transcript that filled in as soon as it was scrolled. The anchor alone lands in the
+     middle. So both, when arriving somewhere new.
+
+     Not both while a reply streams, though: the end is already laid out there, because it
+     is where the text is arriving, and asking for it several times a second is a layout
+     pass over the whole transcript several times a second on top of the one the new text
+     already costs. That is a beachball on a long thread, not a scroll.
+     */
+    private func pinToEnd(_ proxy: ScrollViewProxy, realise: Bool = false) {
         guard !isUserScrolling else { return }
-        // Both, in this order, because each fixes what the other cannot.
-        //
-        // The anchor is what tells SwiftUI to lay out the end of a lazy stack: moving
-        // the clip view directly changes what is on screen without asking SwiftUI to
-        // realise anything for the new position, which is how a conversation opened to
-        // a blank transcript that filled in the moment it was scrolled. The offset is
-        // what lands exactly on the end, which the anchor alone does not.
-        proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+        if realise { proxy.scrollTo(Self.tailAnchor, anchor: .bottom) }
         guard let scroll = scrollView else { return }
-        scroll.contentView.scroll(to: NSPoint(x: 0, y: endOffset(of: scroll)))
+        let target = endOffset(of: scroll)
+        // Already there: a redundant write still posts a bounds change and still costs
+        // a pass through everything watching one.
+        guard abs(scroll.contentView.bounds.origin.y - target) > 0.5 else { return }
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: target))
         scroll.reflectScrolledClipView(scroll.contentView)
     }
 
     /// Holds the end in view while the transcript is still arriving and laying out.
     /// Gives up the moment the reader scrolls away, and as soon as the height is stable.
     private func settleAtEnd(_ proxy: ScrollViewProxy) async {
+        guard !isSettling else { return }
+        isSettling = true
+        defer { isSettling = false }
+
         var lastHeight: CGFloat = -1
         var stable = 0
-        for _ in 0..<40 {
+        for _ in 0..<24 {
             guard isPinned, !Task.isCancelled else { return }
-            pinToEnd(proxy)
+            pinToEnd(proxy, realise: true)
             let height = scrollView?.documentView?.frame.height ?? 0
             stable = abs(height - lastHeight) < 0.5 ? stable + 1 : 0
             lastHeight = height
-            if stable >= 4 && height > 0 { return }
+            if stable >= 3 && height > 0 { return }
             try? await Task.sleep(for: .milliseconds(50))
         }
     }

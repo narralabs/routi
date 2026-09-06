@@ -40,6 +40,13 @@ export class Scheduler {
   async tick(): Promise<void> {
     for (const routine of this.store.dueRoutines()) {
       if (this.running.has(routine.id)) continue
+
+      // A conversation mid-turn keeps its routine waiting, not skipped. Turns are
+      // serialised per conversation, so the run could not start anyway — but it used
+      // to be booked forward regardless, which meant a person chatting at eight lost
+      // the eight o'clock check until tomorrow. Left due, it runs on the first tick
+      // after the reply finishes, which is the "fold it in afterwards" a person expects.
+      if (this.sessions.isBusy(routine.conversationId)) continue
       this.running.add(routine.id)
 
       // Booked forward before the run, not after: a routine that fails or hangs should

@@ -1,3 +1,11 @@
 packages:
   - daemon
   - protocol
+
+# pnpm 10 refuses dependency build scripts unless they are named. These two need theirs:
+# better-sqlite3 compiles or fetches its native SQLite binding, esbuild fetches its
+# platform binary (tsx needs it). Without this a fresh install silently skips both and
+# the daemon fails to load at start.
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild

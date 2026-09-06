@@ -130,7 +130,7 @@ restart would defeat the point.
 and `click_ref` for the page's accessibility tree, `screenshot` and `click` for pixels,
 `type_text`, `press_key`, `scroll`, and `ask_to_take_over` for the moments only a person
 can do. The structured path is Chrome DevTools Protocol over the container's debugging
-port; the pixel path is the X framebuffer. Krog's instruction to the bot is to prefer the
+port; the pixel path is the X framebuffer. The bot's standing instruction is to prefer the
 tree and fall back to pixels, which is what a bot is seen doing on a site whose date
 picker the tree does not describe. The tools are pre-approved: a permission prompt per
 click would make any real task unusable, and the person granted this by giving the bot a

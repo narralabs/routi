@@ -19,8 +19,8 @@ import { JsonRpcStdio, type Json, type RpcEvent } from './json-rpc-stdio.js'
 
 export type AcpEvent = RpcEvent
 
-/** The name Krog's tools are mounted under, and so the prefix on their tool ids. */
-export const KROG_MCP_SERVER = 'krog'
+/** The name Routi's tools are mounted under, and so the prefix on their tool ids. */
+export const ROUTI_MCP_SERVER = 'routi'
 
 export interface GrokAcpOptions {
   binary: string
@@ -36,15 +36,15 @@ export class GrokAcp extends JsonRpcStdio {
   protected async handshake(): Promise<void> {
     await this.request('initialize', {
       protocolVersion: 1,
-      // Stated honestly: Krog gives a bot a screen, not this Mac's filesystem or a
+      // Stated honestly: Routi gives a bot a screen, not this Mac's filesystem or a
       // terminal on it. Claiming these would invite requests that would be refused.
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
-      clientInfo: { name: 'krog', title: 'Krog', version: '0.0.1' },
+      clientInfo: { name: 'routi', title: 'Routi', version: '0.0.1' },
     })
   }
 
   /**
-   * Krog's own tools are approved: the user granted that by giving the bot a screen,
+   * Routi's own tools are approved: the user granted that by giving the bot a screen,
    * and a prompt per click would make any real task unusable. Everything else is
    * refused — a bot here is not meant to be running commands or editing files on the
    * Mac hosting the core. `--always-approve` would have been one flag and would have
@@ -53,7 +53,7 @@ export class GrokAcp extends JsonRpcStdio {
   protected answer(method: string, params: Json): { result: unknown } | { error: string } {
     if (method === 'session/request_permission') {
       const options = (params['options'] ?? []) as { optionId?: string; kind?: string }[]
-      const wanted = isKrogTool(params['toolCall'] as Json | undefined)
+      const wanted = isRoutiTool(params['toolCall'] as Json | undefined)
         // Always, not once: the same bot calls the same screen verbs dozens of times
         // in a turn, and each round trip is a stall in front of the user.
         ? ['allow_always', 'allow_once']
@@ -66,9 +66,9 @@ export class GrokAcp extends JsonRpcStdio {
       const outcome = chosen?.optionId ? { outcome: 'selected', optionId: chosen.optionId } : { outcome: 'cancelled' }
       return { result: { outcome } }
     }
-    // Krog declares neither capability, so these should never arrive; if one does,
+    // Routi declares neither capability, so these should never arrive; if one does,
     // an error is the honest answer and it keeps the turn moving.
-    if (method.startsWith('fs/') || method.startsWith('terminal/')) return { error: `Krog does not offer ${method}.` }
+    if (method.startsWith('fs/') || method.startsWith('terminal/')) return { error: `Routi does not offer ${method}.` }
     return { result: {} }
   }
 }
@@ -91,7 +91,7 @@ export function toolTargetOf(toolCall: Json | undefined): string {
   return typeof title === 'string' ? title : ''
 }
 
-/** Whether a tool call is one Krog served. */
-export function isKrogTool(toolCall: Json | undefined): boolean {
-  return toolTargetOf(toolCall).startsWith(`${KROG_MCP_SERVER}__`)
+/** Whether a tool call is one Routi served. */
+export function isRoutiTool(toolCall: Json | undefined): boolean {
+  return toolTargetOf(toolCall).startsWith(`${ROUTI_MCP_SERVER}__`)
 }

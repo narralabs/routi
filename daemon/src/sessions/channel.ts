@@ -1,4 +1,4 @@
-import type { Bot } from '@krog/protocol'
+import type { Bot } from '@routi/protocol'
 
 /**
  * Who a message wakes.

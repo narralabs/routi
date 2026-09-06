@@ -171,7 +171,7 @@ private struct AnthropicPane: View {
                 if model.auth.mode == "subscription", let version = model.auth.subscription.cliVersion {
                     SettingsRow(
                         title: "Signed in through",
-                        detail: "Krog drives the Claude Code CLI's browser sign-in; the token stays with it."
+                        detail: "Routi drives the Claude Code CLI's browser sign-in; the token stays with it."
                     ) {
                         // `claude --version` already reports "2.1.261 (Claude Code)",
                         // so prefixing the name again reads as a stutter.
@@ -181,7 +181,7 @@ private struct AnthropicPane: View {
                 if model.auth.mode == "api_key" {
                     SettingsRow(
                         title: "Key storage",
-                        detail: "Held in the login Keychain on the Mac running Krog Core."
+                        detail: "Held in the login Keychain on the Mac running Routi Core."
                     ) {
                         SettingsValue(text: "Keychain")
                     }
@@ -239,7 +239,7 @@ private struct UnavailableProviderPane: View {
             SettingsSection {
                 SettingsRow(
                     title: "Not yet available",
-                    detail: "\(provider.name) is a planned adapter on Krog Core. Because providers live on the core, it will appear here without an app update.",
+                    detail: "\(provider.name) is a planned adapter on Routi Core. Because providers live on the core, it will appear here without an app update.",
                     isFirst: true
                 ) {
                     EmptyView()
@@ -295,7 +295,7 @@ private struct StatusPill: View {
 ///
 /// The same two paths as Anthropic, for the same reason: a plan someone already pays
 /// for should be spendable without a second, metered bill. The account path runs
-/// through the vendor CLI's own sign-in on the machine hosting the core, so Krog never
+/// through the vendor CLI's own sign-in on the machine hosting the core, so Routi never
 /// sees the credential — it only asks the CLI whether one exists.
 ///
 /// One pane for every provider that isn't Anthropic: they differ in where a key comes
@@ -335,7 +335,7 @@ private struct ProviderConnectPane: View {
         isHarness ? [.account, .key] : [.key]
     }
 
-    /// Providers whose turns are run by a vendor CLI rather than by Krog.
+    /// Providers whose turns are run by a vendor CLI rather than by Routi.
     private var isHarness: Bool {
         provider.id == "openai-codex" || provider.id == "xai-grok"
     }
@@ -352,13 +352,13 @@ private struct ProviderConnectPane: View {
     private func keyDetail(_ setup: Setup) -> String {
         switch provider.id {
         case "openai-codex":
-            return "Billed per token, but run by the Codex agent rather than by Krog. Choose this for Codex's behaviour without a ChatGPT plan."
+            return "Billed per token, but run by the Codex agent rather than by Routi. Choose this for Codex's behaviour without a ChatGPT plan."
         case "xai-grok":
-            return "Billed per token, but run by the Grok agent rather than by Krog. Choose this for Grok's behaviour without a Grok plan."
+            return "Billed per token, but run by the Grok agent rather than by Routi. Choose this for Grok's behaviour without a Grok plan."
         case "deepseek", "xai":
-            return "Billed per token. Krog runs the tool loop, so a bot here can use its screen."
+            return "Billed per token. Routi runs the tool loop, so a bot here can use its screen."
         default:
-            return "Billed per token. The setup where a bot can use its screen: Krog runs the tool loop and hands it the desktop."
+            return "Billed per token. The setup where a bot can use its screen: Routi runs the tool loop and hands it the desktop."
         }
     }
 
@@ -407,7 +407,7 @@ private struct ProviderConnectPane: View {
                 SettingsSection {
                     SettingsRow(
                         title: "Verified",
-                        detail: "Krog sent a real request and \(verified). The key works and the account can answer.",
+                        detail: "Routi sent a real request and \(verified). The key works and the account can answer.",
                         isFirst: true
                     ) {
                         Image(systemName: "checkmark.circle.fill")
@@ -456,7 +456,7 @@ private struct ProviderConnectPane: View {
                 SettingsRow(
                     title: "Signed in through",
                     detail: current == .account
-                        ? "Krog drives the \(cliName) CLI's own sign-in; the token stays with it."
+                        ? "Routi drives the \(cliName) CLI's own sign-in; the token stays with it."
                         : "Turns are run by the \(cliName) agent on this Mac, using its own config, not yours."
                 ) {
                     SettingsValue(text: version)
@@ -465,7 +465,7 @@ private struct ProviderConnectPane: View {
             if auth?.mode == "api_key" {
                 SettingsRow(
                     title: "Key storage",
-                    detail: "Held in the login Keychain on the Mac running Krog Core."
+                    detail: "Held in the login Keychain on the Mac running Routi Core."
                 ) {
                     SettingsValue(text: "Keychain")
                 }
@@ -539,12 +539,12 @@ private struct ProviderConnectPane: View {
     private var cliDetail: String {
         guard let cli = auth?.cli else { return "Checking for the \(cliName) CLI…" }
         if !cli.installed {
-            return "Needs the \(cliName) CLI on the Mac running Krog Core. \(installHint)"
+            return "Needs the \(cliName) CLI on the Mac running Routi Core. \(installHint)"
         }
         if cli.loggedIn {
             return "Already signed in on that Mac\(cli.account.map { " as \($0)" } ?? ""). No per-token billing."
         }
-        return "Opens \(provider.name) in the browser on the Mac running Krog Core. No per-token billing."
+        return "Opens \(provider.name) in the browser on the Mac running Routi Core. No per-token billing."
     }
 
     /// Bots currently built on a given model. Answers "which of these is it?" by

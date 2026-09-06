@@ -1,7 +1,7 @@
 /**
  * M0 spike #2: warm sessions.
  *
- * The first spike showed ~3.5-4.2s TTFT, nearly all of it CLI process spawn. If krogd
+ * The first spike showed ~3.5-4.2s TTFT, nearly all of it CLI process spawn. If routid
  * spawned a process per message, every message in the app would carry that penalty.
  *
  * This proves the alternative: hold ONE query() open per conversation, feed it user
@@ -9,7 +9,7 @@
  * accountInfo() which credential is actually in use, and lists the models available
  * to it for the per-bot model picker.
  *
- * Run: pnpm --filter krogd spike:session
+ * Run: pnpm --filter routid spike:session
  */
 import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 

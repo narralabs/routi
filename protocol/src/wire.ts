@@ -5,7 +5,7 @@ import {
 } from './entities.js'
 
 /**
- * The krogd wire protocol: one WebSocket carrying request/response RPCs and
+ * The routid wire protocol: one WebSocket carrying request/response RPCs and
  * server-pushed events.
  *
  * Streaming rule: deltas are addressed by `blockIndex`, never appended to a running
@@ -69,7 +69,7 @@ export const RpcMethods = {
   'messages.interrupt': { params: z.object({ conversationId: z.string() }), result: z.object({ ok: z.literal(true) }) },
 
   'auth.status': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
-  /** Opens the browser sign-in on the machine running krogd. Long-running. */
+  /** Opens the browser sign-in on the machine running routid. Long-running. */
   'auth.loginWithClaude': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
   'auth.setApiKey': { params: z.object({ key: z.string().min(1) }), result: z.object({ auth: AuthStatus }) },
   'auth.signOut': { params: z.object({}), result: z.object({ auth: AuthStatus }) },

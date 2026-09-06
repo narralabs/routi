@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources'
-import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
+import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 
 /**
@@ -117,7 +117,7 @@ export class AnthropicApiAdapter implements ProviderAdapter {
       for await (const event of stream) {
         switch (event.type) {
           case 'content_block_start': {
-            const block = apiBlockToKrog(event.content_block)
+            const block = apiBlockToRouti(event.content_block)
             if (block) yield { type: 'block_start', index: event.index, block }
             break
           }
@@ -182,7 +182,7 @@ function toApiContent(blocks: Block[]): ApiContent {
   return out
 }
 
-function apiBlockToKrog(raw: { type: string }): Block | null {
+function apiBlockToRouti(raw: { type: string }): Block | null {
   const cb = raw as { type: string } & Record<string, unknown>
   switch (cb.type) {
     case 'text':

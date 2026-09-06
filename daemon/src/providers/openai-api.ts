@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
+import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { desktopToolSpecs, runDesktopTool } from '../surfaces/tools.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
@@ -269,7 +269,7 @@ export class OpenAiApiAdapter implements ProviderAdapter {
 // union is large and version-specific; the shapes built here are all documented ones.
 type ResponseInput = any[]
 
-/** Krog's effort scale is wider than OpenAI's; the ends collapse. */
+/** Routi's effort scale is wider than OpenAI's; the ends collapse. */
 function normaliseEffort(effort: string): 'low' | 'medium' | 'high' {
   if (effort === 'low') return 'low'
   if (effort === 'medium') return 'medium'

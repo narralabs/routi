@@ -1,5 +1,5 @@
 # Publishes the core on every version tag, which is what both install routes point at:
-#   curl  → releases/latest/download/krog-core.tar.gz  (scripts/install.sh)
+#   curl  → releases/latest/download/routi-core.tar.gz  (scripts/install.sh)
 #   brew  → the same tarball, pinned by sha256 in the tap's formula
 name: Release
 on:
@@ -14,13 +14,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Pack the core
         run: |
-          git archive --format=tar.gz --prefix=krog-core/ -o krog-core.tar.gz HEAD \
+          git archive --format=tar.gz --prefix=routi-core/ -o routi-core.tar.gz HEAD \
             daemon protocol containers scripts package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json README.md
-          shasum -a 256 krog-core.tar.gz | tee krog-core.tar.gz.sha256
+          shasum -a 256 routi-core.tar.gz | tee routi-core.tar.gz.sha256
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            krog-core.tar.gz
-            krog-core.tar.gz.sha256
+            routi-core.tar.gz
+            routi-core.tar.gz.sha256
           generate_release_notes: true

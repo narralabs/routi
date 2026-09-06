@@ -7,7 +7,7 @@
 # screen takes a couple of seconds rather than the tens a container needs.
 set -euo pipefail
 
-STATE=/tmp/krog-screens
+STATE=/tmp/routi-screens
 mkdir -p "$STATE"
 
 # Display numbers start above the usual desktop range so nothing collides with an X

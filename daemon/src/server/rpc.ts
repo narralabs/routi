@@ -1,4 +1,4 @@
-import { RpcMethods, type RpcMethod } from '@krog/protocol'
+import { RpcMethods, type RpcMethod } from '@routi/protocol'
 import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import { describeSchedule } from '../sessions/schedule.js'

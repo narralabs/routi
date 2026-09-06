@@ -305,8 +305,8 @@ enum ToolLabel {
     /**
      Keyed by the bare tool name, whichever harness sent it.
 
-     Claude's SDK reports Krog's tools as `mcp__desktop__open_url`, Grok and Codex as
-     `open_url` or `krog__open_url`. Keyed by the routed name, the same click showed as
+     Claude's SDK reports Routi's tools as `mcp__desktop__open_url`, Grok and Codex as
+     `open_url` or `routi__open_url`. Keyed by the routed name, the same click showed as
      "Opening a page" under one bot and "Open url" with a wrench under another, and the
      product looked like two products. The prefix is routing, not identity.
      */
@@ -339,7 +339,7 @@ enum ToolLabel {
     /// The tool itself, with any harness's routing prefix removed.
     private static func bare(_ name: String) -> String {
         if name.hasPrefix("mcp__"), let last = name.components(separatedBy: "__").last { return last }
-        if name.hasPrefix("krog__") { return String(name.dropFirst("krog__".count)) }
+        if name.hasPrefix("routi__") { return String(name.dropFirst("routi__".count)) }
         return name
     }
 

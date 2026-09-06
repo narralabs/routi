@@ -122,11 +122,11 @@ private struct ConnectingView: View {
                 Image(systemName: "externaldrive.badge.xmark")
                     .font(.system(size: 34, weight: .light))
                     .foregroundStyle(.secondary)
-                Text(isLocal ? "Krog Core isn't running on this Mac" : "Can't reach Krog Core at \(host)")
+                Text(isLocal ? "Routi Core isn't running on this Mac" : "Can't reach Routi Core at \(host)")
                     .font(.system(size: 15, weight: .semibold))
                 Text(isLocal
                      ? "The app is a window onto the core, which keeps your bots and does the work. Install it with the command below; this screen carries on by itself once the core answers."
-                     : "Check that Mac is on, that Krog Core is running there, and that this device can see it — a Tailscale name works.")
+                     : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works.")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -139,7 +139,7 @@ private struct ConnectingView: View {
                     .padding(.top, 4)
             } else {
                 ProgressView().controlSize(.large)
-                Text("Connecting to Krog…")
+                Text("Connecting to Routi…")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
@@ -158,7 +158,7 @@ private struct ConnectingView: View {
 /// Copyable, because the whole point of a one-liner is not retyping it. The app keeps
 /// trying the port underneath, so the moment the installer finishes, this screen goes.
 private struct InstallCommand: View {
-    static let command = "curl -fsSL https://krog.narralabs.com/install.sh | sh"
+    static let command = "curl -fsSL https://routi.narralabs.com/install.sh | sh"
     @State private var copied = false
 
     var body: some View {

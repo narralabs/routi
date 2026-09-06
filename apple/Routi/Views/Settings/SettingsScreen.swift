@@ -44,7 +44,7 @@ struct SettingsScreen: View {
     @Environment(AppModel.self) private var model
 
     /// Providers each get their own entry, so the section reads as a roster rather
-    /// than a single lumped "Connections" row. Krog Core is deliberately *not* in
+    /// than a single lumped "Connections" row. Routi Core is deliberately *not* in
     /// there — it is the daemon this app talks to, not a model provider.
     enum Pane: Hashable, Identifiable {
         case general
@@ -65,7 +65,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: return "General"
             case .provider(let id): return ProviderInfo.find(id).name
-            case .core: return "Krog Core"
+            case .core: return "Routi Core"
             case .about: return "About"
             }
         }
@@ -216,7 +216,7 @@ struct GeneralPane: View {
             }
 
             SettingsSection("Appearance") {
-                SettingsRow(title: "Theme", detail: "How Krog looks on this device.", isFirst: true) {
+                SettingsRow(title: "Theme", detail: "How Routi looks on this device.", isFirst: true) {
                     Picker("", selection: $appearance) {
                         ForEach(AppearanceMode.allCases) { Text($0.label).tag($0.rawValue) }
                     }
@@ -310,7 +310,7 @@ private struct AccountCard: View {
     }
 }
 
-// MARK: - Krog Core
+// MARK: - Routi Core
 
 struct ConnectionPane: View {
     @Environment(AppModel.self) private var model
@@ -328,7 +328,7 @@ struct ConnectionPane: View {
     }
 
     var body: some View {
-        SettingsPane(title: "Krog Core") {
+        SettingsPane(title: "Routi Core") {
             SettingsSection("Connection") {
                 SettingsRow(title: "Status", isFirst: true) {
                     HStack(spacing: 6) {
@@ -361,10 +361,10 @@ struct ConnectionPane: View {
 
             SettingsSection("Server") {
                 SettingsRow(title: "Protocol version", isFirst: true) {
-                    SettingsValue(text: "v\(KrogClient.protocolVersion)")
+                    SettingsValue(text: "v\(RoutiClient.protocolVersion)")
                 }
                 SettingsRow(title: "Data") {
-                    SettingsValue(text: "~/.krog on the host Mac", monospaced: true)
+                    SettingsValue(text: "~/.routi on the host Mac", monospaced: true)
                 }
             }
         }
@@ -393,7 +393,7 @@ struct AboutPane: View {
     var body: some View {
         SettingsPane(title: "About") {
             SettingsSection {
-                SettingsRow(title: "Krog", detail: "Bots that live on your Mac.", isFirst: true) {
+                SettingsRow(title: "Routi", detail: "Bots that live on your Mac.", isFirst: true) {
                     SettingsValue(text: version)
                 }
             }

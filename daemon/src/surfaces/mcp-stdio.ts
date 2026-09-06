@@ -1,5 +1,5 @@
 /**
- * Krog's tools, over stdio MCP.
+ * Routi's tools, over stdio MCP.
  *
  * The third way the same tools reach a model, beside the in-process server the Claude
  * SDK loads and the function schemas the OpenAI path sends. It exists because some
@@ -48,7 +48,7 @@ async function handle(request: Request): Promise<void> {
       reply(request.id, {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'krog-desktop', version: '0.1.0' },
+        serverInfo: { name: 'routi-desktop', version: '0.1.0' },
         instructions: TOOL_INSTRUCTIONS,
       })
       return

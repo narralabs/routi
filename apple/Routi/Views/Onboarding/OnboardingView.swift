@@ -3,7 +3,7 @@ import SwiftUI
 /// First-run setup, shown before any chat UI exists.
 ///
 /// One flow that branches on whether this device can host the daemon, rather than two
-/// separate onboardings. A Mac can run krogd; an iPhone can only connect to one, so
+/// separate onboardings. A Mac can run routid; an iPhone can only connect to one, so
 /// that branch is hidden there instead of being explained and then refused.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
@@ -11,7 +11,7 @@ struct OnboardingView: View {
     enum Step {
         case welcome
         case connection   // Mac only: host here, or connect to another Mac
-        case endpoint     // point at a remote krogd
+        case endpoint     // point at a remote routid
         case credential   // choose and complete a first connection
         case finishing
     }

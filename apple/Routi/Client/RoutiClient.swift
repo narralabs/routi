@@ -1,13 +1,13 @@
 import Foundation
 
-/// WebSocket client for krogd, on `URLSessionWebSocketTask` — no third-party
+/// WebSocket client for routid, on `URLSessionWebSocketTask` — no third-party
 /// dependency needed.
 ///
 /// The phone drops this socket every time it backgrounds, so reconnect is a
 /// first-class path rather than an error case: on reconnect we re-subscribe to
 /// whatever we were watching and refetch.
 @MainActor
-final class KrogClient: NSObject {
+final class RoutiClient: NSObject {
     enum ConnectionState: Equatable {
         case disconnected, connecting, connected
     }
@@ -80,7 +80,7 @@ final class KrogClient: NSObject {
         send([
             "t": "hello",
             "protocolVersion": Self.protocolVersion,
-            "clientName": "Krog",
+            "clientName": "Routi",
             "platform": Self.platformName,
         ])
     }
@@ -126,7 +126,7 @@ final class KrogClient: NSObject {
 
         // Fail every in-flight RPC rather than leaving callers hung.
         for (_, cont) in pending {
-            cont.resume(throwing: RPCError(code: "disconnected", message: "Lost connection to krogd."))
+            cont.resume(throwing: RPCError(code: "disconnected", message: "Lost connection to routid."))
         }
         pending.removeAll()
 
@@ -189,7 +189,7 @@ final class KrogClient: NSObject {
                 // Surface loudly rather than failing later with confusing empty fields.
                 onEvent?(Event(kind: "error", payload: [
                     "code": "protocol_mismatch",
-                    "message": "krogd speaks protocol v\(serverVersion); this app speaks v\(Self.protocolVersion).",
+                    "message": "routid speaks protocol v\(serverVersion); this app speaks v\(Self.protocolVersion).",
                 ]))
             }
             state = .connected
@@ -223,7 +223,7 @@ final class KrogClient: NSObject {
     @discardableResult
     func rpc(_ method: String, _ params: [String: Any] = [:], timeout: TimeInterval = 120) async throws -> [String: Any] {
         guard state == .connected else {
-            throw RPCError(code: "disconnected", message: "Not connected to krogd.")
+            throw RPCError(code: "disconnected", message: "Not connected to routid.")
         }
         let id = UUID().uuidString
 

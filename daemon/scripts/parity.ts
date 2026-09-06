@@ -1,7 +1,7 @@
 /**
  * Does every runtime actually do the same things?
  *
- * Krog's promise is that a bot's abilities come from Krog, not from whoever answers it
+ * Routi's promise is that a bot's abilities come from Routi, not from whoever answers it
  * — but each runtime reaches its tools by a different road: in-process MCP for Claude,
  * function schemas for the OpenAI-compatible providers, an HTTP MCP server for Codex.
  * Roads drift. Codex bots silently had no routine tools for a day because the HTTP
@@ -12,17 +12,17 @@
  * what happened. It spends real tokens and takes a few minutes, which is the price of
  * an answer that is true rather than assumed.
  *
- * Run: pnpm --filter krogd parity
+ * Run: pnpm --filter routid parity
  */
 import WebSocket from 'ws'
-import { PROTOCOL_VERSION } from '@krog/protocol'
+import { PROTOCOL_VERSION } from '@routi/protocol'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const URL = process.env['KROG_URL'] ?? 'ws://127.0.0.1:7171'
-const DB = join(homedir(), '.krog', 'krog.db')
+const URL = process.env['ROUTI_URL'] ?? 'ws://127.0.0.1:7171'
+const DB = join(homedir(), '.routi', 'routi.db')
 
 interface Check {
   name: string

@@ -1,4 +1,4 @@
-import type { ServerEvent } from '@krog/protocol'
+import type { ServerEvent } from '@routi/protocol'
 
 /**
  * Handing the screen to the person, and waiting.

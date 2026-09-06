@@ -5,7 +5,9 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-const SERVICE = 'Krog'
+const SERVICE = 'Routi'
+/** The Keychain service name from before the rename; read from, never written to. */
+const OLD_SERVICE = 'Krog'
 
 /** Keychain account name per provider, so two keys can coexist. */
 const ACCOUNTS: Record<string, string> = {
@@ -52,18 +54,28 @@ export class Credentials {
 
   async getApiKey(provider = 'anthropic'): Promise<string | null> {
     if (this.useKeychain) {
-      try {
-        const { stdout } = await run('security', [
-          'find-generic-password', '-s', SERVICE, '-a', this.account(provider), '-w',
-        ])
-        const key = stdout.trim()
-        return key.length > 0 ? key : null
-      } catch {
-        // `security` exits non-zero when the item simply isn't there.
-        return null
-      }
+      const found = await this.readKeychain(SERVICE, provider)
+      if (found !== null) return found
+      // A key stored under the old name is adopted: written under the new one, so the
+      // next read finds it there, and left in place under the old.
+      const old = await this.readKeychain(OLD_SERVICE, provider)
+      if (old !== null) await this.setApiKey(old, provider)
+      return old
     }
     return this.readFallback()[this.account(provider)] ?? null
+  }
+
+  private async readKeychain(service: string, provider: string): Promise<string | null> {
+    try {
+      const { stdout } = await run('security', [
+        'find-generic-password', '-s', service, '-a', this.account(provider), '-w',
+      ])
+      const key = stdout.trim()
+      return key.length > 0 ? key : null
+    } catch {
+      // `security` exits non-zero when the item simply isn't there.
+      return null
+    }
   }
 
   async setApiKey(key: string, provider = 'anthropic'): Promise<void> {
@@ -78,7 +90,7 @@ export class Credentials {
         '-a', this.account(provider),
         '-w', trimmed,
         '-D', 'application password',
-        '-j', `${provider} API key for Krog`,
+        '-j', `${provider} API key for Routi`,
       ])
       return
     }

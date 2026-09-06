@@ -1,5 +1,5 @@
 {
-  "name": "krogd",
+  "name": "routid",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -15,12 +15,12 @@
     "spike:isolation": "tsx scripts/spike-isolation.ts",
     "spike:grok": "tsx scripts/spike-grok.ts",
     "parity": "tsx scripts/parity.ts",
-    "dev:isolated": "KROG_DATA_DIR=$HOME/.krog-dev KROG_PORT=7172 tsx watch src/index.ts"
+    "dev:isolated": "ROUTI_DATA_DIR=$HOME/.routi-dev ROUTI_PORT=7172 tsx watch src/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.261",
     "@anthropic-ai/sdk": "^0.124.0",
-    "@krog/protocol": "workspace:^",
+    "@routi/protocol": "workspace:^",
     "@openai/codex": "^0.153.4",
     "@openai/codex-sdk": "^0.153.4",
     "better-sqlite3": "^13.0.3",

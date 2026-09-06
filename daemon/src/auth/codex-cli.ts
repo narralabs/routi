@@ -15,7 +15,7 @@ export interface CodexAuthStatus {
  *
  * The same shape as `ClaudeCli` and for the same reason: a subscription is not
  * something an API key can stand in for, and the only sanctioned way to spend one
- * from a program is through the vendor's own signed-in CLI. Krog never sees or stores
+ * from a program is through the vendor's own signed-in CLI. Routi never sees or stores
  * the credential — it asks the CLI whether one exists and lets the SDK use it.
  *
  * `codex login status` prints a line like "Logged in using ChatGPT" — on stderr, not
@@ -24,7 +24,7 @@ export interface CodexAuthStatus {
  * wording changes matters less than whether it says logged in.
  */
 export class CodexCli {
-  constructor(private readonly binary = process.env['KROG_CODEX_BIN'] ?? 'codex') {}
+  constructor(private readonly binary = process.env['ROUTI_CODEX_BIN'] ?? 'codex') {}
 
   async version(): Promise<string | null> {
     try {

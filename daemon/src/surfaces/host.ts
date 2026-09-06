@@ -22,7 +22,7 @@ const run = promisify(execFile)
  * the bot having been given this surface deliberately.
  *
  * Capture and input run in the daemon rather than a helper app, so the process running
- * krogd is the one macOS must trust: Screen Recording to see, Accessibility to act.
+ * routid is the one macOS must trust: Screen Recording to see, Accessibility to act.
  * Both fail silently at the OS level when ungranted — a black frame, an ignored click —
  * so this checks and says which is missing instead of appearing broken.
  */
@@ -84,7 +84,7 @@ export class HostSurface {
    * otherwise fire every frame.
    */
   async captureFrame(quality = 6): Promise<{ jpeg: Buffer; pointer: { x: number; y: number } | null } | null> {
-    const dir = mkdtempSync(join(tmpdir(), 'krog-host-'))
+    const dir = mkdtempSync(join(tmpdir(), 'routi-host-'))
     const file = join(dir, 'frame.jpg')
     try {
       await run('/usr/sbin/screencapture', ['-x', '-C', '-t', 'jpg', file], { timeout: 15_000 })
@@ -108,7 +108,7 @@ export class HostSurface {
       // A screen recording denial yields a tiny or empty file rather than an error.
       if (jpeg.length < 1024) {
         this.failure =
-          'Krog cannot see this Mac. Grant Screen Recording to the app running krogd in ' +
+          'Routi cannot see this Mac. Grant Screen Recording to the app running routid in ' +
           'System Settings > Privacy & Security, then restart it.'
         return null
       }
@@ -170,7 +170,7 @@ export class HostSurface {
       const message = err instanceof Error ? err.message : String(err)
       throw new Error(
         /not (trusted|authorized)|accessibility|denied/i.test(message)
-          ? 'Krog cannot control this Mac. Grant Accessibility to the app running krogd ' +
+          ? 'Routi cannot control this Mac. Grant Accessibility to the app running routid ' +
             'in System Settings > Privacy & Security, then restart it.'
           : message,
       )
@@ -190,14 +190,14 @@ export class HostSurface {
     if (this.helperPath) return this.helperPath
 
     const binDir = join(this.dataDir, 'bin')
-    const binary = join(binDir, 'krog-input')
+    const binary = join(binDir, 'routi-input')
     if (existsSync(binary)) {
       this.helperPath = binary
       return binary
     }
 
     mkdirSync(binDir, { recursive: true })
-    const source = join(binDir, 'krog-input.swift')
+    const source = join(binDir, 'routi-input.swift')
     writeFileSync(source, INPUT_SOURCE)
     await run('/usr/bin/swiftc', ['-O', '-o', binary, source], { timeout: 120_000 })
     this.helperPath = binary

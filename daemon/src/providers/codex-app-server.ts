@@ -24,12 +24,12 @@ export class CodexAppServer extends JsonRpcStdio {
 
   protected async handshake(): Promise<void> {
     await this.request('initialize', {
-      clientInfo: { name: 'krog', title: 'Krog', version: '0.0.1' },
+      clientInfo: { name: 'routi', title: 'Routi', version: '0.0.1' },
     })
   }
 
   /**
-   * Krog's own tools are approved: the user granted that by giving the bot a screen,
+   * Routi's own tools are approved: the user granted that by giving the bot a screen,
    * and a prompt per click would make any real task unusable. Everything else is
    * declined — a bot here is not meant to be running commands or editing files on this
    * machine, so a request to do so is a mistake rather than something to wave through.
@@ -37,7 +37,7 @@ export class CodexAppServer extends JsonRpcStdio {
    */
   protected answer(method: string, params: Json): { result: unknown } {
     if (method === 'mcpServer/elicitation/request') {
-      const ours = params['serverName'] === 'krog'
+      const ours = params['serverName'] === 'routi'
       return { result: { action: ours ? 'accept' : 'decline', content: ours ? {} : null, _meta: null } }
     }
     if (method.endsWith('/requestApproval') || method.endsWith('Approval')) {

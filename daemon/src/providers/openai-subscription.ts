@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { CodexAppServer, type AppServerEvent } from './codex-app-server.js'
-import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
+import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 
@@ -12,7 +12,7 @@ import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
  *
  * The mirror of the Anthropic subscription adapter, and it exists for the same
  * reason: a plan someone already pays for should be spendable without a second,
- * metered bill. Krog never handles the credential — the Codex CLI holds it, and the
+ * metered bill. Routi never handles the credential — the Codex CLI holds it, and the
  * SDK drives that CLI.
  *
  * Threads are warm and per-conversation, like the Claude sessions: Codex keeps the
@@ -51,32 +51,32 @@ const MODELS: ModelInfo[] = [
 
 
 /**
- * A Codex home belonging to Krog rather than to whoever owns this Mac.
+ * A Codex home belonging to Routi rather than to whoever owns this Mac.
  *
  * Codex reads ~/.codex/config.toml, and a person who uses Codex has a lot in there:
  * bundled plugins for the browser, documents and spreadsheets, their own MCP servers,
- * their own skills. Every Krog bot was inheriting the lot — which is how a bot asked
+ * their own skills. Every Routi bot was inheriting the lot — which is how a bot asked
  * about flight prices ended up invoking a personal browser-control skill and reading
- * app bundles off the disk. A bot's abilities should come from Krog and its
+ * app bundles off the disk. A bot's abilities should come from Routi and its
  * description, not from the operator's toolbox.
  *
  * The same failure as on the Anthropic side, where a bot introduced itself as the
  * operator's MCP tooling until `settingSources: []` shut that door. This is that door.
  *
  * The login is the one thing worth keeping, so auth.json is linked rather than copied:
- * signing in or out with the CLI stays in effect, and Krog never holds a copy of the
+ * signing in or out with the CLI stays in effect, and Routi never holds a copy of the
  * credential.
  */
 function isolatedCodexHome(dataDir: string): string {
   const home = join(dataDir, 'codex')
   mkdirSync(home, { recursive: true })
 
-  // Rewritten every start: this file is Krog's statement of what a bot may use, and it
+  // Rewritten every start: this file is Routi's statement of what a bot may use, and it
   // should not drift because something once wrote to it.
   writeFileSync(
     join(home, 'config.toml'),
     [
-      '# Written by Krog. A bot gets its abilities from Krog and its own description,',
+      '# Written by Routi. A bot gets its abilities from Routi and its own description,',
       '# never from the personal Codex setup on this machine.',
       '',
     ].join('\n'),
@@ -112,7 +112,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     const home = isolatedCodexHome(opts.dataDir)
     // Given in full because supplying env stops the child inheriting process.env —
     // which is the point. CODEX_HOME moves the agent off the operator's personal Codex
-    // setup and onto Krog's own.
+    // setup and onto Routi's own.
     this.env = {
       CODEX_HOME: home,
       PATH: process.env['PATH'] ?? '/usr/local/bin:/usr/bin:/bin',
@@ -276,13 +276,13 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       cwd: this.opts.cwd,
       // Codex asks before calling a tool it did not bring itself, and "never" denies
       // rather than allows. The policy has to permit asking; this client answers,
-      // approving Krog's own tools and nothing else.
+      // approving Routi's own tools and nothing else.
       approvalPolicy: 'on-request',
       sandbox: 'read-only',
       ...(req.model && req.model !== 'default' ? { model: req.model } : {}),
       ...(req.effort ? { effort: normaliseEffort(req.effort) } : {}),
       config: {
-        mcp_servers: { krog: { url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}` } },
+        mcp_servers: { routi: { url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}` } },
       },
     })
 
@@ -328,7 +328,7 @@ function codexBinary(): string {
   }
 }
 
-/** A thread item that has just appeared, as one of Krog's blocks. */
+/** A thread item that has just appeared, as one of Routi's blocks. */
 function startBlock(item: Record<string, any>): Block | null {
   switch (item['type']) {
     case 'agentMessage':

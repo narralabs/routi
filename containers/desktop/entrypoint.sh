@@ -5,7 +5,7 @@
 # nothing, and a bot that never opens its screen should never pay for one.
 set -euo pipefail
 
-mkdir -p /tmp/krog-screens "$HOME/Downloads"
+mkdir -p /tmp/routi-screens "$HOME/Downloads"
 
 cleanup() { pkill -P $$ || true; }
 trap cleanup EXIT

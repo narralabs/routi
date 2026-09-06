@@ -63,7 +63,7 @@ export class McpHttp {
     if (req.method === 'GET') {
       // Some clients probe with GET before posting; say what lives here.
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ name: 'krog-desktop', botId, transport: 'streamable-http' }))
+      res.end(JSON.stringify({ name: 'routi-desktop', botId, transport: 'streamable-http' }))
       return
     }
     if (req.method !== 'POST') return this.fail(res, 405, 'POST a JSON-RPC request.')
@@ -96,7 +96,7 @@ export class McpHttp {
         return {
           protocolVersion: '2024-11-05',
           capabilities: { tools: {} },
-          serverInfo: { name: 'krog-desktop', version: '0.1.0' },
+          serverInfo: { name: 'routi-desktop', version: '0.1.0' },
           instructions: TOOL_INSTRUCTIONS,
         }
 

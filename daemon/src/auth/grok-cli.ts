@@ -17,18 +17,18 @@ export interface GrokAuthStatus {
  * Where the Grok CLI actually is on this machine.
  *
  * Its installer drops the binary in `~/.grok/bin`, which is on an interactive shell's
- * PATH and is not on a launchd daemon's. Looking there first is what keeps krogd
+ * PATH and is not on a launchd daemon's. Looking there first is what keeps routid
  * finding the same CLI the user signed in with, whether it started from a terminal or
  * at boot.
  */
 export function grokBinary(): string {
-  const configured = process.env['KROG_GROK_BIN']
+  const configured = process.env['ROUTI_GROK_BIN']
   if (configured) return configured
   const installed = join(homedir(), '.grok', 'bin', 'grok')
   return existsSync(installed) ? installed : 'grok'
 }
 
-/** The credential store `grok login` writes, which is also the one Krog borrows. */
+/** The credential store `grok login` writes, which is also the one Routi borrows. */
 export function grokAuthFile(): string {
   return join(homedir(), '.grok', 'auth.json')
 }
@@ -39,7 +39,7 @@ export function grokAuthFile(): string {
  * The third of the same shape, after `ClaudeCli` and `CodexCli`, and for the same
  * reason: a plan someone already pays for should be spendable without a second,
  * metered bill, and the only sanctioned way to spend one from a program is through
- * the vendor's own signed-in CLI. Krog never sees or stores the token — it asks the
+ * the vendor's own signed-in CLI. Routi never sees or stores the token — it asks the
  * CLI whether one exists and lets the agent use it.
  */
 export class GrokCli {
@@ -168,7 +168,7 @@ function loginFailure(output: string): string {
   const url = /https:\/\/\S*device\S*/.exec(output)?.[0]
   const code = /user_code=([A-Z0-9-]+)/.exec(output)?.[1]
   if (url && code) {
-    return `Sign-in didn't complete. Open ${url} on the Mac running Krog Core and confirm the code ${code}, then try again.`
+    return `Sign-in didn't complete. Open ${url} on the Mac running Routi Core and confirm the code ${code}, then try again.`
   }
   return 'Sign-in did not complete. Finish it in the browser, then try again.'
 }

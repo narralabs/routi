@@ -1,0 +1,530 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		08966B34941B3AE65C038BE8 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */; };
+		15C44DA114D533E687FB4811 /* Blocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502F8CF0DE246295A5890E87 /* Blocks.swift */; };
+		1F2AA4D9B1926967F36F7680 /* Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9EE469AEAC6433B4672D15 /* Auth.swift */; };
+		2046900E789F1433535727F0 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75ECC9B53C46B40DF50283ED /* Composer.swift */; };
+		22565DA9110228003E0B6A11 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5AE73982ED2E7411675921 /* Entities.swift */; };
+		23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E864489D80BFEA22D10DE997 /* OnboardingView.swift */; };
+		36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DFC65D324CCCB7788FAC01 /* ChatView.swift */; };
+		39AE62A74C81E7C6A1A0B843 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */; };
+		3C30816F38EAD85EBFEFA0CE /* NewBotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD073724E27CFF96D741B5D /* NewBotSheet.swift */; };
+		3D42E355F685B12EA2B094F6 /* BotListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1CCA89D76AC485ADB29A15 /* BotListView.swift */; };
+		58A7CAAB48E6029F63CFF0F1 /* Surface.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7400158C8ADF31FCEE7EA29 /* Surface.swift */; };
+		5AC5D791694CFB6FB3A4DAC1 /* ModelName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E91F8038F61343E3273FD7 /* ModelName.swift */; };
+		5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */; };
+		7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5427100A411FDE8FAC97666 /* OnboardingSteps.swift */; };
+		7EA963BE5E76CFC3CE262D08 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 46A9147FFCAF8A5BE1C24F7B /* Assets.xcassets */; };
+		8C1FB2AFAB34503F6F28467B /* ScreenWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C419477237E8F8F539AB6D /* ScreenWindow.swift */; };
+		8E79CDC70EF57C2C8B2B4694 /* RoutiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366F6379C430E013241DB531 /* RoutiClient.swift */; };
+		92ECCE6EDA5BDDF9C5B0CBEF /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */; };
+		A7CC511EBDE57164BEAD0FB7 /* ToolbarStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */; };
+		A82B92A42AE70C57D9A2F486 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E531433B6982110683524454 /* AppModel.swift */; };
+		AEEE9600AFA8BA8AA7B788BF /* HandoverCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E2F25951C19F693EF8EE16 /* HandoverCard.swift */; };
+		C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 184722C04D7C490D94182666 /* RoutiApp.swift */; };
+		CC0218F546FFF1FC732BBBCB /* Handover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F745F0678DD8714864203C0 /* Handover.swift */; };
+		D70141640505B1F4BAA53171 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D720880BAD6D2F0296D4A8 /* RootView.swift */; };
+		D8116D3E00FBE96C2311F8F0 /* BotAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */; };
+		DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB45665E5E45F01F8945DBB6 /* MessageRow.swift */; };
+		EC3CF43ED8865BB048129C3E /* ScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0128A80F54B6560A538AC1C /* ScreenView.swift */; };
+		EE7B1D28943762E8D0683800 /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F126D3177A0B31881954AE1 /* Effort.swift */; };
+		F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEA46F4858311831473C9EF7 /* Providers.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		04C419477237E8F8F539AB6D /* ScreenWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenWindow.swift; sourceTree = "<group>"; };
+		099C9C1462D777FC014D22E1 /* Routi.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Routi.entitlements; sourceTree = "<group>"; };
+		0F126D3177A0B31881954AE1 /* Effort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effort.swift; sourceTree = "<group>"; };
+		12E2F25951C19F693EF8EE16 /* HandoverCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoverCard.swift; sourceTree = "<group>"; };
+		184722C04D7C490D94182666 /* RoutiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutiApp.swift; sourceTree = "<group>"; };
+		2C5AE73982ED2E7411675921 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
+		366F6379C430E013241DB531 /* RoutiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutiClient.swift; sourceTree = "<group>"; };
+		3C1CCA89D76AC485ADB29A15 /* BotListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotListView.swift; sourceTree = "<group>"; };
+		46A9147FFCAF8A5BE1C24F7B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailRail.swift; sourceTree = "<group>"; };
+		502F8CF0DE246295A5890E87 /* Blocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Blocks.swift; sourceTree = "<group>"; };
+		5BD073724E27CFF96D741B5D /* NewBotSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBotSheet.swift; sourceTree = "<group>"; };
+		5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
+		75ECC9B53C46B40DF50283ED /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
+		85E91F8038F61343E3273FD7 /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
+		97647FF55564F4B40332D6CA /* Routi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Routi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9F745F0678DD8714864203C0 /* Handover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Handover.swift; sourceTree = "<group>"; };
+		A0128A80F54B6560A538AC1C /* ScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenView.swift; sourceTree = "<group>"; };
+		AE9EE469AEAC6433B4672D15 /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
+		B2D720880BAD6D2F0296D4A8 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		B7400158C8ADF31FCEE7EA29 /* Surface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Surface.swift; sourceTree = "<group>"; };
+		DB45665E5E45F01F8945DBB6 /* MessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRow.swift; sourceTree = "<group>"; };
+		DEA46F4858311831473C9EF7 /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
+		E531433B6982110683524454 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		E5427100A411FDE8FAC97666 /* OnboardingSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSteps.swift; sourceTree = "<group>"; };
+		E864489D80BFEA22D10DE997 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
+		EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
+		F4DFC65D324CCCB7788FAC01 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
+		F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		2A4718C548C40F1CAAD6EB0D /* Routi */ = {
+			isa = PBXGroup;
+			children = (
+				099C9C1462D777FC014D22E1 /* Routi.entitlements */,
+				184722C04D7C490D94182666 /* RoutiApp.swift */,
+				E7C53597C76C9CFF1D60B6AB /* Client */,
+				5054F6CD64AD88456F7D3839 /* Models */,
+				2B7031C6489791F91877A2FA /* Resources */,
+				CD3CFBF1A9E2DE2BA110A6FB /* State */,
+				DADC108623D7AF93066F10D1 /* Views */,
+			);
+			path = Routi;
+			sourceTree = "<group>";
+		};
+		2B7031C6489791F91877A2FA /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				46A9147FFCAF8A5BE1C24F7B /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		5054F6CD64AD88456F7D3839 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AE9EE469AEAC6433B4672D15 /* Auth.swift */,
+				502F8CF0DE246295A5890E87 /* Blocks.swift */,
+				0F126D3177A0B31881954AE1 /* Effort.swift */,
+				2C5AE73982ED2E7411675921 /* Entities.swift */,
+				9F745F0678DD8714864203C0 /* Handover.swift */,
+				85E91F8038F61343E3273FD7 /* ModelName.swift */,
+				B7400158C8ADF31FCEE7EA29 /* Surface.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		8E63362B6040397E9B8280AE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				97647FF55564F4B40332D6CA /* Routi.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9222ABF7A377D9D581C34CCB = {
+			isa = PBXGroup;
+			children = (
+				2A4718C548C40F1CAAD6EB0D /* Routi */,
+				8E63362B6040397E9B8280AE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C9503D92025D8F06EA9436C9 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				E5427100A411FDE8FAC97666 /* OnboardingSteps.swift */,
+				E864489D80BFEA22D10DE997 /* OnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		CD3CFBF1A9E2DE2BA110A6FB /* State */ = {
+			isa = PBXGroup;
+			children = (
+				E531433B6982110683524454 /* AppModel.swift */,
+			);
+			path = State;
+			sourceTree = "<group>";
+		};
+		D1EB7AB7352EEA9DE905879B /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				DEA46F4858311831473C9EF7 /* Providers.swift */,
+				F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */,
+				F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		DADC108623D7AF93066F10D1 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				3C1CCA89D76AC485ADB29A15 /* BotListView.swift */,
+				F4DFC65D324CCCB7788FAC01 /* ChatView.swift */,
+				4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */,
+				5BD073724E27CFF96D741B5D /* NewBotSheet.swift */,
+				B2D720880BAD6D2F0296D4A8 /* RootView.swift */,
+				04C419477237E8F8F539AB6D /* ScreenWindow.swift */,
+				DF7B8A70BE136FEF78873663 /* Components */,
+				C9503D92025D8F06EA9436C9 /* Onboarding */,
+				D1EB7AB7352EEA9DE905879B /* Settings */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		DF7B8A70BE136FEF78873663 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */,
+				75ECC9B53C46B40DF50283ED /* Composer.swift */,
+				12E2F25951C19F693EF8EE16 /* HandoverCard.swift */,
+				EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */,
+				DB45665E5E45F01F8945DBB6 /* MessageRow.swift */,
+				A0128A80F54B6560A538AC1C /* ScreenView.swift */,
+				5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		E7C53597C76C9CFF1D60B6AB /* Client */ = {
+			isa = PBXGroup;
+			children = (
+				366F6379C430E013241DB531 /* RoutiClient.swift */,
+			);
+			path = Client;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		56A6E8349922C39DB4FE5BDE /* Routi */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0AE43F2ED79A028A2E2ABA02 /* Build configuration list for PBXNativeTarget "Routi" */;
+			buildPhases = (
+				D84C510B4B830C0400DC0757 /* Sources */,
+				BD99FEFE9EB367285EE51CAA /* Resources */,
+				F9AC32CC2C9B52F640F864D8 /* Stamp build identity */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Routi;
+			packageProductDependencies = (
+			);
+			productName = Routi;
+			productReference = 97647FF55564F4B40332D6CA /* Routi.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		35538A6876F222107FE2DB06 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					56A6E8349922C39DB4FE5BDE = {
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = F2C89CB391E09E06B7C7C2B1 /* Build configuration list for PBXProject "Routi" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 9222ABF7A377D9D581C34CCB;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8E63362B6040397E9B8280AE /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				56A6E8349922C39DB4FE5BDE /* Routi */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BD99FEFE9EB367285EE51CAA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7EA963BE5E76CFC3CE262D08 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F9AC32CC2C9B52F640F864D8 /* Stamp build identity */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Stamp build identity";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "PLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n[ -f \"$PLIST\" ] || exit 0\nSTAMP=\"$(date '+%H:%M:%S')\"\nSHA=\"$(git -C \"$SRCROOT/..\" rev-parse --short HEAD 2>/dev/null || echo '-')\"\nfor KEY in RoutiBuildTime:\"$STAMP\" RoutiBuildCommit:\"$SHA\"; do\n  NAME=\"${KEY%%:*}\"; VALUE=\"${KEY#*:}\"\n  /usr/libexec/PlistBuddy -c \"Add :$NAME string $VALUE\" \"$PLIST\" 2>/dev/null \\\n    || /usr/libexec/PlistBuddy -c \"Set :$NAME $VALUE\" \"$PLIST\"\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D84C510B4B830C0400DC0757 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A82B92A42AE70C57D9A2F486 /* AppModel.swift in Sources */,
+				1F2AA4D9B1926967F36F7680 /* Auth.swift in Sources */,
+				15C44DA114D533E687FB4811 /* Blocks.swift in Sources */,
+				D8116D3E00FBE96C2311F8F0 /* BotAvatar.swift in Sources */,
+				3D42E355F685B12EA2B094F6 /* BotListView.swift in Sources */,
+				36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */,
+				2046900E789F1433535727F0 /* Composer.swift in Sources */,
+				5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */,
+				EE7B1D28943762E8D0683800 /* Effort.swift in Sources */,
+				22565DA9110228003E0B6A11 /* Entities.swift in Sources */,
+				CC0218F546FFF1FC732BBBCB /* Handover.swift in Sources */,
+				AEEE9600AFA8BA8AA7B788BF /* HandoverCard.swift in Sources */,
+				92ECCE6EDA5BDDF9C5B0CBEF /* MarkdownText.swift in Sources */,
+				DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */,
+				5AC5D791694CFB6FB3A4DAC1 /* ModelName.swift in Sources */,
+				3C30816F38EAD85EBFEFA0CE /* NewBotSheet.swift in Sources */,
+				7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */,
+				23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */,
+				F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */,
+				D70141640505B1F4BAA53171 /* RootView.swift in Sources */,
+				C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */,
+				8E79CDC70EF57C2C8B2B4694 /* RoutiClient.swift in Sources */,
+				EC3CF43ED8865BB048129C3E /* ScreenView.swift in Sources */,
+				8C1FB2AFAB34503F6F28467B /* ScreenWindow.swift in Sources */,
+				39AE62A74C81E7C6A1A0B843 /* SettingsComponents.swift in Sources */,
+				08966B34941B3AE65C038BE8 /* SettingsScreen.swift in Sources */,
+				58A7CAAB48E6029F63CFF0F1 /* Surface.swift in Sources */,
+				A7CC511EBDE57164BEAD0FB7 /* ToolbarStyle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		113C6E5CE499C37D0FF36EB1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = "DEBUG=1 $(inherited)";
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		2725C9F9C067E0ADB1DDF697 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		30A4B0F42EFE3DB480484480 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Routi/Routi.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Routi;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "";
+			};
+			name = Release;
+		};
+		F279E163A420017DB7D461D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Routi/Routi.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Routi;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0AE43F2ED79A028A2E2ABA02 /* Build configuration list for PBXNativeTarget "Routi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F279E163A420017DB7D461D1 /* Debug */,
+				30A4B0F42EFE3DB480484480 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F2C89CB391E09E06B7C7C2B1 /* Build configuration list for PBXProject "Routi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				113C6E5CE499C37D0FF36EB1 /* Debug */,
+				2725C9F9C067E0ADB1DDF697 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 35538A6876F222107FE2DB06 /* Project object */;
+}

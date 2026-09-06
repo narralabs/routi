@@ -36,14 +36,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # without it Chromium exits with "No usable sandbox!". The alternative — passing
 # --no-sandbox — turns off the isolation that makes it safe to point a model at the
 # open web, so the package is the right fix.
-RUN useradd -ms /bin/bash krog
-WORKDIR /home/krog
+RUN useradd -ms /bin/bash routi
+WORKDIR /home/routi
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY screenctl /usr/local/bin/screenctl
 COPY act /usr/local/bin/act
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/screenctl /usr/local/bin/act
 
-USER krog
+USER routi
 EXPOSE 5900
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

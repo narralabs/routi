@@ -1,14 +1,14 @@
 # The Homebrew formula for the core. Lives in the tap repository
-# (github.com/narralabs/homebrew-tap, as Formula/krog-core.rb); this copy is the source
+# (github.com/narralabs/homebrew-tap, as Formula/routi-core.rb); this copy is the source
 # of truth to update on each release — url and sha256 come from the release assets.
 #
 #   brew tap narralabs/tap
-#   brew install krog-core
-#   brew services start krog-core      # starts now and at every login
-class KrogCore < Formula
-  desc "Krog Core: the daemon that runs your Krog bots"
-  homepage "https://github.com/narralabs/krog"
-  url "https://github.com/narralabs/krog/releases/download/v0.1.0/krog-core.tar.gz"
+#   brew install routi-core
+#   brew services start routi-core      # starts now and at every login
+class RoutiCore < Formula
+  desc "Routi Core: the daemon that runs your Routi bots"
+  homepage "https://github.com/narralabs/routi"
+  url "https://github.com/narralabs/routi/releases/download/v0.1.0/routi-core.tar.gz"
   sha256 "REPLACE_WITH_THE_RELEASE_SHA256"
   license "Apache-2.0"
 
@@ -18,27 +18,27 @@ class KrogCore < Formula
   def install
     ENV.prepend_path "PATH", Formula["node@22"].opt_bin
     system "pnpm", "install", "--frozen-lockfile"
-    system "pnpm", "--filter", "@krog/protocol", "build"
-    system "pnpm", "--filter", "krogd", "build"
+    system "pnpm", "--filter", "@routi/protocol", "build"
+    system "pnpm", "--filter", "routid", "build"
     libexec.install Dir["*"]
-    # One command, `krogd`, that runs the built daemon on Homebrew's Node.
-    (bin/"krogd").write <<~SH
+    # One command, `routid`, that runs the built daemon on Homebrew's Node.
+    (bin/"routid").write <<~SH
       #!/bin/sh
       exec "#{Formula["node@22"].opt_bin}/node" "#{libexec}/daemon/dist/src/index.js" "$@"
     SH
   end
 
   service do
-    run [opt_bin/"krogd"]
+    run [opt_bin/"routid"]
     keep_alive true
     working_dir libexec/"daemon"
-    log_path var/"log/krogd.log"
-    error_log_path var/"log/krogd.log"
+    log_path var/"log/routid.log"
+    error_log_path var/"log/routid.log"
     # The vendor CLIs the core drives: Claude Code from npm, Grok in ~/.grok/bin.
     environment_variables PATH: "#{Dir.home}/.grok/bin:#{HOMEBREW_PREFIX}/bin:/usr/bin:/bin"
   end
 
   test do
-    assert_match "krogd", shell_output("#{bin}/krogd --help 2>&1", 1)
+    assert_match "routid", shell_output("#{bin}/routid --help 2>&1", 1)
   end
 end

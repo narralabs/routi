@@ -1,4 +1,4 @@
-# Krog Bot
+# Routi Bot
 
 A self-hosted, provider-agnostic take on Grok Bot: persistent chat bots, each with its
 own personality and model, that will eventually be able to see and drive a live
@@ -14,18 +14,18 @@ network path.
                  ┌─────────────────────────────────────┐
                  │            Mac mini                 │
                  │                                     │
-   macOS app ────┼──▶  krogd  ──▶ Claude (subscription) │
+   macOS app ────┼──▶  routid  ──▶ Claude (subscription) │
                  │       │                             │
    iPhone   ─────┼──▶    ├──▶ SQLite                   │
    (Tailscale)   │       └──▶ container / host surface │
                  └─────────────────────────────────────┘
 ```
 
-- **`daemon/`** — `krogd`, Node + TypeScript. Owns the Claude session, the database,
+- **`daemon/`** — `routid`, Node + TypeScript. Owns the Claude session, the database,
   the bots, and (from M3) the container and media pipeline. One WebSocket API.
 - **`apple/`** — native SwiftUI, one target for Mac, iPad, and iPhone. Knows nothing
-  about model providers; it only speaks krogd's protocol.
-- **`protocol/`** — zod schemas defining the wire format. `apple/Krog/Models/` holds
+  about model providers; it only speaks routid's protocol.
+- **`protocol/`** — zod schemas defining the wire format. `apple/Routi/Models/` holds
   the hand-written Swift mirror; the two change in the same commit.
 - **`containers/desktop/`** — the shared Linux desktop: XFCE, Chromium, and a small
   `act` script that is the only input surface exposed to the daemon.
@@ -40,18 +40,18 @@ Prerequisites: Node 22+, pnpm, Flutter 3.41+, and `claude` logged in on this mac
 
 ```bash
 pnpm install
-pnpm --filter @krog/protocol build
+pnpm --filter @routi/protocol build
 
 # terminal 1 — the daemon
-pnpm --filter krogd dev            # ws://127.0.0.1:7171, data in ~/.krog
+pnpm --filter routid dev            # ws://127.0.0.1:7171, data in ~/.routi
 
 # terminal 2 — the app
-cd apple && ./bootstrap.sh && open Krog.xcodeproj
+cd apple && ./bootstrap.sh && open Routi.xcodeproj
 ```
 
 To develop while a packaged core is serving your real bots on 7171, run the checkout as
-a second, isolated core instead: `pnpm --filter krogd dev:isolated` uses `~/.krog-dev`
-and port 7172, never reaps screens, and the Debug app points at it under Krog Core in
+a second, isolated core instead: `pnpm --filter routid dev:isolated` uses `~/.routi-dev`
+and port 7172, never reaps screens, and the Debug app points at it under Routi Core in
 Settings. The two share nothing but the Docker desktop.
 
 `bootstrap.sh` regenerates the Xcode project from `project.yml` (the `.xcodeproj` is
@@ -64,7 +64,7 @@ ID signed in under Xcode > Settings > Accounts. The simulator needs neither:
 
 ```bash
 ./bootstrap.sh --ios
-xcodebuild -scheme Krog -destination "id=<simulator udid>" \
+xcodebuild -scheme Routi -destination "id=<simulator udid>" \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
@@ -72,12 +72,12 @@ Enabling iOS is why this is a switch rather than the default: a multiplatform ta
 makes the *Mac* build demand a team too, so the Mac-only default is what lets a fresh
 clone build with no Apple account at all. Run plain `./bootstrap.sh` to go back.
 
-Point the app at a different daemon under Krog > Settings. Remote access over
+Point the app at a different daemon under Routi > Settings. Remote access over
 Tailscale lands in M2.
 
 ## Installing on another Mac
 
-Krog is two pieces, and a friend needs both: the **app** (a window) and **Krog Core**
+Routi is two pieces, and a friend needs both: the **app** (a window) and **Routi Core**
 (the daemon that keeps the bots and does the work). The core is not bundled into the
 app yet, so it installs separately and runs at login.
 
@@ -90,38 +90,38 @@ What their Mac needs:
   DeepSeek, xAI and Grok can be added afterwards in Settings; each is either a key or
   that vendor's CLI signed in.
 - **Docker Desktop, only for bots with a container screen.** Build the desktop once with
-  `docker build -t krog-desktop containers/desktop`. Bots without a screen, and bots set
+  `docker build -t routi-desktop containers/desktop`. Bots without a screen, and bots set
   to *This Mac*, need no Docker — but *This Mac* needs Screen Recording and Accessibility
   granted to the process running the core, which for a login agent means `node`.
 
-Send them `Krog.zip` and `krog-core.tar.gz` from a build (`scripts/package.sh` makes
+Send them `Routi.zip` and `routi-core.tar.gz` from a build (`scripts/package.sh` makes
 both). They:
 
 ```bash
-tar xzf krog-core.tar.gz && cd krog-core
+tar xzf routi-core.tar.gz && cd routi-core
 scripts/install-core.sh        # Node, dependencies, build, login agent — safe to re-run
 ```
 
 then open the app. It looks for the core on this Mac; if the core is elsewhere, Settings
-> Krog Core takes an address, and a Tailscale name works.
+> Routi Core takes an address, and a Tailscale name works.
 
 **Gatekeeper.** `scripts/package.sh` signs with a Developer ID Application certificate
 when one is in the building Mac's keychain, and notarizes when credentials are stored
-(`xcrun notarytool store-credentials krog-notary`); that build opens anywhere with a
+(`xcrun notarytool store-credentials routi-notary`); that build opens anywhere with a
 double-click. Without them it is signed to run locally, and the first launch on another
 Mac is right-click > Open, once — say so when you send it.
 
 ## Verifying
 
 ```bash
-pnpm --filter krogd spike          # subscription auth reaches Claude at all
-pnpm --filter krogd spike:session  # warm sessions + which credential is in use
-pnpm --filter krogd spike:grok     # one real Grok turn, tools and all, on a fake screen
-pnpm --filter krogd probe          # full protocol: streaming, persistence, restart
-cd apple && xcodebuild -scheme Krog -destination 'platform=macOS' build
+pnpm --filter routid spike          # subscription auth reaches Claude at all
+pnpm --filter routid spike:session  # warm sessions + which credential is in use
+pnpm --filter routid spike:grok     # one real Grok turn, tools and all, on a fake screen
+pnpm --filter routid probe          # full protocol: streaming, persistence, restart
+cd apple && xcodebuild -scheme Routi -destination 'platform=macOS' build
 ```
 
-With the daemon already running, `pnpm --filter krogd poke "..."` sends a message to
+With the daemon already running, `pnpm --filter routid poke "..."` sends a message to
 the live instance so you can watch the app render the stream — useful for checking the
 client's render path without driving the UI.
 
@@ -138,8 +138,8 @@ Welcome -> where should the core run -> connect Claude -> done.
 
 Connecting Claude offers the two credentials the daemon supports. Signing in with a
 Claude account shells out to `claude auth login --claudeai`, which opens the browser
-and performs the real OAuth; the token stays owned by the CLI and Krog never sees it.
-Krog does **not** implement its own OAuth client against Anthropic's consumer auth —
+and performs the real OAuth; the token stays owned by the CLI and Routi never sees it.
+Routi does **not** implement its own OAuth client against Anthropic's consumer auth —
 that would mean impersonating Claude Code's client to reach someone's subscription,
 which is not a supported integration.
 
@@ -149,8 +149,8 @@ and a rejected key never lands in the Keychain.
 
 ## Authentication
 
-`krogd` reaches Claude through `@anthropic-ai/claude-agent-sdk`, which picks up the
-subscription login already on the machine (stored in the macOS Keychain). krogd never
+`routid` reaches Claude through `@anthropic-ai/claude-agent-sdk`, which picks up the
+subscription login already on the machine (stored in the macOS Keychain). routid never
 sees or stores the credential.
 
 Verified in the M0 spike: `subscriptionType: Claude Max`, `apiKeySource: none`, working
@@ -170,19 +170,19 @@ an X to close — reached from the account row in the sidebar footer or ⌘,. On
 becomes a navigation stack that pushes into each pane.
 
 Panes are General (theme, send key, reasoning visibility), one per **Provider**,
-Krog Core (daemon endpoint and connection state), and About.
+Routi Core (daemon endpoint and connection state), and About.
 
 Each provider is its own entry with its brand mark — Anthropic, OpenAI, Codex,
 DeepSeek, xAI, Grok CLI, Moonshot. Everything but Moonshot is wired up; it is listed
 and marked "Soon" because that is the roadmap, and it is a daemon-side adapter that
-will appear without an app update. Krog Core sits in its own section: it is the daemon
+will appear without an app update. Routi Core sits in its own section: it is the daemon
 this app talks to, not a model provider, and lumping the two under one "Connections"
 heading blurred that.
 
 A vendor's agent gets its own entry beside that vendor's API — Codex beside OpenAI,
 Grok CLI beside xAI — because they are different harnesses and both can be connected
 at once. The agent entry is the one that spends a plan you already pay for: it drives
-the vendor CLI's own sign-in on the Mac running the core, so Krog never sees the
+the vendor CLI's own sign-in on the Mac running the core, so Routi never sees the
 token.
 
 The monograms are deliberately not reproductions of anyone's logo. A consistent set of
@@ -201,10 +201,10 @@ would discard that on every bot you create. Bots take turns instead: turns are a
 serialised per conversation, and a claim on the pointer extends that to the screen.
 
 ```bash
-docker build -t krog-desktop containers/desktop
+docker build -t routi-desktop containers/desktop
 ```
 
-The daemon starts it on demand and leaves it running across krogd restarts, since
+The daemon starts it on demand and leaves it running across routid restarts, since
 losing browser sessions to a daemon restart would defeat the point.
 
 **Bots drive it themselves.** A bot whose surface is not `none` gets the desktop as
@@ -264,7 +264,7 @@ before tools land avoids a migration later.
 what lets a tool card appear between two paragraphs mid-stream.
 
 **Sessions stay warm.** The M0 spike measured ~2.3s TTFT on a cold turn versus ~1.3s
-on a warm one — the difference is CLI process spawn. `krogd` holds one `query()` open
+on a warm one — the difference is CLI process spawn. `routid` holds one `query()` open
 per conversation and feeds it through a push queue, so only the first message in a
 conversation pays that cost.
 

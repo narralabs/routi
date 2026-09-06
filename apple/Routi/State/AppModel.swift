@@ -18,7 +18,7 @@ final class AppModel {
     /// Model lists per provider. Each provider names its own, so the picker never
     /// offers a bot a model its provider cannot serve.
     var modelsByProvider: [String: [ModelInfo]] = [:]
-    /// Providers whose harness will accept Krog's desktop tools. A bot on any other
+    /// Providers whose harness will accept Routi's desktop tools. A bot on any other
     /// cannot be given a screen, however willing the container is to make one.
     var providersWithScreen: Set<String> = []
 
@@ -36,7 +36,7 @@ final class AppModel {
     /// Last failure per conversation, shown inline in that thread rather than only
     /// as an alert — an alert that fires while you are looking elsewhere is lost.
     var conversationErrors: [String: String] = [:]
-    var connection: KrogClient.ConnectionState = .disconnected
+    var connection: RoutiClient.ConnectionState = .disconnected
     var errorMessage: String?
     var isLoadingMessages = false
 
@@ -76,12 +76,12 @@ final class AppModel {
         return !auth.configured || !onboardingDismissed
     }
 
-    @ObservationIgnored private let client: KrogClient
+    @ObservationIgnored private let client: RoutiClient
 
     // Default arguments are evaluated in a nonisolated context, so the client is
     // constructed inside the initializer rather than in the signature.
-    init(client: KrogClient? = nil) {
-        let client = client ?? KrogClient()
+    init(client: RoutiClient? = nil) {
+        let client = client ?? RoutiClient()
         self.client = client
         client.onStateChange = { [weak self] state in
             guard let self else { return }
@@ -672,7 +672,7 @@ final class AppModel {
 
     // MARK: - Events
 
-    private func apply(_ event: KrogClient.Event) {
+    private func apply(_ event: RoutiClient.Event) {
         switch event.kind {
         case "message.created":
             guard let raw = event.payload["message"],

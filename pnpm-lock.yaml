@@ -16,7 +16,7 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.124.0
         version: 0.124.0(zod@4.5.4)
-      '@krog/protocol':
+      '@routi/protocol':
         specifier: workspace:^
         version: link:../protocol
       '@openai/codex':

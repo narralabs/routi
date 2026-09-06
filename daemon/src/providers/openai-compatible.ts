@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
+import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { desktopToolSpecs, runDesktopTool } from '../surfaces/tools.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'

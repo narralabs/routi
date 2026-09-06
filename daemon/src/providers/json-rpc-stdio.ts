@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 /**
  * Line-delimited JSON-RPC over a child process's stdin and stdout.
  *
- * Both agent CLIs Krog drives speak this — Codex through its app-server, Grok through
+ * Both agent CLIs Routi drives speak this — Codex through its app-server, Grok through
  * ACP — and both send requests *back*: an approval to grant, a file to read, a
  * permission to decide. That is the whole reason to hold the connection rather than
  * use a vendor SDK, and it is the same reason on both sides, so it is one class. What

@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
+import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import { GrokCli, grokAuthFile, grokBinary } from '../auth/grok-cli.js'
-import { GrokAcp, KROG_MCP_SERVER, isKrogTool, toolTargetOf, type AcpEvent } from './grok-acp.js'
+import { GrokAcp, ROUTI_MCP_SERVER, isRoutiTool, toolTargetOf, type AcpEvent } from './grok-acp.js'
 import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 
@@ -11,7 +11,7 @@ import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
  *
  * The third of the same shape, after Claude and Codex: a plan someone already pays
  * for should be spendable without a second, metered bill, and the CLI is the only
- * sanctioned way to spend one from a program. Krog never handles the credential — the
+ * sanctioned way to spend one from a program. Routi never handles the credential — the
  * Grok CLI holds it and this drives the CLI.
  *
  * Sessions are warm and per bot-in-conversation, like the other two: Grok keeps the
@@ -27,28 +27,28 @@ import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
  * `_meta` hints on `session/new` and `session/prompt` are ignored, and the CLI's own
  * `--reasoning-effort` does not reach a session created this way. All four were
  * measured against 1.0.13 and the session stayed on the model's default every time.
- * Listing levels Krog cannot actually set would put a control in the bot sheet that
+ * Listing levels Routi cannot actually set would put a control in the bot sheet that
  * quietly did nothing.
  */
 const NO_EFFORT_LEVELS: ModelInfo['effortLevels'] = []
 
 /**
- * A Grok home belonging to Krog rather than to whoever owns this Mac.
+ * A Grok home belonging to Routi rather than to whoever owns this Mac.
  *
  * The same door the Codex adapter had to shut, and Grok leaves it open twice as wide:
  * it reads `~/.grok` for config, skills, plugins and MCP servers, *and* `~/.claude.json`
- * and `~/.claude/` for the same things, in Claude Code's format. Left alone, a Krog
+ * and `~/.claude/` for the same things, in Claude Code's format. Left alone, a Routi
  * bot inherits the operator's whole toolbox — the first session opened here came up
- * holding a personal Figma server. A bot's abilities should come from Krog and its own
+ * holding a personal Figma server. A bot's abilities should come from Routi and its own
  * description.
  *
  * Hence both variables: `GROK_HOME` moves the Grok config, and `HOME` moves the
  * Claude-compatible one, which `GROK_HOME` does not cover. Measured: with only
  * `GROK_HOME` set, the personal server was still there; with both, the session lists
- * exactly the tools Krog served it.
+ * exactly the tools Routi served it.
  *
  * The login is the one thing worth keeping, so auth.json is linked rather than copied:
- * signing in or out with the CLI stays in effect, and Krog never holds a copy of the
+ * signing in or out with the CLI stays in effect, and Routi never holds a copy of the
  * credential.
  */
 function isolatedGrokHome(dataDir: string): { grokHome: string; home: string } {
@@ -56,12 +56,12 @@ function isolatedGrokHome(dataDir: string): { grokHome: string; home: string } {
   const home = join(grokHome, 'home')
   mkdirSync(home, { recursive: true })
 
-  // Rewritten every start: this file is Krog's statement of what a bot may use, and it
+  // Rewritten every start: this file is Routi's statement of what a bot may use, and it
   // should not drift because something once wrote to it.
   writeFileSync(
     join(grokHome, 'config.toml'),
     [
-      '# Written by Krog. A bot gets its abilities from Krog and its own description,',
+      '# Written by Routi. A bot gets its abilities from Routi and its own description,',
       '# never from the personal Grok setup on this machine.',
       '',
     ].join('\n'),
@@ -260,7 +260,7 @@ export class XaiSubscriptionAdapter implements ProviderAdapter {
         ? [
             {
               type: 'http',
-              name: KROG_MCP_SERVER,
+              name: ROUTI_MCP_SERVER,
               url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}/${req.conversationId}`,
               headers: [],
             },
@@ -305,7 +305,7 @@ export class XaiSubscriptionAdapter implements ProviderAdapter {
         description: String(model['description'] ?? ''),
         resolvedModel: id,
         effortLevels: NO_EFFORT_LEVELS,
-        // Grok picks a level and says which; Krog cannot change it, so it is reported
+        // Grok picks a level and says which; Routi cannot change it, so it is reported
         // rather than offered.
         defaultEffort: effort ? normaliseEffort(meta['reasoningEffort']) : null,
       }
@@ -361,7 +361,7 @@ class TurnBlocks {
 
   toolStart(update: Record<string, any>): void {
     const target = toolTargetOf(update)
-    if (!isKrogTool(update)) return
+    if (!isRoutiTool(update)) return
     const id = String(update['toolCallId'] ?? '')
     if (!id || this.tools.has(id)) return
 
@@ -438,10 +438,10 @@ function textOf(blocks: Block[]): string {
     .trim()
 }
 
-/** `krog__open_url` is Grok's name for it; the transcript wants `open_url`. */
+/** `routi__open_url` is Grok's name for it; the transcript wants `open_url`. */
 function shortToolName(target: string): string {
-  return target.startsWith(`${KROG_MCP_SERVER}__`)
-    ? target.slice(KROG_MCP_SERVER.length + 2)
+  return target.startsWith(`${ROUTI_MCP_SERVER}__`)
+    ? target.slice(ROUTI_MCP_SERVER.length + 2)
     : target
 }
 

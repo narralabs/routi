@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Block, Bot, Message, ServerEvent } from '@krog/protocol'
+import type { Block, Bot, Message, ServerEvent } from '@routi/protocol'
 import type { Routine, Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import { wakeFor } from './channel.js'

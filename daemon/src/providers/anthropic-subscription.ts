@@ -1,6 +1,6 @@
 import { query, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources'
-import type { AccountInfo, Block, ModelInfo } from '@krog/protocol'
+import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import { PushQueue } from './push-queue.js'
 import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
@@ -11,7 +11,7 @@ import { desktopToolServer, toolNames } from '../surfaces/tools.js'
  * Anthropic via the user's personal Claude plan.
  *
  * Uses @anthropic-ai/claude-agent-sdk, which picks up the subscription login already
- * present on this machine (macOS Keychain). krogd never sees or stores the credential.
+ * present on this machine (macOS Keychain). routid never sees or stores the credential.
  * Verified in the M0 spike: subscriptionType "Claude Max", apiKeySource none, and it
  * works from a scrubbed launchd-style environment.
  *
@@ -117,7 +117,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
          * configuration — ~/.claude/settings.json, its MCP servers, and any CLAUDE.md
          * on the path — and the bot inherits an identity that has nothing to do with
          * its personality. It showed up as a bot introducing itself as the operator's
-         * MCP tooling rather than as itself. A Krog bot is defined by its system
+         * MCP tooling rather than as itself. A Routi bot is defined by its system
          * prompt and nothing else.
          */
         settingSources: [],
@@ -175,7 +175,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         const ev = msg.event
         switch (ev.type) {
           case 'content_block_start': {
-            const block = anthropicBlockToKrog(ev.content_block)
+            const block = anthropicBlockToRouti(ev.content_block)
             return block ? { type: 'block_start', index: ev.index, block } : null
           }
           case 'content_block_delta':
@@ -278,7 +278,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
 
 // ------------------------------------------------------------------ mapping
 
-function anthropicBlockToKrog(raw: { type: string }): Block | null {
+function anthropicBlockToRouti(raw: { type: string }): Block | null {
   // The SDK's content-block union is far wider than the handful the UI renders, so
   // narrow through an indexable view and match on the discriminant.
   const cb = raw as { type: string } & Record<string, unknown>

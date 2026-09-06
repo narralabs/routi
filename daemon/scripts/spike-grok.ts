@@ -4,11 +4,11 @@
  * Drives `XaiSubscriptionAdapter` exactly as a turn does: it asks the CLI who is
  * signed in, lists the models the account can reach, then runs one turn with a fake
  * screen attached and prints the blocks as they stream. The fake screen is the point —
- * it proves the tools Krog serves over HTTP reach Grok, that the permission request
+ * it proves the tools Routi serves over HTTP reach Grok, that the permission request
  * comes back here and is answered, and that the tool call lands as a block rather than
  * as prose about a tool.
  *
- * Run: pnpm --filter krogd spike:grok
+ * Run: pnpm --filter routid spike:grok
  */
 import { createServer } from 'node:http'
 import { mkdtempSync } from 'node:fs'
@@ -33,7 +33,7 @@ function fakeScreen() {
         result = {
           protocolVersion: '2024-11-05',
           capabilities: { tools: {} },
-          serverInfo: { name: 'krog-desktop', version: '0.1.0' },
+          serverInfo: { name: 'routi-desktop', version: '0.1.0' },
         }
         break
       case 'notifications/initialized':
@@ -78,7 +78,7 @@ async function main(): Promise<void> {
   const screen = fakeScreen()
   await new Promise<void>((resolve) => screen.listen(PORT, '127.0.0.1', resolve))
 
-  const dataDir = mkdtempSync(join(tmpdir(), 'krog-grok-'))
+  const dataDir = mkdtempSync(join(tmpdir(), 'routi-grok-'))
   const adapter = new XaiSubscriptionAdapter({
     cwd: dataDir,
     dataDir,

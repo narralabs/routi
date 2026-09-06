@@ -18,7 +18,7 @@ struct NewBotSheet: View {
     private var screenFootnote: String {
         canHaveScreen
             ? surfaceMode.explanation
-            : "\(ProviderInfo.find(selectedProvider).name) runs its own agent, which does not take Krog's browser tools yet, so a bot here cannot use a screen."
+            : "\(ProviderInfo.find(selectedProvider).name) runs its own agent, which does not take Routi's browser tools yet, so a bot here cannot use a screen."
     }
     @State private var selectedModel = "default"
     @State private var selectedEffort = Effort.implicitDefault
@@ -167,12 +167,12 @@ struct BotSettingsSheet: View {
     private var canHaveScreen: Bool { model.supportsScreen(bot.provider) }
 
     /// A bot's provider is fixed, so this is a statement about the bot rather than a
-    /// choice: when its harness will not take Krog's browser tools, a screen here
+    /// choice: when its harness will not take Routi's browser tools, a screen here
     /// would be created and never reached.
     private var screenFootnote: String {
         canHaveScreen
             ? surfaceMode.explanation
-            : "\(ProviderInfo.find(bot.provider).name) runs its own agent, which does not take Krog's browser tools yet, so this bot cannot use a screen."
+            : "\(ProviderInfo.find(bot.provider).name) runs its own agent, which does not take Routi's browser tools yet, so this bot cannot use a screen."
     }
 
     init(bot: Bot) {

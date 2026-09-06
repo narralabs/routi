@@ -214,7 +214,7 @@ struct ChatView: View {
         .padding(.top, 6)
     }
 
-    private static let tailAnchor = "krog.tail"
+    private static let tailAnchor = "routi.tail"
     /// How far from the end still counts as being at the end: a little over a line, so
     /// a flick that stops just short does not read as walking away.
     private static let pinSlack: CGFloat = 40

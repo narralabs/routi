@@ -3,8 +3,8 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-const IMAGE = 'krog-desktop:latest'
-const CONTAINER = 'krog-desktop'
+const IMAGE = 'routi-desktop:latest'
+const CONTAINER = 'routi-desktop'
 
 export type DesktopState = 'stopped' | 'starting' | 'running' | 'unavailable'
 
@@ -57,7 +57,7 @@ class Host {
       return 'Docker is not running on this Mac. Start Docker Desktop, then try again.'
     }
     if (!(await this.imageExists())) {
-      return 'The desktop image is missing. Build it with: docker build -t krog-desktop containers/desktop'
+      return 'The desktop image is missing. Build it with: docker build -t routi-desktop containers/desktop'
     }
     if (await this.isRunning()) return null
 

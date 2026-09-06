@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { nextRun, parseSchedule, type Schedule } from '../sessions/schedule.js'
-import type { Block, Bot, Conversation, Message, Role } from '@krog/protocol'
+import type { Block, Bot, Conversation, Message, Role } from '@routi/protocol'
 
 const now = () => Date.now()
 

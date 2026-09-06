@@ -1,4 +1,4 @@
-import type { AuthMode } from '@krog/protocol'
+import type { AuthMode } from '@routi/protocol'
 import type { Store } from '../db/store.js'
 import { AnthropicApiAdapter } from '../providers/anthropic-api.js'
 import { AnthropicSubscriptionAdapter } from '../providers/anthropic-subscription.js'
@@ -43,7 +43,7 @@ const settingModeFor = (provider: string) => `authMode.${provider}`
 const settingHarnessFor = (provider: string) => `authHarness.${provider}`
 
 /**
- * Providers whose turns are run by a vendor's own CLI rather than by Krog.
+ * Providers whose turns are run by a vendor's own CLI rather than by Routi.
  *
  * They are the ones that can spend a personal plan, and each is its own provider id
  * beside the vendor's direct API — a bot on the agent and a bot on a named API model

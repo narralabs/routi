@@ -8,7 +8,7 @@ struct WelcomeStep: View {
     var body: some View {
         OnboardingScaffold(
             icon: "sparkles",
-            title: "Welcome to Krog",
+            title: "Welcome to Routi",
             subtitle: "Bots that live on your Mac, work while you're away, and answer from your phone."
         ) {
             VStack(alignment: .leading, spacing: 18) {
@@ -71,8 +71,8 @@ struct ConnectionStep: View {
     var body: some View {
         OnboardingScaffold(
             icon: "externaldrive.connected.to.line.below",
-            title: "Where should Krog run?",
-            subtitle: "Krog's core keeps your bots, conversations, and AI connections. It needs a Mac that stays on."
+            title: "Where should Routi run?",
+            subtitle: "Routi's core keeps your bots, conversations, and AI connections. It needs a Mac that stays on."
         ) {
             VStack(spacing: 12) {
                 OptionCard(
@@ -85,7 +85,7 @@ struct ConnectionStep: View {
                 OptionCard(
                     icon: "network",
                     title: "Connect to another Mac",
-                    detail: "Krog is already running somewhere else — your Mac mini, or a server.",
+                    detail: "Routi is already running somewhere else — your Mac mini, or a server.",
                     action: onConnectRemote
                 )
             }
@@ -111,8 +111,8 @@ struct EndpointStep: View {
     var body: some View {
         OnboardingScaffold(
             icon: "network",
-            title: "Connect to Krog",
-            subtitle: "Enter the address of the Mac running Krog. A Tailscale name works here too."
+            title: "Connect to Routi",
+            subtitle: "Enter the address of the Mac running Routi. A Tailscale name works here too."
         ) {
             VStack(spacing: 14) {
                 Form {
@@ -169,14 +169,14 @@ struct EndpointStep: View {
                 }
             }
             isConnecting = false
-            failure = "Couldn't reach Krog at \(host):\(port). Check that krogd is running and that this device can see that Mac."
+            failure = "Couldn't reach Routi at \(host):\(port). Check that routid is running and that this device can see that Mac."
         }
     }
 }
 
 // MARK: - First connection
 
-/// The one connection Krog needs to start, from whichever of the four a person has.
+/// The one connection Routi needs to start, from whichever of the four a person has.
 ///
 /// This was Anthropic-only, which made the app unusable for someone with a ChatGPT plan
 /// and no Claude account — the daemon supports them; the first screen refused them.
@@ -225,13 +225,13 @@ struct CredentialStep: View {
     private var subtitle: String {
         switch mode {
         case .choosing:
-            return "Krog needs one connection to start. Use a plan you already pay for, or an API key. More can be added later in Settings."
+            return "Routi needs one connection to start. Use a plan you already pay for, or an API key. More can be added later in Settings."
         case .key(.anthropicKey):
             return "Paste a key from console.anthropic.com. It's stored in this Mac's Keychain, never in the app."
         case .key:
             return "Paste a key from platform.openai.com. It's stored in this Mac's Keychain, never in the app."
         case .signingIn:
-            return "Finish signing in, in the browser window that just opened on the Mac running Krog."
+            return "Finish signing in, in the browser window that just opened on the Mac running Routi."
         }
     }
 
@@ -316,7 +316,7 @@ struct CredentialStep: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
             #if !os(macOS)
-            Text("The browser opens on the Mac running Krog, not here.")
+            Text("The browser opens on the Mac running Routi, not here.")
                 .font(.system(size: 12))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)

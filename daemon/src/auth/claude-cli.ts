@@ -8,7 +8,7 @@ const run = promisify(execFile)
  *
  * Deliberately a thin wrapper rather than a reimplementation: `claude auth login`
  * opens the browser, performs the real OAuth, and stores the result in the Keychain.
- * Krog never sees or persists a subscription token. Minting one ourselves would mean
+ * Routi never sees or persists a subscription token. Minting one ourselves would mean
  * impersonating Claude Code's OAuth client, which is not a supported integration —
  * so we drive the official flow and read its status.
  */
@@ -32,7 +32,7 @@ interface RawStatus {
 }
 
 export class ClaudeCli {
-  constructor(private readonly binary = process.env['KROG_CLAUDE_BIN'] ?? 'claude') {}
+  constructor(private readonly binary = process.env['ROUTI_CLAUDE_BIN'] ?? 'claude') {}
 
   async version(): Promise<string | null> {
     try {
@@ -94,7 +94,7 @@ export class ClaudeCli {
     } catch {
       // Already gone.
     }
-    throw new Error('Sign-in timed out. Finish the browser step on the Mac running krogd, then try again.')
+    throw new Error('Sign-in timed out. Finish the browser step on the Mac running routid, then try again.')
   }
 
   async logout(): Promise<void> {

@@ -1,4 +1,4 @@
-import type { AccountInfo, Block, Message, ModelInfo } from '@krog/protocol'
+import type { AccountInfo, Block, Message, ModelInfo } from '@routi/protocol'
 
 /**
  * Every provider reduces to this interface. Adding OpenAI / Grok / Kimi later means

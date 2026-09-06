@@ -1,30 +1,45 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, renameSync } from 'node:fs'
 import { openDb } from './db/schema.js'
 import { Store } from './db/store.js'
 import { AuthManager } from './auth/manager.js'
 import type { ProviderAdapter } from './providers/types.js'
 import { SessionManager } from './sessions/manager.js'
-import { KrogServer } from './server/ws.js'
+import { RoutiServer } from './server/ws.js'
 import { Scheduler } from './sessions/scheduler.js'
 import { Handovers } from './surfaces/handover.js'
 import { DesktopPool } from './surfaces/pool.js'
 
-const DATA_DIR = process.env['KROG_DATA_DIR'] ?? join(homedir(), '.krog')
-const PORT = Number(process.env['KROG_PORT'] ?? 7171)
+const DATA_DIR = process.env['ROUTI_DATA_DIR'] ?? join(homedir(), '.routi')
+
+/**
+ * The product was called Krog until September 2026. A Mac that ran it then has its
+ * bots in ~/.krog; moving the directory the first time the renamed daemon starts is
+ * what keeps them. Only the default location moves — an explicit data dir is left to
+ * whoever set it.
+ */
+function adoptOldDataDir(): void {
+  if (process.env['ROUTI_DATA_DIR']) return
+  const old = join(homedir(), '.krog')
+  if (existsSync(DATA_DIR) || !existsSync(old)) return
+  renameSync(old, DATA_DIR)
+  console.log(`moved ${old} to ${DATA_DIR}`)
+}
+const PORT = Number(process.env['ROUTI_PORT'] ?? 7171)
 // Default to loopback. M2 moves this to the Tailscale interface rather than 0.0.0.0 —
 // binding to every interface would expose the daemon on whatever café Wi-Fi is around.
-const HOST = process.env['KROG_HOST'] ?? '127.0.0.1'
+const HOST = process.env['ROUTI_HOST'] ?? '127.0.0.1'
 
 async function main(): Promise<void> {
+  adoptOldDataDir()
   mkdirSync(DATA_DIR, { recursive: true })
-  // Agent sessions are stored per working directory; give krogd its own so it never
+  // Agent sessions are stored per working directory; give routid its own so it never
   // mixes with the user's project histories.
   const sessionCwd = join(DATA_DIR, 'sessions')
   mkdirSync(sessionCwd, { recursive: true })
 
-  const db = openDb(join(DATA_DIR, 'krog.db'))
+  const db = openDb(join(DATA_DIR, existsSync(join(DATA_DIR, 'krog.db')) ? 'krog.db' : 'routi.db'))
   const store = new Store(db)
 
   // Starts empty on purpose: the daemon must run with no credential so the client
@@ -44,7 +59,7 @@ async function main(): Promise<void> {
   )
   await auth.applyMode()
 
-  let server: KrogServer
+  let server: RoutiServer
   const handovers = new Handovers((event) => server.broadcast(event))
   const sessions = new SessionManager(
     store,
@@ -53,7 +68,7 @@ async function main(): Promise<void> {
     desktops,
     handovers,
   )
-  server = new KrogServer({ store, sessions, providers, auth, desktops, handovers })
+  server = new RoutiServer({ store, sessions, providers, auth, desktops, handovers })
 
   // Routines are saved by bots during ordinary turns; this only fires what is due.
   const scheduler = new Scheduler(store, sessions)
@@ -62,13 +77,13 @@ async function main(): Promise<void> {
   await server.listen(PORT, HOST)
 
   const status = await auth.status()
-  console.log(`krogd listening on ws://${HOST}:${PORT}  (data: ${DATA_DIR})`)
+  console.log(`routid listening on ws://${HOST}:${PORT}  (data: ${DATA_DIR})`)
   // Screens whose bot has gone hold a display and a browser for nothing.
   // Only the core on the default data dir reaps. Screens live in one shared container
   // and are named by bot; a second core pointed at another data dir — a development
   // one, say — has none of the real bots in its database and would stop every screen
   // the real core is using. It did, once.
-  if (!process.env['KROG_DATA_DIR']) {
+  if (!process.env['ROUTI_DATA_DIR']) {
     const reaped = await desktops.reapOrphans(new Set(store.listBots(true).map((b) => b.id)))
     if (reaped > 0) console.log(`reaped ${reaped} orphaned screen(s)`)
   }
@@ -93,7 +108,7 @@ async function main(): Promise<void> {
     console.log(`\n${signal} — shutting down`)
     scheduler.stop()
     for (const p of providers.values()) p.dispose()
-    // Leave the desktops running: their state is the value, and a restart of krogd
+    // Leave the desktops running: their state is the value, and a restart of routid
     // should not cost the user their browser sessions.
     await server.close()
     db.close()
@@ -104,6 +119,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('krogd failed to start:', err)
+  console.error('routid failed to start:', err)
   process.exit(1)
 })

@@ -1,4 +1,4 @@
-name: Krog
+name: Routi
 options:
   bundleIdPrefix: com.narralabs
   deploymentTarget:
@@ -40,14 +40,14 @@ settings:
       GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 $(inherited)"
 
 targets:
-  Krog:
+  Routi:
     # NavigationSplitView adapts the same views to Mac, iPad, and iPhone; the handful
     # of genuine differences sit behind `#if os(macOS)`. Adding iOS to
     # supportedDestinations is all that's needed once signing is set up.
     type: application
     supportedDestinations: [macOS]
     sources:
-      - path: Krog
+      - path: Routi
     # Stamps each build with the time and commit it came from. Debug builds show it
     # in the sidebar, which settles "am I looking at the new one?" without guessing
     # from file timestamps.
@@ -59,20 +59,20 @@ targets:
           [ -f "$PLIST" ] || exit 0
           STAMP="$(date '+%H:%M:%S')"
           SHA="$(git -C "$SRCROOT/.." rev-parse --short HEAD 2>/dev/null || echo '-')"
-          for KEY in KrogBuildTime:"$STAMP" KrogBuildCommit:"$SHA"; do
+          for KEY in RoutiBuildTime:"$STAMP" RoutiBuildCommit:"$SHA"; do
             NAME="${KEY%%:*}"; VALUE="${KEY#*:}"
             /usr/libexec/PlistBuddy -c "Add :$NAME string $VALUE" "$PLIST" 2>/dev/null \
               || /usr/libexec/PlistBuddy -c "Set :$NAME $VALUE" "$PLIST"
           done
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.narralabs.krog
-        INFOPLIST_KEY_CFBundleDisplayName: Krog
+        PRODUCT_BUNDLE_IDENTIFIER: com.narralabs.routi
+        INFOPLIST_KEY_CFBundleDisplayName: Routi
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_PREVIEWS: YES
         ENABLE_APP_SANDBOX: YES
-        CODE_SIGN_ENTITLEMENTS: Krog/Krog.entitlements
+        CODE_SIGN_ENTITLEMENTS: Routi/Routi.entitlements
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: >-
           UIInterfaceOrientationPortrait

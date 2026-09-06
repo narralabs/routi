@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct KrogApp: App {
+struct RoutiApp: App {
     @State private var model = AppModel()
     @AppStorage("appearance") private var appearanceRaw = AppearanceMode.system.rawValue
 

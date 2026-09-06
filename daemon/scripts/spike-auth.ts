@@ -1,11 +1,11 @@
 /**
  * M0 auth spike.
  *
- * Proves the single assumption the whole architecture rests on: that krogd, running
+ * Proves the single assumption the whole architecture rests on: that routid, running
  * as a background process on the Mac mini, can stream from Claude using the
  * subscription login already on the box — with no ANTHROPIC_API_KEY anywhere.
  *
- * Run: pnpm --filter krogd spike
+ * Run: pnpm --filter routid spike
  */
 import { query } from '@anthropic-ai/claude-agent-sdk'
 

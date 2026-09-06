@@ -53,7 +53,7 @@ struct BotListView: View {
         #else
         .searchable(text: $search, prompt: "Search")
         #endif
-        .navigationTitle("Krog")
+        .navigationTitle("Routi")
         .toolbar {
             ToolbarItem {
                 Button("New Bot", systemImage: "plus") { showingNewBot = true }
@@ -267,8 +267,8 @@ private struct FooterRow<Leading: View>: View {
 private struct BuildStamp: View {
     private var stamp: String {
         let info = Bundle.main.infoDictionary
-        let time = info?["KrogBuildTime"] as? String ?? "?"
-        let commit = info?["KrogBuildCommit"] as? String ?? "?"
+        let time = info?["RoutiBuildTime"] as? String ?? "?"
+        let commit = info?["RoutiBuildCommit"] as? String ?? "?"
         return "build \(time) · \(commit)"
     }
 

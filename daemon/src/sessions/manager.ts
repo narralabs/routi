@@ -20,6 +20,15 @@ type Emit = (event: ServerEvent) => void
  */
 export class SessionManager {
   private readonly inFlight = new Map<string, AbortController>()
+  /**
+   * The message each running turn is writing, as it stands right now.
+   *
+   * The row on disk is empty until the turn ends, so a client that loads the
+   * conversation mid-turn — switching away and back during a handover, say — found
+   * the bot's "I need your login" gone and an empty bubble in its place. This is the
+   * same array the turn mutates, so what it shows is what has actually been said.
+   */
+  private readonly live = new Map<string, { messageId: string; blocks: Block[] }>()
   /** Messages sent while a reply was in flight, waiting for it to finish. */
   private readonly queued = new Map<string, Message[]>()
 
@@ -33,6 +42,11 @@ export class SessionManager {
 
   isBusy(conversationId: string): boolean {
     return this.inFlight.has(conversationId)
+  }
+
+  /** What the running turn has written so far, if one is running. */
+  liveMessage(conversationId: string): { messageId: string; blocks: Block[] } | null {
+    return this.live.get(conversationId) ?? null
   }
 
   interrupt(conversationId: string): boolean {
@@ -276,6 +290,7 @@ export class SessionManager {
 
     const messageId = randomUUID()
     const blocks: Block[] = []
+    this.live.set(conversationId, { messageId, blocks })
     let stopReason: string | null = null
     let meta: Record<string, unknown> | null = null
 
@@ -352,6 +367,11 @@ export class SessionManager {
           case 'block_end':
             setBlock(blocks, ev.index, ev.block)
             this.emit({ e: 'message.block', conversationId, messageId, blockIndex: ev.index, block: ev.block })
+            // To disk as each block completes, not only at the end of the turn: a daemon
+            // that restarts mid-turn then keeps what the bot had said, rather than an
+            // empty row that reads as a bot which never answered. A few writes per
+            // turn; the streaming text within a block still lives only in memory.
+            this.store.updateMessageBlocks(messageId, blocks)
             break
 
           case 'done':
@@ -373,6 +393,7 @@ export class SessionManager {
       // Runs whatever the turn did, including throwing: a failed turn that kept the
       // lock or the queue would leave the conversation permanently stuck.
       this.inFlight.delete(conversationId)
+      this.live.delete(conversationId)
       surface?.release(conversationId)
 
       const finalBlocks = blocks.filter(Boolean)
@@ -411,6 +432,7 @@ export class SessionManager {
       if (sid) this.store.setProviderSessionId(conversationId, sid)
 
       this.inFlight.delete(conversationId)
+      this.live.delete(conversationId)
       surface?.release(conversationId)
       this.emit({ e: 'message.completed', conversationId, messageId, stopReason, providerMeta: meta })
 

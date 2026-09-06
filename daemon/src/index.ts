@@ -41,6 +41,10 @@ async function main(): Promise<void> {
 
   const db = openDb(join(DATA_DIR, existsSync(join(DATA_DIR, 'krog.db')) ? 'krog.db' : 'routi.db'))
   const store = new Store(db)
+  // Turns that were running when the last process ended cannot be resumed; what they
+  // left is cleared before a client can load it.
+  const swept = store.deleteEmptyAssistantMessages()
+  if (swept > 0) console.log(`removed ${swept} message(s) left empty by interrupted turns`)
 
   // Starts empty on purpose: the daemon must run with no credential so the client
   // can connect and walk the user through onboarding.

@@ -104,6 +104,12 @@ struct ChatView: View {
                         )
                         .id(message.id)
                     }
+                    // A bot asking for the screen asks here, where the person is looking.
+                    // The rail and the full-screen banner show it too, but the rail can be
+                    // closed, and then the only sign was "Waiting for you" in the sidebar.
+                    if let handover = model.handover(for: bot.id) {
+                        HandoverCard(handover: handover).padding(.top, 12)
+                    }
                     if model.isBusy {
                         VStack(alignment: .leading, spacing: 6) {
                             // A bot working on its own schedule says so, or it looks

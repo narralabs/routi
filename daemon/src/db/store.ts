@@ -442,6 +442,21 @@ export class Store {
   }
 
   /** Called once a streamed assistant turn finishes, to persist its final form. */
+  /**
+   * Removes assistant rows a dead turn left empty.
+   *
+   * A turn inserts its row empty and fills it as it ends, so a daemon that restarts
+   * mid-turn — a crash, an upgrade, a developer saving a file — leaves a bubble with
+   * nothing in it, forever, in someone's transcript. Nothing can finish that turn now;
+   * the row is debris. Run at boot, before any client loads.
+   */
+  deleteEmptyAssistantMessages(): number {
+    const result = this.db
+      .prepare("DELETE FROM messages WHERE role = 'assistant' AND blocks_json = '[]'")
+      .run()
+    return result.changes
+  }
+
   updateMessageBlocks(id: string, blocks: Block[], providerMeta?: Record<string, unknown> | null): void {
     this.db
       .prepare('UPDATE messages SET blocks_json = ?, provider_meta_json = ? WHERE id = ?')

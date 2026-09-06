@@ -87,7 +87,14 @@ const handlers: Record<RpcMethod, Handler> = {
 
   'messages.list': async (p, ctx) => {
     const { conversationId, limit, before } = p as { conversationId: string; limit: number; before?: number }
-    return { messages: ctx.store.listMessages(conversationId, limit, before) }
+    const messages = ctx.store.listMessages(conversationId, limit, before)
+    // A turn in progress has said things the row does not hold yet; show those.
+    const live = ctx.sessions.liveMessage(conversationId)
+    return {
+      messages: live
+        ? messages.map((m) => (m.id === live.messageId ? { ...m, blocks: live.blocks } : m))
+        : messages,
+    }
   },
 
   'messages.send': async (p, ctx) => {

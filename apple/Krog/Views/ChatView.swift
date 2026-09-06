@@ -13,6 +13,11 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var showingSettings = false
     @FocusState private var composerFocused: Bool
+    /// Where the end of the transcript sits inside the visible area, and how tall that
+    /// area is. The difference is the whole basis for deciding whether following a
+    /// reply is help or a fight.
+    @State private var tailMaxY: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
 
     var body: some View {
         // Just the chat. The screen is a sibling column now, not a panel nested here.
@@ -67,6 +72,12 @@ struct ChatView: View {
     }
 
     private var transcript: some View {
+        // The viewport measured here rather than through a preference on the scroll
+        // view: a preference set in a `background` never reaches the parent, so the
+        // height stayed zero and the check below could not tell a reader who had
+        // scrolled up from one sitting at the end. Measured, it reads 320-odd points
+        // and the difference means something.
+        GeometryReader { viewport in
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -84,8 +95,19 @@ struct ChatView: View {
                         TurnErrorRow(message: failure) { model.dismissSelectedError() }
                             .padding(.top, 10)
                     }
-                    // Clearance so the floating composer never covers the last message.
-                    Color.clear.frame(height: 96).id(Self.tailAnchor)
+                    // Clearance so the floating composer never covers the last message,
+                    // and the marker that says where the end of the transcript is.
+                    Color.clear
+                        .frame(height: 96)
+                        .id(Self.tailAnchor)
+                        .background {
+                            GeometryReader { tail in
+                                Color.clear.preference(
+                                    key: TailOffsetKey.self,
+                                    value: tail.frame(in: .named(Self.transcriptSpace)).maxY
+                                )
+                            }
+                        }
                 }
                 .frame(maxWidth: 760)
                 .frame(maxWidth: .infinity)
@@ -93,6 +115,29 @@ struct ChatView: View {
                 .padding(.top, 16)
             }
             .scrollDismissesKeyboard(.interactively)
+            .coordinateSpace(name: Self.transcriptSpace)
+            .onPreferenceChange(TailOffsetKey.self) { tailMaxY = $0 }
+            .onChange(of: viewport.size.height, initial: true) {
+                viewportHeight = viewport.size.height
+            }
+            /**
+             * Follows a streaming reply, which nothing did.
+             *
+             * A reply grows inside a message that already exists, so the message count
+             * never changes and neither did the scroll: you sent, the answer arrived
+             * below the fold, and you scrolled down to read your own bot.
+             *
+             * Ticking rather than reacting to the text, because reacting to the text is
+             * what made this judder before — an animation restarting several times a
+             * second. Four unanimated moves a second do not animate at all; they just
+             * keep the end in view.
+             */
+            .task(id: model.isBusy) {
+                while model.isBusy && !Task.isCancelled {
+                    if isNearEnd { proxy.scrollTo(Self.tailAnchor, anchor: .bottom) }
+                    try? await Task.sleep(for: .milliseconds(250))
+                }
+            }
             /**
              * Follows a reply without chasing it.
              *
@@ -130,6 +175,7 @@ struct ChatView: View {
              * be, which is the end.
              */
             .onAppear { proxy.scrollTo(Self.tailAnchor, anchor: .bottom) }
+        }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
@@ -169,6 +215,22 @@ struct ChatView: View {
     }
 
     private static let tailAnchor = "krog.tail"
+    private static let transcriptSpace = "krog.transcript"
+
+    /**
+     Whether the reader is at the end, and so whether following them is help or a fight.
+
+     The tail's position is reported in the scroll view's own coordinate space, where
+     the visible region ends at the view's height — so a tail a little past that is the
+     end of the transcript just off screen, and a tail far past it is a reader who has
+     deliberately scrolled up to re-read something. Only the first case is followed.
+
+     Unmeasured, it follows: a viewport of zero height is a transcript that has not laid
+     out yet, and the end is where a fresh one belongs.
+     */
+    private var isNearEnd: Bool {
+        viewportHeight <= 0 || tailMaxY - viewportHeight < 160
+    }
 
     /// Cheap change token: message count plus streamed text length.
     /// Waits for a conversation's messages to arrive, then goes to the end.
@@ -236,6 +298,9 @@ struct ChatView: View {
         guard !text.isEmpty else { return }
         draft = ""
         composerFocused = true
+        // Sending is an act of attention: whatever was being read, the answer to this
+        // is what the reader now wants to see.
+        tailMaxY = 0
         Task { await model.send(text) }
     }
 }
@@ -342,3 +407,13 @@ struct BotConfig {
         return parts.joined(separator: " · ")
     }
 }
+
+
+/// Where the end of the transcript sits, measured inside the scroll view.
+private struct TailOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+

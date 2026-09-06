@@ -265,7 +265,7 @@ export class SessionManager {
 
     const ac = new AbortController()
     this.inFlight.set(conversationId, ac)
-    this.emit({ e: 'conversation.busy', conversationId, busy: true })
+    this.emit({ e: 'conversation.busy', conversationId, busy: true, routineName: routine?.routineName })
 
     // Held for the whole turn, because a turn is many actions and interleaving two
     // bots' clicks would corrupt both. On a container screen this never waits — each

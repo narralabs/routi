@@ -93,6 +93,9 @@ struct Message: Codable, Identifiable, Hashable {
     /// conversation already says who is speaking.
     var botId: String?
     var createdAt: Double
+    /// The routine that woke this turn, when one did. The transcript says so, since a
+    /// bot speaking unprompted otherwise reads as a bot that lost the thread.
+    var routineName: String?
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -102,15 +105,48 @@ struct Message: Codable, Identifiable, Hashable {
         blocks = try c.decodeIfPresent([Block].self, forKey: .blocks) ?? []
         botId = try c.decodeIfPresent(String.self, forKey: .botId)
         createdAt = try c.decodeIfPresent(Double.self, forKey: .createdAt) ?? 0
+        // Only this one key is read out of the provider's metadata; the rest is opaque.
+        let meta = try? c.nestedContainer(keyedBy: MetaKeys.self, forKey: .providerMeta)
+        routineName = try? meta?.decodeIfPresent(String.self, forKey: .routineName)
     }
 
-    private enum CodingKeys: String, CodingKey { case id, conversationId, role, blocks, createdAt, botId }
+    private enum CodingKeys: String, CodingKey { case id, conversationId, role, blocks, createdAt, botId, providerMeta }
+    private enum MetaKeys: String, CodingKey { case routineName }
+
+    // Nothing in the app encodes a message today; this exists so the type stays
+    // `Codable` for the containers that require it, and writes back what it read.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(conversationId, forKey: .conversationId)
+        try c.encode(role, forKey: .role)
+        try c.encode(blocks, forKey: .blocks)
+        try c.encodeIfPresent(botId, forKey: .botId)
+        try c.encode(createdAt, forKey: .createdAt)
+        if let routineName {
+            var meta = c.nestedContainer(keyedBy: MetaKeys.self, forKey: .providerMeta)
+            try meta.encode(routineName, forKey: .routineName)
+        }
+    }
 
     /// Plain-text projection for sidebar previews and copy.
     var plainText: String {
         blocks.compactMap { if case .text(let t) = $0 { return t } else { return nil } }
             .joined(separator: "\n")
     }
+}
+
+/// Swift mirror of the daemon's `Routine`.
+struct Routine: Codable, Identifiable, Hashable {
+    var id: String
+    var botId: String
+    var conversationId: String
+    var name: String
+    var prompt: String
+    var scheduleText: String
+    var enabled: Bool
+    var lastRunAt: Double?
+    var nextRunAt: Double?
 }
 
 struct ModelInfo: Codable, Identifiable, Hashable {

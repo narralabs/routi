@@ -28,6 +28,11 @@ final class AppModel {
 
     // Transient
     var busyConversations: Set<String> = []
+    /// Which routine is running a busy conversation, by conversation id — so "busy"
+    /// can be shown as what it is rather than as an unexplained "Thinking…".
+    var busyRoutineNames: [String: String] = [:]
+    /// The selected bot's routines. Loaded with the bot, reloaded after each run.
+    var routines: [Routine] = []
     /// Last failure per conversation, shown inline in that thread rather than only
     /// as an alert — an alert that fires while you are looking elsewhere is lost.
     var conversationErrors: [String: String] = [:]
@@ -519,9 +524,37 @@ final class AppModel {
         selectedBotID = botID
         selectedConversationID = conversation.id
         messages = []
+        routines = []
         isLoadingMessages = true
         client.subscribe(conversation.id)
         await loadMessages(conversation.id)
+        await loadRoutines()
+    }
+
+    /// What is running on the selected bot's behalf, and how far along it is.
+    var runningRoutineName: String? {
+        guard let id = selectedConversationID else { return nil }
+        return busyRoutineNames[id]
+    }
+
+    // MARK: - Routines
+
+    func loadRoutines() async {
+        guard let botID = selectedBotID else { return }
+        if let list = try? await client.rpc("routines.list", ["botId": botID], field: "routines", as: [Routine].self),
+           botID == selectedBotID {
+            routines = list
+        }
+    }
+
+    func setRoutineEnabled(_ id: String, _ enabled: Bool) async {
+        _ = try? await client.rpc("routines.setEnabled", ["id": id, "enabled": enabled])
+        await loadRoutines()
+    }
+
+    func deleteRoutine(_ id: String) async {
+        _ = try? await client.rpc("routines.delete", ["id": id])
+        await loadRoutines()
     }
 
     func clearSelection() {
@@ -687,7 +720,16 @@ final class AppModel {
         case "conversation.busy":
             guard let id = event.payload["conversationId"] as? String,
                   let busy = event.payload["busy"] as? Bool else { return }
-            if busy { busyConversations.insert(id) } else { busyConversations.remove(id) }
+            if busy {
+                busyConversations.insert(id)
+                if let name = event.payload["routineName"] as? String { busyRoutineNames[id] = name }
+            } else {
+                busyConversations.remove(id)
+                // A run just finished: its last-run and next-run times moved.
+                if busyRoutineNames.removeValue(forKey: id) != nil, id == selectedConversationID {
+                    Task { await loadRoutines() }
+                }
+            }
 
         case "conversation.updated":
             guard let raw = event.payload["conversation"],

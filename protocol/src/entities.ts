@@ -56,6 +56,26 @@ export const Message = z.object({
   createdAt: z.number().int(),
 })
 
+/**
+ * A recurring task a bot saved for itself, as the app sees it.
+ *
+ * The schedule travels as a sentence rather than as its shape — "every 30 minutes",
+ * "every weekday at 08:00" — because the daemon already knows how to say it and the
+ * app has no reason to learn the kinds.
+ */
+export const Routine = z.object({
+  id: z.string(),
+  botId: z.string(),
+  conversationId: z.string(),
+  name: z.string(),
+  prompt: z.string(),
+  scheduleText: z.string(),
+  enabled: z.boolean(),
+  lastRunAt: z.number().int().nullable().default(null),
+  nextRunAt: z.number().int().nullable().default(null),
+})
+export type Routine = z.infer<typeof Routine>
+
 export const ModelInfo = z.object({
   id: z.string(),
   displayName: z.string(),

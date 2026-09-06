@@ -1,6 +1,7 @@
 import { RpcMethods, type RpcMethod } from '@krog/protocol'
 import type { Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
+import { describeSchedule } from '../sessions/schedule.js'
 import type { SessionManager } from '../sessions/manager.js'
 import type { AuthManager } from '../auth/manager.js'
 import type { DesktopInput } from '../surfaces/desktop.js'
@@ -186,6 +187,32 @@ const handlers: Record<RpcMethod, Handler> = {
   },
 
   'handover.list': async (_p, ctx) => ({ handovers: ctx.handovers.all() }),
+
+  // Routines are made by bots during ordinary turns; these only let a person see and
+  // stop what a bot has scheduled. Creating one from the app is not offered, because a
+  // routine is a prompt the bot wrote for itself in its own voice.
+  'routines.list': async (p, ctx) => {
+    const { botId } = p as { botId?: string }
+    return {
+      routines: ctx.store.listRoutines(botId).map((routine) => ({
+        ...routine,
+        schedule: undefined,
+        scheduleText: describeSchedule(routine.schedule),
+      })),
+    }
+  },
+
+  'routines.setEnabled': async (p, ctx) => {
+    const { id, enabled } = p as { id: string; enabled: boolean }
+    ctx.store.setRoutineEnabled(id, enabled)
+    return {}
+  },
+
+  'routines.delete': async (p, ctx) => {
+    const { id } = p as { id: string }
+    ctx.store.deleteRoutine(id)
+    return {}
+  },
 
   'surface.clipboard': async (p, ctx) => {
     const { botId } = p as { botId: string }

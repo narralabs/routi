@@ -137,14 +137,95 @@ struct DetailRail: View {
         }
     }
 
+    /**
+     What this bot has scheduled for itself.
+
+     Listed, because a bot that runs a scan every half hour and never says so looks
+     like a bot that has gone rogue: the first sighting of this was a conversation that
+     went "Thinking…" the moment it was opened, with nothing sent. There is no create
+     button — a routine is a prompt the bot writes for itself during a conversation, in
+     its own words, and asking it is how one is made. Switching one off and deleting it
+     are the person's to do.
+     */
     private var routinesPanel: some View {
-        VStack(spacing: 14) {
-            Text("Routines are recurring tasks this Bot runs on a schedule.")
-                .font(.system(size: 12.5))
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Routines")
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Create Routine") {}
-                .buttonStyle(.bordered)
+
+            if model.routines.isEmpty {
+                Text("Nothing scheduled. Ask the bot to check something every morning, or every hour, and it will make one.")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(model.routines) { routine in
+                    RoutineCard(routine: routine, isRunning: model.runningRoutineName == routine.name)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct RoutineCard: View {
+    @Environment(AppModel.self) private var model
+    let routine: Routine
+    let isRunning: Bool
+    @State private var confirmingDelete = false
+
+    private var when: String {
+        if isRunning { return "Running now" }
+        guard routine.enabled else { return "Off" }
+        guard let next = routine.nextRunAt else { return routine.scheduleText }
+        let date = Date(timeIntervalSince1970: next / 1000)
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return "Next \(formatter.localizedString(for: date, relativeTo: Date()))"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(routine.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(2)
+                Spacer(minLength: 8)
+                Toggle("", isOn: Binding(
+                    get: { routine.enabled },
+                    set: { on in Task { await model.setRoutineEnabled(routine.id, on) } }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+            }
+            Text(routine.scheduleText)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            HStack {
+                if isRunning {
+                    ProgressView().controlSize(.mini)
+                }
+                Text(when)
+                    .font(.system(size: 11))
+                    .foregroundStyle(isRunning ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                Spacer()
+                Button("Delete", role: .destructive) { confirmingDelete = true }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(12)
+        .background(.background, in: .rect(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(.separator, lineWidth: 0.5)
+        }
+        .confirmationDialog("Delete “\(routine.name)”?", isPresented: $confirmingDelete) {
+            Button("Delete", role: .destructive) { Task { await model.deleteRoutine(routine.id) } }
+        } message: {
+            Text("The bot will stop running it. You can ask for it again any time.")
         }
     }
 }

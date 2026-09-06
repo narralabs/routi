@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Block } from './blocks.js'
 import {
-  AccountInfo, AuthStatus, Bot, Conversation, Handover, Message, ModelInfo, SurfaceMode, SurfaceStatus,
+  AccountInfo, AuthStatus, Bot, Conversation, Handover, Message, ModelInfo, Routine, SurfaceMode, SurfaceStatus,
 } from './entities.js'
 
 /**
@@ -125,6 +125,13 @@ export const RpcMethods = {
     result: z.object({ ok: z.boolean() }),
   },
   'handover.list': { params: z.object({}), result: z.object({ handovers: z.array(Handover) }) },
+  // What a bot has scheduled for itself. Seen and stopped here; made in conversation.
+  'routines.list': {
+    params: z.object({ botId: z.string().optional() }),
+    result: z.object({ routines: z.array(Routine) }),
+  },
+  'routines.setEnabled': { params: z.object({ id: z.string(), enabled: z.boolean() }), result: z.object({}) },
+  'routines.delete': { params: z.object({ id: z.string() }), result: z.object({}) },
 
   'surface.clipboard': {
     params: z.object({ botId: z.string() }),
@@ -249,8 +256,19 @@ export const ServerEvent = z.discriminatedUnion('e', [
     id: z.string(),
     outcome: z.enum(['done', 'skipped', 'timeout']),
   }),
-  /** Drives the typing indicator and the interrupt button. */
-  z.object({ e: z.literal('conversation.busy'), conversationId: z.string(), busy: z.boolean() }),
+  /**
+   * Drives the typing indicator and the interrupt button.
+   *
+   * Names the routine when one woke the turn, so the app can say so: a bot that went
+   * "Thinking…" the moment its conversation was opened, with nothing sent, looked
+   * broken — it was running its half-hourly scan.
+   */
+  z.object({
+    e: z.literal('conversation.busy'),
+    conversationId: z.string(),
+    busy: z.boolean(),
+    routineName: z.string().nullish(),
+  }),
   z.object({ e: z.literal('error'), conversationId: z.string().nullable().default(null), code: z.string(), message: z.string() }),
 ])
 export type ServerEvent = z.infer<typeof ServerEvent>

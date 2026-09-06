@@ -105,7 +105,17 @@ struct ChatView: View {
                         .id(message.id)
                     }
                     if model.isBusy {
-                        TypingIndicator().padding(.top, 10)
+                        VStack(alignment: .leading, spacing: 6) {
+                            // A bot working on its own schedule says so, or it looks
+                            // like a bot answering a question nobody asked.
+                            if let name = model.runningRoutineName {
+                                Text("Running routine · \(name)")
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(.secondary)
+                            }
+                            TypingIndicator()
+                        }
+                        .padding(.top, 10)
                     }
                     if let failure = model.selectedError {
                         TurnErrorRow(message: failure) { model.dismissSelectedError() }

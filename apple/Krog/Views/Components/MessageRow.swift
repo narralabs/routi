@@ -14,6 +14,13 @@ struct MessageRow: View {
             if isUser { Spacer(minLength: 40) }
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+                // Why the bot spoke unprompted.
+                if let routine = message.routineName {
+                    Label(routine, systemImage: "clock.arrow.2.circlepath")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 2)
+                }
                 ForEach(message.blocks) { block in
                     blockView(block)
                 }

@@ -89,6 +89,12 @@ private struct BotRow: View {
     /// A bot paused on an ask says so here, so it is visible without opening it.
     private var waiting: Handover? { model.handover(for: bot.id) }
 
+    /// "Thinking…" is for a bot answering someone; a bot on its own schedule says so.
+    private var busyLabel: String {
+        if let conv = conversation, let name = model.busyRoutineNames[conv.id] { return "Running routine · \(name)" }
+        return "Thinking…"
+    }
+
     /// The last thing said, as in the reference — falling back to the chat's title,
     /// then to a placeholder for a bot that has not spoken yet.
     private var subtitle: String {
@@ -117,7 +123,7 @@ private struct BotRow: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
-                Text(waiting != nil ? "Waiting for you: \(waiting!.reason)" : (isBusy ? "Thinking…" : subtitle))
+                Text(waiting != nil ? "Waiting for you: \(waiting!.reason)" : (isBusy ? busyLabel : subtitle))
                     .font(.system(size: 12))
                     .foregroundStyle(waiting != nil ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                     .lineLimit(2)

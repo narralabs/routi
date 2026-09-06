@@ -194,14 +194,35 @@ export class SessionManager {
     const greeting = userName ? `Greet them by name — they are called ${userName}.` : 'Greet them.'
 
     /**
-     * Two different openings, because the bots are genuinely different.
+     * Three openings, because the bots are genuinely different.
      *
      * A bot with a screen was created to do something, and asking "shall I start?"
      * about the exact task it was built for is the wrong first move — it should be
      * working by the time the user reads the message. A bot without a screen can only
      * talk, so promising action would be a lie; it introduces itself and asks.
+     *
+     * And a bot with an empty description has no task to begin, which the first of
+     * those openings assumed it had. Told to start the work its description names, a
+     * bot whose description names nothing invents one: the case that found this was a
+     * bot called "My Bot" that greeted its owner and opened the browser to check the
+     * news, which nobody had asked for. With nothing to go on, the only honest first
+     * message says so and asks.
      */
-    const prompt = hasSurface
+    const hasBrief = bot.systemPrompt.trim().length > 0
+
+    const prompt = !hasBrief
+      ? [
+          'You have just been created, and the person who made you left your description',
+          'empty, so you have not been told what you are for.',
+          greeting,
+          'Say who you are by name in one short clause, say plainly that you have no brief',
+          'yet, and ask what they want you to take on — mentioning that they can also fill',
+          'in your description to make it stick.',
+          'Do not invent a purpose, do not start any work, and do not use any tools or',
+          'screen you may have.',
+          'Hard limit: 35 words, one short paragraph, no line breaks.',
+        ].join(' ')
+      : hasSurface
       ? [
           'You have just been created. This is your first message to the person who made you.',
           greeting,

@@ -2,7 +2,7 @@
 # Installs Routi Core on this Mac and keeps it running.
 #
 # Run from inside an unpacked Routi Core folder. Puts things in exactly two places:
-#   ~/.routi/                  data, and Node if this Mac has none
+#   ~/.routi/                  data, and the Node the core runs on
 #   ~/Library/LaunchAgents/    one agent that starts the core at login
 # Nothing is installed globally — no Homebrew, no npm -g. Safe to run again.
 set -e
@@ -15,30 +15,28 @@ node_version="22.21.0"
 
 say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-# Node 22+ already here is used as is; otherwise the official build is fetched into
-# ~/.routi/node, which is what the good installers do rather than asking a person to
-# install a runtime first.
+# The core runs on a Node of its own, in ~/.routi/node, whatever this Mac has. The
+# Mac's own Node was tried first and it is where installs went wrong: Node 25 dropped
+# corepack from the distribution, so a Homebrew Node 26 has no pnpm to hand, and a
+# newer major has no prebuilt better-sqlite3 to download. One pinned version that the
+# release was built and tested against — the way an app ships its runtime.
 say "Checking Node"
-node_bin=""
-if command -v node >/dev/null 2>&1 && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 22 ]; then
-  node_bin="$(command -v node)"
-elif [ -x "$HOME/.routi/node/bin/node" ]; then
-  node_bin="$HOME/.routi/node/bin/node"
+node_bin="$HOME/.routi/node/bin/node"
+if [ -x "$node_bin" ] && [ "$("$node_bin" --version 2>/dev/null)" = "v$node_version" ]; then
+  echo "Node $node_version, in ~/.routi/node"
 else
   case "$(uname -m)" in arm64) arch="arm64" ;; x86_64) arch="x64" ;; *) echo "Unsupported Mac: $(uname -m)" >&2; exit 1 ;; esac
   url="https://nodejs.org/dist/v$node_version/node-v$node_version-darwin-$arch.tar.gz"
-  echo "Fetching Node $node_version for $arch"
+  echo "Fetching Node $node_version for $arch into ~/.routi/node"
   tmp="$(mktemp -d)"
   curl -fsSL "$url" -o "$tmp/node.tar.gz"
   rm -rf "$HOME/.routi/node"; mkdir -p "$HOME/.routi/node"
   tar xzf "$tmp/node.tar.gz" -C "$HOME/.routi/node" --strip-components=1
   rm -rf "$tmp"
-  node_bin="$HOME/.routi/node/bin/node"
 fi
 node_dir="$(dirname "$node_bin")"
-# corepack's shim is `#!/usr/bin/env node`, so the Node in use must be first on PATH.
+# corepack's shim is `#!/usr/bin/env node`, so this Node must be first on PATH.
 export PATH="$node_dir:$PATH"
-"$node_bin" --version
 
 say "Installing and building"
 cd "$here"

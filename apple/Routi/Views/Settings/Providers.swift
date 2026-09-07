@@ -37,7 +37,7 @@ struct ProviderInfo: Identifiable, Hashable {
             id: "anthropic",
             name: "Anthropic API",
             models: "Claude",
-            summary: "An API key. Routi runs the bot against the API directly.",
+            summary: "An API key. Routi's agent runs the bot.",
             mark: "ProviderAnthropic",
             tint: Color(red: 0.62, green: 0.42, blue: 0.34),
             isAvailable: true
@@ -55,7 +55,7 @@ struct ProviderInfo: Identifiable, Hashable {
             id: "openai",
             name: "OpenAI API",
             models: "GPT",
-            summary: "An API key. Routi runs the bot against the API directly.",
+            summary: "An API key. Routi's agent runs the bot.",
             mark: "ProviderOpenai",
             tint: Color(red: 0.07, green: 0.07, blue: 0.08),
             isAvailable: true
@@ -73,7 +73,7 @@ struct ProviderInfo: Identifiable, Hashable {
             id: "xai",
             name: "xAI API",
             models: "Grok",
-            summary: "An API key. Routi runs the bot against the API directly.",
+            summary: "An API key. Routi's agent runs the bot.",
             mark: "ProviderXai",
             tint: Color(red: 0.13, green: 0.14, blue: 0.16),
             isAvailable: true
@@ -82,7 +82,7 @@ struct ProviderInfo: Identifiable, Hashable {
             id: "deepseek",
             name: "DeepSeek API",
             models: "DeepSeek",
-            summary: "An API key. Routi runs the bot against the API directly.",
+            summary: "An API key. Routi's agent runs the bot.",
             mark: "ProviderDeepseek",
             tint: Color(red: 0.29, green: 0.40, blue: 0.95),
             isAvailable: true
@@ -91,7 +91,7 @@ struct ProviderInfo: Identifiable, Hashable {
             id: "moonshot",
             name: "Moonshot",
             models: "Kimi",
-            summary: "An API key. Routi runs the bot against the API directly.",
+            summary: "An API key. Routi's agent runs the bot.",
             mark: "ProviderMoonshot",
             tint: Color(red: 0.42, green: 0.34, blue: 0.85),
             isAvailable: false
@@ -287,15 +287,15 @@ private struct ProviderConnectPane: View {
         case "anthropic-claude":
             return "Billed per token, but run by Claude Code rather than by Routi. Choose this for Claude Code's behaviour without a Claude plan."
         case "anthropic":
-            return "Billed per token. Routi runs the bot against the API directly."
+            return "Billed per token. Routi's agent runs the bot."
         case "openai-codex":
             return "Billed per token, but run by the Codex agent rather than by Routi. Choose this for Codex's behaviour without a ChatGPT plan."
         case "xai-grok":
             return "Billed per token, but run by the Grok agent rather than by Routi. Choose this for Grok's behaviour without a Grok plan."
         case "deepseek", "xai":
-            return "Billed per token. Routi runs the tool loop, so a bot here can use its screen."
+            return "Billed per token. Routi's agent runs the bot, so it can use its screen."
         default:
-            return "Billed per token. The setup where a bot can use its screen: Routi runs the tool loop and hands it the desktop."
+            return "Billed per token. Routi's agent runs the bot and hands it the desktop, so it can use its screen."
         }
     }
 

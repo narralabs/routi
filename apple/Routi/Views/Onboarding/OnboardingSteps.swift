@@ -303,13 +303,13 @@ struct CredentialStep: View {
         OptionCard(
             icon: "key.horizontal",
             title: "Use an Anthropic API key",
-            detail: "Billed per token against your Anthropic account. Routi runs the bot against the API directly.",
+            detail: "Billed per token against your Anthropic account. Routi's agent runs the bot.",
             action: { withAnimation { mode = .key(.anthropicKey); failure = nil } }
         )
         OptionCard(
             icon: "key.horizontal",
             title: "Use an OpenAI API key",
-            detail: "Billed per token against your OpenAI account. Routi runs the bot against the API directly.",
+            detail: "Billed per token against your OpenAI account. Routi's agent runs the bot.",
             action: { withAnimation { mode = .key(.openaiKey); failure = nil } }
         )
 

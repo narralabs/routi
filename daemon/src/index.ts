@@ -99,15 +99,6 @@ async function main(): Promise<void> {
       : 'anthropic: not configured — finish setup in the app',
   )
 
-  // Seed one bot on an empty database so a fresh install opens onto something usable.
-  if (store.listBots(true).length === 0) {
-    store.createBot({
-      name: 'New Bot',
-      systemPrompt: 'You are a helpful, concise assistant.',
-      model: 'default',
-    })
-  }
-
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} — shutting down`)
     scheduler.stop()

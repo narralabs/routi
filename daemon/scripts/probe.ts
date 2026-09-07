@@ -171,7 +171,9 @@ async function main(): Promise<void> {
 
   // --- bots -----------------------------------------------------------------
   const { bots } = await client.rpc<{ bots: { id: string; name: string }[] }>('bots.list')
-  check('seeded bot exists on fresh db', bots.length === 1, bots[0]?.name)
+  // Nothing is seeded: a fresh install opens onto the empty state, and the first bot is
+  // the person's own. A "New Bot" nobody made used to greet them before setup ended.
+  check('fresh db has no bots', bots.length === 0, `${bots.length}`)
 
   const created = await client.rpc<{ bot: { id: string; name: string }; conversation: { id: string } }>('bots.create', {
     name: 'Probe Bot',
@@ -274,7 +276,7 @@ async function main(): Promise<void> {
     `${after.messages.length} messages after restart`)
 
   const afterBots = await client.rpc<{ bots: unknown[] }>('bots.list')
-  check('bots survive daemon restart', afterBots.bots.length === 2, `${afterBots.bots.length} bots`)
+  check('bots survive daemon restart', afterBots.bots.length === 1, `${afterBots.bots.length} bots`)
 
   const afterNotes = await client.rpc<{ memories: { id: string }[] }>('memory.list', { botId })
   check('notes survive daemon restart', afterNotes.memories.length === 1)

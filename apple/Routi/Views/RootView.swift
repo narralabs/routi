@@ -113,11 +113,23 @@ struct RootView: View {
                 }
                 .animation(.snappy(duration: 0.25), value: showBotSidebar)
                 .navigationSplitViewColumnWidth(min: 340, ideal: 760)
+            } else if model.bots.isEmpty {
+                // Nothing is seeded, so the first thing a new install shows is this,
+                // with the one action that matters on it.
+                ContentUnavailableView {
+                    Label("No bots yet", systemImage: "sparkles")
+                } description: {
+                    Text("A bot is a personality, a model and a screen of its own. Make your first one.")
+                } actions: {
+                    Button("New Bot") { showingNewBot = true }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                }
             } else {
                 ContentUnavailableView(
                     "No Bot Selected",
                     systemImage: "bubble.left.and.bubble.right",
-                    description: Text("Pick a bot from the sidebar, or create one.")
+                    description: Text("Pick a bot from the sidebar.")
                 )
             }
     }

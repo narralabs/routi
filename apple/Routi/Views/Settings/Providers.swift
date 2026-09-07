@@ -364,7 +364,7 @@ private struct ProviderConnectPane: View {
                     } else {
                         ForEach(Array(list.enumerated()), id: \.element.id) { index, info in
                             SettingsRow(
-                                title: info.displayName,
+                                title: info.presentedName(in: list),
                                 detail: info.description.isEmpty ? nil : info.description,
                                 isFirst: index == 0
                             ) {

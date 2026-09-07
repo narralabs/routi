@@ -227,12 +227,7 @@ struct ChatView: View {
                         Button {
                             Task { await model.updateBot(bot.id, patch: ["model": info.id]) }
                         } label: {
-                            // "Default (recommended)" with a check beside a line that says
-                            // Opus read as two different answers. The default names what
-                            // it resolves to today, the way Codex's already does.
-                            let title = info.id == "default" && info.displayName.lowercased().contains("recommended")
-                                ? "Default (\(BotConfig(bot: bot, models: models).modelName))"
-                                : info.displayName
+                            let title = info.presentedName(in: models)
                             if info.id == bot.model {
                                 Label(title, systemImage: "checkmark")
                             } else {
@@ -351,7 +346,7 @@ struct ChatView: View {
         // flat on the window; the buttons draw their own hover state instead.
         ToolbarItem(placement: .navigation) {
             HStack(spacing: 8) {
-                BotAvatar(color: bot.color, size: 20)
+                BotAvatar(color: bot.color, seed: bot.id, size: 20)
                 Text(bot.name).font(.system(size: 13, weight: .semibold))
             }
         }

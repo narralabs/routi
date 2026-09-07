@@ -5,8 +5,14 @@ import type { Block, Bot, Conversation, Message, Role } from '@routi/protocol'
 
 const now = () => Date.now()
 
-/** Grok-Bot-ish avatar palette, assigned round-robin as bots are created. */
-const PALETTE = ['#8E8E93', '#FF9500', '#FF3B30', '#34C7A4', '#5AC8FA', '#007AFF', '#4CD964', '#FFCC00', '#AF52DE']
+/**
+ * Avatar colours, assigned round-robin as bots are created.
+ *
+ * Chosen so the cream face on top stays legible on every one (no yellows, no pastels),
+ * spread around the wheel so neighbours in the sidebar differ in hue, and dark enough
+ * that the face rather than the tile is what the eye lands on.
+ */
+const PALETTE = ['#E8563F', '#F28B2E', '#2FAE7C', '#1FA8B8', '#3B8BEA', '#5A64E0', '#9B5DE5', '#D9508F', '#6E7684']
 
 type BotRow = {
   id: string; name: string; avatar_color: string; system_prompt: string

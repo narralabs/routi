@@ -38,3 +38,25 @@ enum ModelName {
         return name
     }
 }
+
+extension ModelInfo {
+    /// The name to show for this entry wherever models are listed.
+    ///
+    /// A provider's "default" is a real choice — it follows the plan when the vendor
+    /// ships something new — but "Default (recommended)" told nobody what they were
+    /// getting. It reads as the model it resolves to today, marked as the default:
+    /// "Opus 5 (1M) — default", "GPT-6-Astra — default". Named models are themselves.
+    func presentedName(in models: [ModelInfo]) -> String {
+        guard id == "default" else { return displayName }
+        guard let resolved = resolvedModel else { return displayName }
+        // A provider that names its models (Codex) is believed over the prettifier,
+        // which was written for Claude ids; Claude's own list resolves to ids.
+        let name: String
+        if !resolved.hasPrefix("claude"), let named = models.first(where: { $0.id == resolved && $0.id != "default" }) {
+            name = named.displayName
+        } else {
+            name = ModelName.pretty(resolved)
+        }
+        return "\(name) — default"
+    }
+}

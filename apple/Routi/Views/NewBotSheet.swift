@@ -62,7 +62,7 @@ struct NewBotSheet: View {
                 ) {
                     Picker("", selection: $selectedModel) {
                         ForEach(providerModels) { info in
-                            Text(info.displayName).tag(info.id)
+                            Text(info.presentedName(in: providerModels)).tag(info.id)
                         }
                     }
                     .labelsHidden()
@@ -195,7 +195,7 @@ struct BotSettingsSheet: View {
                 ) {
                     Picker("", selection: $selectedModel) {
                         ForEach(providerModels) { info in
-                            Text(info.displayName).tag(info.id)
+                            Text(info.presentedName(in: providerModels)).tag(info.id)
                         }
                         // A model the list no longer carries still needs a row, or the
                         // picker would silently show the wrong one as current.

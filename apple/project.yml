@@ -54,6 +54,11 @@ targets:
     postBuildScripts:
       - name: Stamp build identity
         basedOnDependencyAnalysis: false
+        # Named as an input so the build system orders this after the plist is
+        # generated; without it a clean build ran the script first, found no plist,
+        # and the sidebar read "build ? · ?".
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
         script: |
           PLIST="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
           [ -f "$PLIST" ] || exit 0

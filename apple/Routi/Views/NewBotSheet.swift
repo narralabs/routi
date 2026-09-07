@@ -21,21 +21,11 @@ struct NewBotSheet: View {
             : "\(ProviderInfo.find(selectedProvider).name) runs its own agent, which does not take Routi's browser tools yet, so a bot here cannot use a screen."
     }
     @State private var selectedModel = "default"
-    @State private var selectedEffort = Effort.implicitDefault
-    // Defaults to a screen. A bot without one can only talk, and "a bot that does
-    // things" is the whole premise — defaulting to none quietly produced bots that
-    // could only offer to help.
+    // Defaults to a screen, and an isolated one. A bot without a screen can only talk,
+    // and "a bot that does things" is the whole premise; a bot on the real desktop is
+    // a deliberate choice, not a default.
     @State private var surfaceMode = SurfaceMode.container
     @State private var isSubmitting = false
-
-    /// Only offer the levels the chosen model actually accepts — Haiku, for one,
-    /// reports none, and a picker of options the API would reject is worse than none.
-    private var availableEfforts: [Effort] {
-        let levels = providerModels.first { $0.id == selectedModel }?.effortLevels ?? []
-        return levels.compactMap(Effort.init(rawValue:))
-    }
-
-    private var supportsEffort: Bool { !availableEfforts.isEmpty }
 
     var body: some View {
         SheetScaffold(title: "New Bot", confirmLabel: "Create", canConfirm: !name.isEmpty && !isSubmitting) {
@@ -59,11 +49,17 @@ struct NewBotSheet: View {
                     .lineLimit(3...8)
                 }
 
-                FormField("Provider") {
-                    ProviderChips(connected: Set(model.availableProviders), selection: $selectedProvider)
+                FormField(
+                    "Provider",
+                    footnote: "Fixed once the bot is created. Connect more under Settings → Providers."
+                ) {
+                    ProviderRows(connected: model.availableProviders, selection: $selectedProvider)
                 }
 
-                FormField("Model") {
+                FormField(
+                    "Model",
+                    footnote: "Model and effort can be changed any time, from the line under the message box."
+                ) {
                     Picker("", selection: $selectedModel) {
                         ForEach(providerModels) { info in
                             Text(info.displayName).tag(info.id)
@@ -72,23 +68,6 @@ struct NewBotSheet: View {
                     .labelsHidden()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .disabled(providerModels.isEmpty)
-                }
-
-                if supportsEffort {
-                    FormField(
-                        "Effort",
-                        footnote: "\(selectedEffort.detail) The provider is fixed once the bot is created; model and effort can be changed later."
-                    ) {
-                        Picker("", selection: $selectedEffort) {
-                            ForEach(availableEfforts) { Text($0.label).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                    }
-                } else {
-                    Text("The provider is fixed once the bot is created; the model can be changed later.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
                 }
 
                 FormField("Screen", footnote: screenFootnote) {
@@ -135,7 +114,7 @@ struct NewBotSheet: View {
                     systemPrompt: systemPrompt,
                     provider: selectedProvider,
                     model: selectedModel,
-                    effort: supportsEffort ? selectedEffort : nil,
+                    effort: nil,
                     surfaceMode: surfaceMode
                 )
                 dismiss()
@@ -281,88 +260,77 @@ struct BotSettingsSheet: View {
     }
 }
 
-/// A single row of provider chips: drawn icon beside the name.
+/// The connected providers, one row each, with the line that tells them apart.
 ///
-/// A `Picker` menu can't show these — macOS menu items render only `Text` and `Image`,
-/// so the provider tiles (a filled shape with a mark) would be dropped. Chips also
-/// keep every option visible at a glance, which is the point of showing the roster.
-private struct ProviderChips: View {
-    /// Which providers have a working credential right now. A provider that exists as
-    /// an adapter but is not connected reads as "Connect in Settings" rather than as a
-    /// choice, because picking it would make a bot that cannot answer.
-    let connected: Set<String>
+/// Only what has a credential: an unconnected provider is not a choice here, it is a
+/// trip to Settings, and eight chips in one row — most of them disabled, all of them
+/// truncated — said nothing a person could act on. A row has room for the icon, the
+/// name, and the one line that says who runs the bot and what pays for it, which is
+/// the actual decision when more than one is connected.
+private struct ProviderRows: View {
+    /// Connected provider ids, in roster order.
+    let connected: [String]
     @Binding var selection: String
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(ProviderInfo.all) { provider in
-                ProviderChip(
-                    provider: provider,
-                    isConnected: connected.contains(provider.id),
-                    isSelected: provider.id == selection,
-                    action: { if connected.contains(provider.id) { selection = provider.id } }
-                )
+        VStack(spacing: 6) {
+            ForEach(connected, id: \.self) { id in
+                let provider = ProviderInfo.find(id)
+                ProviderRow(provider: provider, isSelected: id == selection) { selection = id }
+            }
+            if connected.isEmpty {
+                Text("No provider is connected yet.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 6)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct ProviderChip: View {
+private struct ProviderRow: View {
     let provider: ProviderInfo
-    let isConnected: Bool
     let isSelected: Bool
     let action: () -> Void
 
     @State private var isHovering = false
 
-    // Concrete types throughout: an `if`-branching `some ShapeStyle` here pushed the
-    // expression past the type-checker's budget.
-    private var fill: Color {
-        if isSelected { return Color.accentColor.opacity(0.12) }
-        if isHovering && isConnected { return Color.primary.opacity(0.06) }
-        return .clear
-    }
-
-    private var stroke: Color {
-        isSelected ? Color.accentColor : Color.primary.opacity(0.12)
-    }
-
-    private var helpText: String {
-        if isConnected { return "\(provider.name) · \(provider.models)" }
-        return provider.isAvailable
-            ? "\(provider.name) — connect it in Settings first"
-            : "\(provider.name) — not yet available"
-    }
-
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
+        RoundedRectangle(cornerRadius: 9, style: .continuous)
+    }
+
+    private var fill: Color {
+        if isSelected { return Color.accentColor.opacity(0.10) }
+        if isHovering { return Color.primary.opacity(0.05) }
+        return .clear
     }
 
     var body: some View {
         Button(action: action) {
-            label
+            HStack(spacing: 11) {
+                ProviderIcon(provider: provider, size: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(provider.name)
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                    Text(provider.summary)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.secondary.opacity(0.5))
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background(shape.fill(fill))
+            .overlay(shape.stroke(isSelected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: isSelected ? 1.5 : 0.5))
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .disabled(!isConnected)
-        .opacity(isConnected ? 1 : 0.5)
         .onHover { isHovering = $0 }
-        .help(helpText)
-    }
-
-    private var label: some View {
-        HStack(spacing: 6) {
-            ProviderIcon(provider: provider, size: 18)
-            Text(provider.name)
-                .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 7)
-        .frame(maxWidth: .infinity)
-        .background(shape.fill(fill))
-        .overlay(shape.stroke(stroke, lineWidth: isSelected ? 1.5 : 0.5))
-        .contentShape(.rect)
     }
 }
 
@@ -437,7 +405,7 @@ struct SheetScaffold<Content: View>: View {
             }
             .padding(14)
         }
-        .frame(width: 540, height: 560)
+        .frame(width: 540, height: 660)
         #else
         NavigationStack {
             content

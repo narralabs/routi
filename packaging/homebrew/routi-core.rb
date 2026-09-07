@@ -8,8 +8,8 @@
 class RoutiCore < Formula
   desc "Routi Core: the daemon that runs your Routi bots"
   homepage "https://github.com/narralabs/routi"
-  url "https://github.com/narralabs/routi/releases/download/v0.1.22/routi-core.tar.gz"
-  sha256 "f9e48d57fba82857ff0bc70b8902bce946d31e4fc5c4c2cdb109429555bac287"
+  url "https://github.com/narralabs/routi/releases/download/v0.1.23/routi-core.tar.gz"
+  sha256 "3f4c36546d2f0cc94c1da73f50dd1c81ac77ebf2b36387d20038e837da55f3f0"
   # Declared, because the asset is named routi-core.tar.gz on every release and
   # Homebrew reads versions from file names.
   version "0.1.19"

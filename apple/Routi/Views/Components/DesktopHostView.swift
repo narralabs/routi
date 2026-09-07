@@ -93,7 +93,7 @@ struct DesktopHostView: View {
         guard let status else { return "Checking…" }
         switch status.machine {
         case .stopped: return "Stopped"
-        case .running: return status.screens.isEmpty ? "Running" : "Running · \(status.screens.count) screen\(status.screens.count == 1 ? "" : "s") up"
+        case .running: return "Running"
         }
     }
 

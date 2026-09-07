@@ -426,9 +426,8 @@ struct AboutPane: View {
 
 // MARK: - Screens
 
-/// The machine the container screens live on: what state it is in, what to do, and
-/// which bots have a screen up. Refreshed while it is on screen, since the thing it
-/// describes changes in another app.
+/// The machine the container screens live on: what state it is in and what to do.
+/// Refreshed while it is on screen, since the thing it describes changes in another app.
 struct ScreensPane: View {
     @Environment(AppModel.self) private var model
 
@@ -442,18 +441,6 @@ struct ScreensPane: View {
                     .padding(12)
             }
 
-            if let screens = model.desktopHost?.screens, !screens.isEmpty {
-                SettingsSection("Screens up now") {
-                    ForEach(Array(screens.enumerated()), id: \.element.botId) { index, screen in
-                        SettingsRow(
-                            title: model.bots.first { $0.id == screen.botId }?.name ?? screen.botId,
-                            isFirst: index == 0
-                        ) {
-                            SettingsValue(text: screen.state == "running" ? "Running" : "Starting")
-                        }
-                    }
-                }
-            }
         }
         .task {
             while !Task.isCancelled {

@@ -167,11 +167,6 @@ struct BotSettingsSheet: View {
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(4...10)
                 }
-
-                Text("\(ProviderInfo.find(bot.provider).name) · \(bot.surfaceMode.label) screen. Model and effort are under the message box.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 22)
             .padding(.top, 6)

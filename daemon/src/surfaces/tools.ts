@@ -346,12 +346,22 @@ export async function runDesktopTool(
   if (status.state !== 'running') {
     if (status.state === 'unavailable') {
       const detail = status.detail ?? 'The desktop is unavailable.'
-      return { ok: false, output: detail, summary: 'Desktop unavailable' }
+      // Said to the model in terms it can act on: this is the person's to fix, so the
+      // right move is to tell them and stop, not to try the screen again.
+      return {
+        ok: false,
+        output: `Your screen is unavailable: ${detail} Tell the person plainly and stop using screen tools until they say it is back.`,
+        summary: 'Desktop unavailable',
+      }
     }
     const started = await desktop.start()
     if (started.state !== 'running') {
       const detail = started.detail ?? 'The desktop could not start.'
-      return { ok: false, output: detail, summary: 'Desktop unavailable' }
+      return {
+        ok: false,
+        output: `Your screen could not start: ${detail} Tell the person plainly and stop using screen tools until they say it is back.`,
+        summary: 'Desktop unavailable',
+      }
     }
   }
 

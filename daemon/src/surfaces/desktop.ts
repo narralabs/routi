@@ -99,7 +99,7 @@ class Host {
 
   private async ensureOnce(): Promise<string | null> {
     if (!(await this.dockerAvailable())) {
-      return 'Docker is not running on this Mac. Start Docker Desktop, then try again.'
+      return 'Docker is not running on the Mac hosting Routi Core. Start Docker Desktop there; Settings → Screens shows the state.'
     }
     if (!(await this.imageExists())) {
       const built = await this.buildImage()
@@ -125,6 +125,11 @@ class Host {
          * boundary instead.
          */
         '--security-opt', 'seccomp=unconfined',
+        // Comes back with Docker. A Docker Desktop restart stops every container; without
+        // this the machine stayed down until a bot asked, and with it the machine is up
+        // before anyone does. Screens inside it are gone either way and are re-made on
+        // demand — `status()` re-confirms a remembered screen against the machine.
+        '--restart', 'unless-stopped',
         /**
          * Each screen's Chromium listens for DevTools on 9222 + its display offset, so
          * a bot can read a page's structure rather than read it off a JPEG. Published
@@ -264,7 +269,15 @@ export class Desktop {
      * few seconds because this is asked far more often than a display disappears.
      */
     const stale = Date.now() - this.verifiedAt > 5_000
-    if ((this.display === null || stale) && (await host.isRunning())) {
+    const machineUp = (this.display === null || stale) ? await host.isRunning() : true
+    if ((this.display === null || stale) && !machineUp && (this.state === 'running' || this.state === 'starting')) {
+      // Docker was quit, or the machine with it. A screen remembered as running is
+      // not running; say so now rather than after the next screenshot fails.
+      this.display = null
+      this.state = 'stopped'
+      this.verifiedAt = Date.now()
+    }
+    if ((this.display === null || stale) && machineUp) {
       const found = await host.exec(['screenctl', 'live', this.botId]).catch(() => '')
       this.verifiedAt = Date.now()
       if (found) {

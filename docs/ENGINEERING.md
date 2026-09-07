@@ -185,6 +185,22 @@ which Docker's default seccomp denies. The alternative, `--no-sandbox`, switches
 Chromium's isolation off entirely; this keeps it and leans on the container as the
 boundary.
 
+### When Docker is not there
+
+Three states, told apart because each has a different fix: no `docker` CLI (install
+Docker Desktop), a CLI with no engine (start it), an engine with no image (build it —
+`desktop.prepare`, minutes once). Setup asks the question after the credential and
+offers the fix; Settings → Screens shows the same three rows afterwards and which bots
+have a screen up.
+
+If Docker is quit while bots run: a bot's next screen tool gets "your screen is
+unavailable: Docker is not running…, tell the person and stop using screen tools", the
+bot's screen reports `unavailable` with that reason, and the panel shows it with a
+button to the Screens pane. `Desktop.status()` re-confirms a remembered screen against
+the machine, so one that vanished reads as stopped rather than running until the next
+screenshot fails. The container runs with `--restart unless-stopped`, so a Docker
+restart brings the machine back on its own; screens inside it are re-made on demand.
+
 ## Turns, routines, and what waits for what
 
 Turns are serialised per conversation and the screen is held for the whole turn: a turn

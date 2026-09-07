@@ -141,6 +141,9 @@ struct OnboardingScaffold<Content: View, Actions: View>: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 400)
+                    // A tall step (four credential cards) squeezed this to one line
+                    // with an ellipsis; it wraps instead and the cards give way.
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 40)
 

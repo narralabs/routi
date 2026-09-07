@@ -93,6 +93,19 @@ struct SettingsScreen: View {
 
     @State private var selection: Pane? = .general
 
+    /// The pane the opener asked for, if any, else General.
+    private func openRequestedPane() {
+        guard let requested = model.requestedSettingsPane else { return }
+        model.requestedSettingsPane = nil
+        switch requested {
+        case "general": selection = .general
+        case "core": selection = .core
+        case "screens": selection = .screens
+        case "about": selection = .about
+        default: selection = .provider(requested)
+        }
+    }
+
     var body: some View {
         #if os(macOS)
         // A floating panel over the dimmed app, not a full-window takeover: the nav
@@ -102,6 +115,7 @@ struct SettingsScreen: View {
             navList
                 .frame(width: 232)
                 .background(.background.secondary)
+                .onAppear(perform: openRequestedPane)
 
             ZStack(alignment: .topTrailing) {
                 pane

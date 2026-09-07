@@ -227,10 +227,16 @@ struct ChatView: View {
                         Button {
                             Task { await model.updateBot(bot.id, patch: ["model": info.id]) }
                         } label: {
+                            // "Default (recommended)" with a check beside a line that says
+                            // Opus read as two different answers. The default names what
+                            // it resolves to today, the way Codex's already does.
+                            let title = info.id == "default" && info.displayName.lowercased().contains("recommended")
+                                ? "Default (\(BotConfig(bot: bot, models: models).modelName))"
+                                : info.displayName
                             if info.id == bot.model {
-                                Label(info.displayName, systemImage: "checkmark")
+                                Label(title, systemImage: "checkmark")
                             } else {
-                                Text(info.displayName)
+                                Text(title)
                             }
                         }
                     }

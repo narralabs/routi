@@ -42,6 +42,14 @@ final class AppModel {
     /// Settings replaces the whole window rather than opening a panel, so its
     /// visibility is app state, not view state — the ⌘, menu command toggles it too.
     var isShowingSettings = false
+    /// A pane Settings should open on, asked for by whoever opened it. Read once.
+    var requestedSettingsPane: String?
+
+    /// Opens Settings on a named pane — "screens", "core", or a provider id.
+    func showSettings(pane: String) {
+        requestedSettingsPane = pane
+        isShowingSettings = true
+    }
 
     /// The desktop fills the whole app window rather than opening a sheet, so its
     /// visibility lives beside the other window-level modes.

@@ -95,7 +95,7 @@ struct DetailRail: View {
                 }
 
             case .unavailable:
-                placeholder(icon: "display.trianglebadge.exclamationmark", title: "Desktop unavailable") {
+                placeholder(icon: "display.trianglebadge.exclamationmark", title: "Screen unavailable") {
                     if let detail = model.surface.detail {
                         Text(detail)
                             .font(.system(size: 11))
@@ -103,6 +103,11 @@ struct DetailRail: View {
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    // Straight to the fix: the Screens pane says which of Docker, the
+                    // image or the machine is the problem and has the button for it.
+                    Button("Open Screens Settings") { model.showSettings(pane: "screens") }
+                        .controlSize(.small)
+                        .padding(.top, 4)
                 }
             }
         }

@@ -421,6 +421,43 @@ struct CredentialStep: View {
     }
 }
 
+// MARK: - Screens
+
+/// Where the bots' screens come from, said up front.
+///
+/// Docker was a surprise: nothing in setup mentioned it, and the first bot to ask for
+/// a screen ended at a message about it. This step says what the desktop is, checks
+/// what that Mac has, and offers to build it now — or to skip, since a bot that only
+/// talks needs none of it.
+struct ScreensStep: View {
+    @Environment(AppModel.self) private var model
+    let onContinue: () -> Void
+
+    var body: some View {
+        OnboardingScaffold(
+            icon: "desktopcomputer",
+            title: "Give your bots a screen",
+            subtitle: "A bot that browses for you gets a desktop of its own: a Linux machine with a browser, one screen per bot, kept apart from yours. It runs in Docker on the Mac running Routi Core."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                DesktopHostView()
+                Text("Bots without a screen still work. This can be set up any time under Settings → Screens.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: 460)
+        } actions: {
+            Button(action: onContinue) {
+                Text(model.desktopHost?.isReady == true ? "Continue" : "Skip for now").frame(maxWidth: 260)
+            }
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+        }
+    }
+}
+
 // MARK: - Finishing
 
 struct FinishingStep: View {

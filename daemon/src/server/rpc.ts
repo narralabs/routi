@@ -4,7 +4,7 @@ import type { ProviderAdapter } from '../providers/types.js'
 import { describeSchedule } from '../sessions/schedule.js'
 import type { SessionManager } from '../sessions/manager.js'
 import type { AuthManager } from '../auth/manager.js'
-import type { DesktopInput } from '../surfaces/desktop.js'
+import { Desktop, desktopHost, type DesktopInput } from '../surfaces/desktop.js'
 import type { Handovers } from '../surfaces/handover.js'
 import type { DesktopPool } from '../surfaces/pool.js'
 
@@ -167,6 +167,14 @@ const handlers: Record<RpcMethod, Handler> = {
     return { auth: await ctx.auth.providerSignOut(provider) }
   },
 
+  'desktop.status': async (_p, ctx) => ({ desktop: await describeDesktopHost(ctx) }),
+
+  'desktop.prepare': async (_p, ctx) => {
+    const failure = await desktopHost.prepare()
+    if (failure) throw new RpcError('desktop_failed', failure)
+    return { desktop: await describeDesktopHost(ctx) }
+  },
+
   'surface.status': async (p, ctx) => {
     const desktop = ctx.desktops.for((p as { botId: string }).botId)
     return { surface: { ...(await desktop.status()), heldBy: desktop.holder } }
@@ -301,4 +309,20 @@ export async function dispatch(method: string, rawParams: unknown, ctx: RpcConte
     throw new RpcError('invalid_params', `Invalid params for ${method}: ${JSON.stringify(parsed.error)}`)
   }
   return handlers[method as RpcMethod](parsed.data, ctx)
+}
+
+/** The machine, plus the bots with a screen up on it right now. */
+async function describeDesktopHost(ctx: RpcContext) {
+  const host = await desktopHost.describe()
+  const screens: { botId: string; state: string }[] = []
+  if (host.machine === 'running') {
+    for (const surface of ctx.desktops.all()) {
+      if (!(surface instanceof Desktop)) continue
+      const status = await surface.status()
+      if (status.state === 'running' || status.state === 'starting') {
+        screens.push({ botId: surface.botId, state: status.state })
+      }
+    }
+  }
+  return { ...host, screens }
 }

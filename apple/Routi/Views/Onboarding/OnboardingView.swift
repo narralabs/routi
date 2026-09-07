@@ -14,6 +14,7 @@ struct OnboardingView: View {
         case install      // the install command, watching the port for the core to appear
         case endpoint     // point at a remote routid
         case credential   // choose and complete a first connection
+        case screens      // Docker and the desktop, offered before the first bot asks
         case finishing
     }
 
@@ -46,8 +47,10 @@ struct OnboardingView: View {
                 case .credential:
                     CredentialStep(
                         onBack: { retreat(to: canHostLocally ? .welcome : .endpoint) },
-                        onDone: { advance(to: .finishing) }
+                        onDone: { advance(to: .screens) }
                     )
+                case .screens:
+                    ScreensStep(onContinue: { advance(to: .finishing) })
                 case .finishing:
                     FinishingStep()
                 }
@@ -76,7 +79,7 @@ struct OnboardingView: View {
     /// A core that already holds a credential — an app reinstalled on a Mac that was
     /// set up before — has nothing to ask about AI.
     private var afterConnecting: Step {
-        model.auth.configured ? .finishing : .credential
+        model.auth.configured ? .screens : .credential
     }
 
     /// Only a Mac can run the daemon; a phone always connects to one.

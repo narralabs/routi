@@ -18,9 +18,10 @@ starts at every login — then signs you in with Claude or ChatGPT, or takes an 
 Claude Code and Codex come with the core; nothing else to install.
 
 Bots that browse for you need a screen: install
-[Docker Desktop](https://www.docker.com/products/docker-desktop/), set it to start at
-login, and the app builds the desktop the first time a bot asks for one. Bots without a
-screen, and bots set to *This Mac*, don't need it.
+[Docker Desktop](https://www.docker.com/products/docker-desktop/) and set it to start at
+login. Setup checks for it and offers to build the desktop right there; Settings → Screens
+shows its state afterwards. Bots without a screen, and bots set to *This Mac*, don't need
+it.
 
 Do this on the Mac that stays on. Give it automatic login, so the Keychain is unlocked
 after a reboot, and set it to never sleep. Needs macOS 14 or newer.

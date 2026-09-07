@@ -215,6 +215,10 @@ struct ChatView: View {
         let models = model.models(for: bot.provider)
         let current = models.first { $0.id == bot.model }
         let efforts = (current?.effortLevels ?? []).compactMap(Effort.init(rawValue:))
+        // The level in force gets the mark: the one chosen, or failing that the
+        // provider's default — an unmarked list read as "none of these", which is never
+        // true of a bot that is answering.
+        let effective = bot.effort ?? current?.defaultEffort
         return HStack {
             Spacer()
             Menu {
@@ -237,10 +241,11 @@ struct ChatView: View {
                             Button {
                                 Task { await model.updateBot(bot.id, patch: ["effort": effort.rawValue]) }
                             } label: {
-                                if effort.rawValue == bot.effort {
-                                    Label(effort.label, systemImage: "checkmark")
+                                let title = effort.rawValue == current?.defaultEffort ? "\(effort.label) (default)" : effort.label
+                                if effort.rawValue == effective {
+                                    Label(title, systemImage: "checkmark")
                                 } else {
-                                    Text(effort.label)
+                                    Text(title)
                                 }
                             }
                         }
@@ -467,7 +472,16 @@ struct BotConfig {
         let info = models.first { $0.id == bot.model }
         // A model that reads differently as a statement than as a menu item says so.
         if let status = info?.statusName, !status.isEmpty { return status }
-        if let resolved = info?.resolvedModel { return ModelName.pretty(resolved) }
+        if let resolved = info?.resolvedModel {
+            // A provider that names its models (Codex: "GPT-6-Astra") is believed over
+            // the prettifier, which was written for Claude ids and makes "Gpt 6.astra"
+            // of anything else. Claude's own list resolves to ids, so those still go
+            // through it.
+            if !resolved.hasPrefix("claude"), let named = models.first(where: { $0.id == resolved }) {
+                return named.displayName
+            }
+            return ModelName.pretty(resolved)
+        }
         let full = info?.displayName ?? bot.model
         return full.split(separator: "(").first
             .map { $0.trimmingCharacters(in: .whitespaces) } ?? full

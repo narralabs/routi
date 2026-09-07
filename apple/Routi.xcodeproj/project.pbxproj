@@ -31,6 +31,7 @@
 		AEEE9600AFA8BA8AA7B788BF /* HandoverCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E2F25951C19F693EF8EE16 /* HandoverCard.swift */; };
 		C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 184722C04D7C490D94182666 /* RoutiApp.swift */; };
 		CC0218F546FFF1FC732BBBCB /* Handover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F745F0678DD8714864203C0 /* Handover.swift */; };
+		CF6BE494A2D1ABEDD51F01BA /* DesktopHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BDD1652BD89D0FF8E9E5053 /* DesktopHostView.swift */; };
 		D70141640505B1F4BAA53171 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D720880BAD6D2F0296D4A8 /* RootView.swift */; };
 		D8116D3E00FBE96C2311F8F0 /* BotAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */; };
 		DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB45665E5E45F01F8945DBB6 /* MessageRow.swift */; };
@@ -42,6 +43,7 @@
 /* Begin PBXFileReference section */
 		04C419477237E8F8F539AB6D /* ScreenWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenWindow.swift; sourceTree = "<group>"; };
 		099C9C1462D777FC014D22E1 /* Routi.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Routi.entitlements; sourceTree = "<group>"; };
+		0BDD1652BD89D0FF8E9E5053 /* DesktopHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopHostView.swift; sourceTree = "<group>"; };
 		0F126D3177A0B31881954AE1 /* Effort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effort.swift; sourceTree = "<group>"; };
 		12E2F25951C19F693EF8EE16 /* HandoverCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoverCard.swift; sourceTree = "<group>"; };
 		184722C04D7C490D94182666 /* RoutiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutiApp.swift; sourceTree = "<group>"; };
@@ -175,6 +177,7 @@
 			children = (
 				EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */,
 				75ECC9B53C46B40DF50283ED /* Composer.swift */,
+				0BDD1652BD89D0FF8E9E5053 /* DesktopHostView.swift */,
 				12E2F25951C19F693EF8EE16 /* HandoverCard.swift */,
 				87CC49000AD0941F4B4E281A /* InstallCommand.swift */,
 				EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */,
@@ -294,6 +297,7 @@
 				3D42E355F685B12EA2B094F6 /* BotListView.swift in Sources */,
 				36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */,
 				2046900E789F1433535727F0 /* Composer.swift in Sources */,
+				CF6BE494A2D1ABEDD51F01BA /* DesktopHostView.swift in Sources */,
 				5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */,
 				EE7B1D28943762E8D0683800 /* Effort.swift in Sources */,
 				22565DA9110228003E0B6A11 /* Entities.swift in Sources */,
@@ -360,7 +364,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -378,7 +382,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.12;
+				MARKETING_VERSION = 0.1.13;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -429,7 +433,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -444,7 +448,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.12;
+				MARKETING_VERSION = 0.1.13;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

@@ -50,6 +50,7 @@ struct SettingsScreen: View {
         case general
         case provider(String)
         case core
+        case screens
         case about
 
         var id: String {
@@ -57,6 +58,7 @@ struct SettingsScreen: View {
             case .general: return "general"
             case .provider(let id): return "provider.\(id)"
             case .core: return "core"
+            case .screens: return "screens"
             case .about: return "about"
             }
         }
@@ -66,6 +68,7 @@ struct SettingsScreen: View {
             case .general: return "General"
             case .provider(let id): return ProviderInfo.find(id).name
             case .core: return "Routi Core"
+            case .screens: return "Screens"
             case .about: return "About"
             }
         }
@@ -75,6 +78,7 @@ struct SettingsScreen: View {
             case .general: return "gearshape"
             case .provider: return nil // uses ProviderIcon instead
             case .core: return "externaldrive.connected.to.line.below"
+            case .screens: return "desktopcomputer"
             case .about: return "info.circle"
             }
         }
@@ -83,7 +87,7 @@ struct SettingsScreen: View {
     private static let sections: [(String, [Pane])] = [
         ("App", [.general]),
         ("Providers", ProviderInfo.all.map { .provider($0.id) }),
-        ("Core", [.core]),
+        ("Core", [.core, .screens]),
         ("About", [.about]),
     ]
 
@@ -137,6 +141,7 @@ struct SettingsScreen: View {
         case .general: GeneralPane()
         case .provider(let id): ProviderPane(provider: ProviderInfo.find(id))
         case .core: ConnectionPane()
+        case .screens: ScreensPane()
         case .about: AboutPane()
         }
     }
@@ -167,6 +172,7 @@ struct SettingsScreen: View {
         case .general: GeneralPane()
         case .provider(let id): ProviderPane(provider: ProviderInfo.find(id))
         case .core: ConnectionPane()
+        case .screens: ScreensPane()
         case .about: AboutPane()
         }
     }
@@ -399,6 +405,46 @@ struct AboutPane: View {
                 SettingsRow(title: "Routi Bot", detail: "Bots that live on your Mac.", isFirst: true) {
                     SettingsValue(text: version)
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Screens
+
+/// The machine the container screens live on: what state it is in, what to do, and
+/// which bots have a screen up. Refreshed while it is on screen, since the thing it
+/// describes changes in another app.
+struct ScreensPane: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        SettingsPane(title: "Screens") {
+            SettingsSection(
+                "Desktop",
+                footnote: "Bots set to Container get a screen on a shared Linux machine, one display each, with a browser. It runs in Docker on the Mac running Routi Core; bots set to None or This Mac do not need it."
+            ) {
+                DesktopHostView()
+                    .padding(12)
+            }
+
+            if let screens = model.desktopHost?.screens, !screens.isEmpty {
+                SettingsSection("Screens up now") {
+                    ForEach(Array(screens.enumerated()), id: \.element.botId) { index, screen in
+                        SettingsRow(
+                            title: model.bots.first { $0.id == screen.botId }?.name ?? screen.botId,
+                            isFirst: index == 0
+                        ) {
+                            SettingsValue(text: screen.state == "running" ? "Running" : "Starting")
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                await model.refreshDesktopHost()
             }
         }
     }

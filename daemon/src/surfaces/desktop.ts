@@ -22,6 +22,16 @@ export interface DesktopStatus {
 
 export type PointerButton = 1 | 2 | 3
 
+/** The machine every screen lives on, as a whole: for setup and for Settings. */
+export interface HostStatus {
+  /** Whether a Docker engine can be reached: no CLI at all, a CLI with no engine, or up. */
+  docker: 'missing' | 'stopped' | 'running'
+  dockerVersion: string | null
+  /** The desktop image: not built yet, being built now, or ready. Unknown without Docker. */
+  image: 'missing' | 'building' | 'ready' | 'unknown'
+  machine: 'stopped' | 'running'
+}
+
 export type DesktopInput =
   | { kind: 'click'; x: number; y: number; button?: PointerButton }
   | { kind: 'doubleClick'; x: number; y: number }
@@ -46,6 +56,37 @@ export type DesktopInput =
  */
 class Host {
   private ensuring: Promise<string | null> | null = null
+  private building = false
+
+  /**
+   * The state of the machine, for a person rather than a bot.
+   *
+   * A bot's `status()` says whether *its* screen can run; this says why not, in the
+   * terms setup and Settings need — is Docker installed, is it running, is the image
+   * built. Three separate questions with three separate fixes, and the first screen a
+   * new person sees should ask the right one.
+   */
+  async describe(): Promise<HostStatus> {
+    const docker = await this.dockerState()
+    if (docker.state !== 'running') {
+      return { docker: docker.state, dockerVersion: docker.version, image: 'unknown', machine: 'stopped' }
+    }
+    const image = this.building ? 'building' : (await this.imageExists()) ? 'ready' : 'missing'
+    const machine = (await this.isRunning()) ? 'running' : 'stopped'
+    return { docker: 'running', dockerVersion: docker.version, image, machine }
+  }
+
+  private async dockerState(): Promise<{ state: HostStatus['docker']; version: string | null }> {
+    try {
+      const { stdout } = await run('docker', ['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
+      return { state: 'running', version: stdout.trim() || null }
+    } catch (err) {
+      // No CLI at all is a different answer from a CLI whose engine is not up: one
+      // needs an install, the other a click on Docker Desktop.
+      const code = (err as NodeJS.ErrnoException).code
+      return { state: code === 'ENOENT' ? 'missing' : 'stopped', version: null }
+    }
+  }
 
   /** Brings the machine up if it is not already. Resolves to a reason on failure. */
   async ensure(): Promise<string | null> {
@@ -130,6 +171,7 @@ class Host {
       return 'The desktop image is missing and its Dockerfile is not with this core. Build it with: docker build -t routi-desktop containers/desktop'
     }
     console.log(`building the desktop image from ${dockerfileDir} (a few minutes, once)`)
+    this.building = true
     try {
       await run('docker', ['build', '-t', IMAGE, dockerfileDir], { timeout: 15 * 60_000, maxBuffer: 64 * 1024 * 1024 })
       console.log('desktop image built')
@@ -137,6 +179,8 @@ class Host {
     } catch (err) {
       const detail = err instanceof Error ? err.message.split('\n').slice(-3).join(' ') : String(err)
       return `Building the desktop image failed: ${detail}`
+    } finally {
+      this.building = false
     }
   }
 
@@ -179,6 +223,13 @@ class Host {
 }
 
 const host = new Host()
+
+/** The machine as a whole, for setup and Settings: what state it is in, and bring it up. */
+export const desktopHost = {
+  describe: (): Promise<HostStatus> => host.describe(),
+  /** Builds the image if needed and starts the machine. Resolves to a reason on failure. */
+  prepare: (): Promise<string | null> => host.ensure(),
+}
 
 /**
  * One bot's screen.

@@ -169,6 +169,21 @@ export type Message = z.infer<typeof Message>
 export type ModelInfo = z.infer<typeof ModelInfo>
 export type AccountInfo = z.infer<typeof AccountInfo>
 
+/**
+ * The machine every container screen lives on, for setup and Settings.
+ *
+ * Three questions with three different fixes — is Docker installed, is it running, is
+ * the desktop image built — plus which bots have a screen up right now.
+ */
+export const DesktopHostStatus = z.object({
+  docker: z.enum(['missing', 'stopped', 'running']),
+  dockerVersion: z.string().nullable(),
+  image: z.enum(['missing', 'building', 'ready', 'unknown']),
+  machine: z.enum(['stopped', 'running']),
+  screens: z.array(z.object({ botId: z.string(), state: z.string() })),
+})
+export type DesktopHostStatus = z.infer<typeof DesktopHostStatus>
+
 /** A bot waiting for the person to do something on its screen. */
 export const Handover = z.object({
   id: z.string(),

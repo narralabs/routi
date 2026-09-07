@@ -271,6 +271,21 @@ final class AppModel {
         return handovers[botId]
     }
 
+    // MARK: - The machine the screens live on
+
+    /// Nil until asked; setup and Settings ask.
+    var desktopHost: DesktopHostStatus?
+
+    func refreshDesktopHost() async {
+        desktopHost = try? await client.rpc("desktop.status", field: "desktop", as: DesktopHostStatus.self)
+    }
+
+    /// Builds the desktop image if it is missing and starts the machine. Minutes, the
+    /// first time — the timeout is sized for an apt-get, not a round trip.
+    func prepareDesktopHost() async throws {
+        desktopHost = try await client.rpc("desktop.prepare", field: "desktop", as: DesktopHostStatus.self, timeout: 20 * 60)
+    }
+
     // MARK: - Desktop
 
     /// Every desktop call names its bot: a desktop belongs to one bot, so there is no

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Block } from './blocks.js'
 import {
-  AccountInfo, AuthStatus, Bot, Conversation, Handover, Message, ModelInfo, Routine, SurfaceMode, SurfaceStatus,
+  AccountInfo, AuthStatus, Bot, Conversation, DesktopHostStatus, Handover, Message, ModelInfo, Routine, SurfaceMode, SurfaceStatus,
 } from './entities.js'
 
 /**
@@ -103,6 +103,10 @@ export const RpcMethods = {
 
   // Every surface call names a bot: desktops are per-bot, so there is no such thing
   // as "the" desktop to address.
+  /** The machine as a whole: Docker, the image, and which bots have a screen up. */
+  'desktop.status': { params: z.object({}), result: z.object({ desktop: DesktopHostStatus }) },
+  /** Builds the image if needed and starts the machine. Minutes, the first time. */
+  'desktop.prepare': { params: z.object({}), result: z.object({ desktop: DesktopHostStatus }) },
   'surface.status': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },
   'surface.start': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },
   'surface.stop': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },

@@ -144,6 +144,9 @@ function conversationIdOf(event: ServerEvent): string | null {
    * is not currently looking at, which is the same requirement from the other side.
    */
   if (event.e === 'conversation.busy' || event.e === 'error') return null
+  // Completion too: a reply finishing in a conversation the person is not looking at
+  // is the one a notification is for, and a subscriber-only event never reached them.
+  if (event.e === 'message.completed') return null
 
   if ('conversationId' in event && typeof event.conversationId === 'string') return event.conversationId
   if (event.e === 'message.created') return event.message.conversationId

@@ -303,6 +303,12 @@ export const ServerEvent = z.discriminatedUnion('e', [
     messageId: z.string(),
     stopReason: z.string().nullable().default(null),
     providerMeta: z.record(z.string(), z.unknown()).nullable().default(null),
+    /**
+     * The reply's first line of text, for a notification. A client only holds the
+     * messages of the conversation it is looking at, and a finished turn elsewhere is
+     * exactly the one worth telling the person about.
+     */
+    preview: z.string().optional(),
   }),
   z.object({ e: z.literal('conversation.updated'), conversation: Conversation }),
   z.object({ e: z.literal('bot.updated'), bot: Bot }),

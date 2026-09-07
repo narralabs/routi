@@ -215,6 +215,8 @@ struct GeneralPane: View {
     @AppStorage("appearance") private var appearance = AppearanceMode.system.rawValue
     @AppStorage("showThinking") private var showThinking = true
     @AppStorage("showToolActivity") private var showToolActivity = false
+    @AppStorage("notifyOnFinish") private var notifyOnFinish = true
+    @AppStorage("notifyOnHandover") private var notifyOnHandover = true
 
     var body: some View {
         SettingsPane(title: "General") {
@@ -239,6 +241,25 @@ struct GeneralPane: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
+                }
+            }
+
+            SettingsSection(
+                "Notifications",
+                footnote: "Only for conversations you are not looking at. Nothing leaves this device."
+            ) {
+                SettingsRow(
+                    title: "When a bot finishes",
+                    detail: "A reply lands, or a routine has run.",
+                    isFirst: true
+                ) {
+                    Toggle("", isOn: $notifyOnFinish).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsRow(
+                    title: "When a bot needs you",
+                    detail: "It has stopped at a sign-in, a code or a payment and is waiting."
+                ) {
+                    Toggle("", isOn: $notifyOnHandover).labelsHidden().toggleStyle(.switch)
                 }
             }
 

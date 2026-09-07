@@ -494,7 +494,13 @@ export class SessionManager {
       this.inFlight.delete(conversationId)
       this.live.delete(conversationId)
       surface?.release(conversationId)
-      this.emit({ e: 'message.completed', conversationId, messageId, stopReason, providerMeta: meta })
+      const preview = finalBlocks
+        .find((block): block is Extract<Block, { type: 'text' }> => block.type === 'text' && block.text.trim().length > 0)
+        ?.text.trim().replace(/\s+/g, ' ').slice(0, 200)
+      this.emit({
+        e: 'message.completed', conversationId, messageId, stopReason, providerMeta: meta,
+        ...(preview ? { preview } : {}),
+      })
 
       // Deleted from inFlight first, so anything sent mid-turn starts now rather than
       // queueing again behind a turn that has already finished.

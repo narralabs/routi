@@ -41,6 +41,8 @@ final class AppModel {
     /// as an alert — an alert that fires while you are looking elsewhere is lost.
     var conversationErrors: [String: String] = [:]
     var connection: RoutiClient.ConnectionState = .disconnected
+    /// Local notifications for bots the person is not watching.
+    let notifier = Notifier()
     var errorMessage: String?
     var isLoadingMessages = false
 
@@ -138,6 +140,9 @@ final class AppModel {
                 Task {
                     await self.refreshAuth()
                     await self.refreshAll()
+                    // Asked once, after setup — a permission prompt in the middle of
+                    // onboarding is one question too many.
+                    if self.hasCompletedSetup { self.notifier.requestAuthorizationIfNeeded() }
                 }
             }
         }
@@ -154,6 +159,24 @@ final class AppModel {
         }
         client.onEvent = { [weak self] event in
             self?.apply(event)
+        }
+
+        // A banner is for a conversation the person cannot see: another bot's, or this
+        // one's while the app is in the background or behind Settings or the screen.
+        notifier.isWatching = { [weak self] conversationId in
+            guard let self, self.selectedConversationID == conversationId else { return false }
+            guard !self.isShowingSettings, !self.isShowingScreen else { return false }
+            #if os(macOS)
+            return NSApp.isActive
+            #else
+            return UIApplication.shared.applicationState == .active
+            #endif
+        }
+        notifier.onOpen = { [weak self] botId in
+            guard let self else { return }
+            self.isShowingSettings = false
+            self.isShowingScreen = false
+            Task { await self.select(bot: botId) }
         }
     }
 
@@ -664,6 +687,7 @@ final class AppModel {
     func completeOnboarding() {
         onboardingDismissed = true
         markSetupComplete()
+        notifier.requestAuthorizationIfNeeded()
     }
 
     private func markSetupComplete() {
@@ -1019,11 +1043,34 @@ final class AppModel {
                 Task { await loadMemories() }
             }
 
+        case "message.completed":
+            // Broadcast to every client, so this fires for conversations not on screen —
+            // which is the case a notification is for. The watching check is the notifier's.
+            guard let conversationId = event.payload["conversationId"] as? String,
+                  event.payload["stopReason"] as? String != "error",
+                  let botId = conversations[conversationId]?.botId,
+                  let bot = bots.first(where: { $0.id == botId })
+            else { return }
+            let meta = event.payload["providerMeta"] as? [String: Any]
+            notifier.botFinished(
+                botId: bot.id,
+                botName: bot.name,
+                conversationId: conversationId,
+                preview: event.payload["preview"] as? String,
+                routineName: meta?["routineName"] as? String
+            )
+
         case "handover.requested":
             if let raw = event.payload["handover"],
                let data = try? JSONSerialization.data(withJSONObject: raw),
                let handover = try? JSONDecoder().decode(Handover.self, from: data) {
                 handovers[handover.botId] = handover
+                if let bot = bots.first(where: { $0.id == handover.botId }) {
+                    notifier.botWaiting(
+                        botId: bot.id, botName: bot.name,
+                        conversationId: handover.conversationId, reason: handover.reason
+                    )
+                }
             }
 
         case "handover.resolved":

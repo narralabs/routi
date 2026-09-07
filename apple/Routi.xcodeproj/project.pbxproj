@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		08966B34941B3AE65C038BE8 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */; };
 		15C44DA114D533E687FB4811 /* Blocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502F8CF0DE246295A5890E87 /* Blocks.swift */; };
+		161C6ED5CC704F12603B50FB /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA56FAD7115195CEA260370F /* Notifier.swift */; };
 		1F2AA4D9B1926967F36F7680 /* Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9EE469AEAC6433B4672D15 /* Auth.swift */; };
 		2046900E789F1433535727F0 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75ECC9B53C46B40DF50283ED /* Composer.swift */; };
 		22565DA9110228003E0B6A11 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5AE73982ED2E7411675921 /* Entities.swift */; };
@@ -71,11 +72,13 @@
 		E531433B6982110683524454 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		E5427100A411FDE8FAC97666 /* OnboardingSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSteps.swift; sourceTree = "<group>"; };
 		E864489D80BFEA22D10DE997 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		EA56FAD7115195CEA260370F /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
 		EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
 		F4DFC65D324CCCB7788FAC01 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+		"TEMP_1B2F3206-7EBF-4A97-8E78-272E8B6C142D" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -144,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				E531433B6982110683524454 /* AppModel.swift */,
+				EA56FAD7115195CEA260370F /* Notifier.swift */,
 			);
 			path = State;
 			sourceTree = "<group>";
@@ -199,6 +203,14 @@
 			path = Client;
 			sourceTree = "<group>";
 		};
+		"TEMP_3B044DDD-1ED3-4F15-958F-9B1DC95D2ECA" /* apple */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_1B2F3206-7EBF-4A97-8E78-272E8B6C142D" /* Local.xcconfig */,
+			);
+			path = apple;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -231,7 +243,8 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					56A6E8349922C39DB4FE5BDE = {
-						ProvisioningStyle = Manual;
+						DevelopmentTeam = ZS958ZT4R9;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -312,6 +325,7 @@
 				5AC5D791694CFB6FB3A4DAC1 /* ModelName.swift in Sources */,
 				3C30816F38EAD85EBFEFA0CE /* NewBotSheet.swift in Sources */,
 				A71839107A782FF6A0A74BE4 /* NoteEditor.swift in Sources */,
+				161C6ED5CC704F12603B50FB /* Notifier.swift in Sources */,
 				7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */,
 				23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */,
 				F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */,
@@ -332,6 +346,7 @@
 /* Begin XCBuildConfiguration section */
 		113C6E5CE499C37D0FF36EB1 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = "TEMP_1B2F3206-7EBF-4A97-8E78-272E8B6C142D" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -365,8 +380,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 27;
 				DEBUG_INFORMATION_FORMAT = dwarf;
@@ -401,6 +416,7 @@
 		};
 		2725C9F9C067E0ADB1DDF697 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = "TEMP_1B2F3206-7EBF-4A97-8E78-272E8B6C142D" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -434,8 +450,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 27;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -469,7 +485,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Routi/Routi.entitlements;
-				COMBINE_HIDPI_IMAGES = YES;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -480,15 +496,16 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"@executable_path/../Frameworks",
+					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi;
 				PRODUCT_NAME = "Routi Bot";
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				TARGETED_DEVICE_FAMILY = "";
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -497,7 +514,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Routi/Routi.entitlements;
-				COMBINE_HIDPI_IMAGES = YES;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -508,15 +525,16 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"@executable_path/../Frameworks",
+					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi;
 				PRODUCT_NAME = "Routi Bot";
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = macosx;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				TARGETED_DEVICE_FAMILY = "";
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};

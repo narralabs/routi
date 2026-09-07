@@ -256,6 +256,15 @@ private struct SidebarFooter: View {
     }
 
     var body: some View {
+        // The list scrolls underneath this inset, so it needs a ground of its own: the
+        // name was landing on top of whatever row was passing behind it.
+        footer
+            .background(.bar)
+            .overlay(alignment: .top) { Divider() }
+    }
+
+    @ViewBuilder
+    private var footer: some View {
         if isRail {
             VStack(spacing: 8) {
                 Button(action: onNewBot) {
@@ -281,6 +290,7 @@ private struct SidebarFooter: View {
                 .help(model.userName)
             }
             .frame(maxWidth: .infinity)
+            .padding(.top, 10)
             .padding(.bottom, 12)
         } else {
             fullFooter
@@ -306,6 +316,7 @@ private struct SidebarFooter: View {
             }
         }
         .padding(.horizontal, 8)
+        .padding(.top, 6)
         .padding(.bottom, 8)
     }
 }

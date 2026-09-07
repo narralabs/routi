@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { nextRun, parseSchedule, type Schedule } from '../sessions/schedule.js'
-import type { Block, Bot, Conversation, Message, Role } from '@routi/protocol'
+import type { Block, Bot, Conversation, Memory, Message, Role } from '@routi/protocol'
 
 const now = () => Date.now()
 
@@ -24,6 +24,21 @@ type RoutineRow = {
   schedule_json: string; enabled: number; created_at: number
   last_run_at: number | null; next_run_at: number | null
 }
+
+type MemoryRow = {
+  id: string; bot_id: string | null; scope: string; text: string; source: string
+  created_at: number; updated_at: number
+}
+
+const toMemory = (r: MemoryRow): Memory => ({
+  id: r.id,
+  botId: r.bot_id,
+  scope: r.scope === 'user' ? 'user' : 'bot',
+  text: r.text,
+  source: r.source === 'user' ? 'user' : 'bot',
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+})
 
 const toRoutine = (r: RoutineRow): Routine => ({
   id: r.id,
@@ -202,6 +217,67 @@ export class Store {
 
   deleteRoutine(id: string): void {
     this.db.prepare('DELETE FROM routines WHERE id = ?').run(id)
+  }
+
+  // ------------------------------------------------------------------- memory
+
+  /** A bot's own notes, oldest first — the order they read in, and the order they are shown to it. */
+  listMemories(botId: string): Memory[] {
+    const rows = this.db
+      .prepare("SELECT * FROM memories WHERE scope = 'bot' AND bot_id = ? ORDER BY created_at, rowid")
+      .all(botId) as MemoryRow[]
+    return rows.map(toMemory)
+  }
+
+  /** What every bot knows about the person. */
+  listSharedMemories(): Memory[] {
+    const rows = this.db
+      .prepare("SELECT * FROM memories WHERE scope = 'user' ORDER BY created_at, rowid")
+      .all() as MemoryRow[]
+    return rows.map(toMemory)
+  }
+
+  /** Everything one bot reads: its own notes and the shared ones. */
+  memoriesFor(botId: string): { own: Memory[]; shared: Memory[] } {
+    return { own: this.listMemories(botId), shared: this.listSharedMemories() }
+  }
+
+  getMemory(id: string): Memory | null {
+    const r = this.db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as MemoryRow | undefined
+    return r ? toMemory(r) : null
+  }
+
+  /** A shared note has no bot: it must outlive whichever bot happened to write it. */
+  addMemory(input: { botId: string | null; scope: Memory['scope']; text: string; source: Memory['source'] }): Memory {
+    const t = now()
+    const memory: Memory = {
+      id: randomUUID(),
+      botId: input.scope === 'user' ? null : input.botId,
+      scope: input.scope,
+      text: input.text,
+      source: input.source,
+      createdAt: t,
+      updatedAt: t,
+    }
+    this.db
+      .prepare(
+        `INSERT INTO memories (id,bot_id,scope,text,source,created_at,updated_at)
+         VALUES (@id,@botId,@scope,@text,@source,@createdAt,@updatedAt)`,
+      )
+      .run(memory)
+    return memory
+  }
+
+  /** Rewrites a note. The source becomes whoever last touched it. */
+  updateMemory(id: string, text: string, source: Memory['source']): Memory | null {
+    this.db
+      .prepare('UPDATE memories SET text = ?, source = ?, updated_at = ? WHERE id = ?')
+      .run(text, source, now(), id)
+    return this.getMemory(id)
+  }
+
+  deleteMemory(id: string): boolean {
+    return this.db.prepare('DELETE FROM memories WHERE id = ?').run(id).changes > 0
   }
 
   // ------------------------------------------------------------------ channels

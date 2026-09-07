@@ -176,6 +176,48 @@ export interface ToolOptions {
 }
 
 export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}): DesktopToolSpec[] {
+  const memoryTools: DesktopToolSpec[] = ctx.memory
+    ? [
+        {
+          name: 'remember',
+          description:
+            'Save a note for later. Use it when the user asks you to remember something, ' +
+            'and when something worth keeping lands — a decision, a preference, a name, ' +
+            'a number, a deadline, where something was found. One or two plain sentences ' +
+            'that make sense on their own. Your notes are shown to you at the start of ' +
+            'every conversation, so do not save what is already there. Set shared to ' +
+            'true only for a fact about the person themselves that every bot should ' +
+            'know — their name, timezone, city, how they like to be addressed.',
+          parameters: object(
+            {
+              text: { type: 'string' },
+              shared: {
+                type: 'boolean',
+                description: 'True for a fact about the person that every bot should know. Default false.',
+              },
+            },
+            ['text'],
+          ),
+        },
+        {
+          name: 'recall',
+          description:
+            'Search all your notes, including older ones no longer shown to you. Pass a ' +
+            'word or two; every word must appear. Use it before saying you do not know ' +
+            'something the person may have told you before.',
+          parameters: object({ query: { type: 'string' } }, ['query']),
+        },
+        {
+          name: 'forget',
+          description:
+            'Remove a note that is no longer true or no longer needed. Pass the note\'s ' +
+            'text as it appears in your notes. To change a note, forget it and remember ' +
+            'the new version.',
+          parameters: object({ text: { type: 'string' } }, ['text']),
+        },
+      ]
+    : []
+
   const routineTools: DesktopToolSpec[] = ctx.routines
     ? [
         {
@@ -309,7 +351,7 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
     },
   ]
 
-  return [...handoverTool, ...routineTools, ...screenTools]
+  return [...handoverTool, ...memoryTools, ...routineTools, ...screenTools]
 }
 
 /**
@@ -325,6 +367,12 @@ export interface ToolContext {
     create(name: string, prompt: string, schedule: unknown): { ok: true; described: string } | { ok: false; why: string }
     list(): { name: string; described: string; enabled: boolean }[]
     remove(name: string): boolean
+  }
+  /** The bot's notes: what it keeps across conversations and restarts. */
+  memory?: {
+    remember(text: string, shared?: boolean): { ok: true; already: boolean } | { ok: false; why: string }
+    forget(text: string): boolean
+    recall(query: string): { text: string; date: string; shared: boolean }[]
   }
 }
 
@@ -356,6 +404,9 @@ export async function runDesktopTool(
   // Notes and routines touch no screen, so they are answered before the desktop is
   // woken — otherwise saving one would start a container for no reason. They used to
   // come after the start below, which is exactly what happened.
+  if (ctx.memory && (name === 'remember' || name === 'forget' || name === 'recall')) {
+    return runMemoryTool(ctx.memory, name, args)
+  }
   if (ctx.routines && (name === 'create_routine' || name === 'list_routines' || name === 'delete_routine')) {
     return runRoutineTool(ctx.routines, name, args)
   }
@@ -523,6 +574,47 @@ export async function runDesktopTool(
  */
 export const toolNames = (ctx: ToolContext = {}, opts: ToolOptions = {}): string[] =>
   desktopToolSpecs(ctx, opts).map((spec) => `mcp__desktop__${spec.name}`)
+
+/** The memory verbs, which touch no screen. */
+function runMemoryTool(
+  memory: NonNullable<ToolContext['memory']>,
+  name: string,
+  args: Record<string, unknown>,
+): DesktopToolResult {
+  const text = String(args['text'] ?? '').trim()
+
+  if (name === 'recall') {
+    const query = String(args['query'] ?? '').trim()
+    const found = memory.recall(query)
+    return {
+      ok: true,
+      output: found.length === 0
+        ? `No note mentions "${query}".`
+        : found.map((n) => `- [${n.date}]${n.shared ? ' (shared)' : ''} ${n.text}`).join('\n'),
+      summary: found.length === 0 ? `Nothing on “${query.slice(0, 30)}”` : `${found.length} note(s) on “${query.slice(0, 30)}”`,
+    }
+  }
+
+  if (name === 'forget') {
+    const removed = memory.forget(text)
+    return {
+      ok: removed,
+      output: removed ? 'Forgotten.' : 'No note matches that. Check your notes for the exact wording.',
+      summary: removed ? 'Forgot a note' : 'No such note',
+    }
+  }
+
+  const shared = args['shared'] === true
+  const result = memory.remember(text, shared)
+  if (!result.ok) return { ok: false, output: result.why, summary: 'Could not save' }
+  return {
+    ok: true,
+    output: result.already
+      ? 'You already had that note; nothing was added.'
+      : `Saved${shared ? ', and every bot will see it' : ''}. Mention to the user, briefly, that you have made a note of it.`,
+    summary: result.already ? 'Already noted' : `Noted${shared ? ' for every bot' : ''}: ${text.slice(0, 60)}${text.length > 60 ? '…' : ''}`,
+  }
+}
 
 /** The routine verbs, which touch no screen. */
 function runRoutineTool(

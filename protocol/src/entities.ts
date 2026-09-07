@@ -76,6 +76,28 @@ export const Routine = z.object({
 })
 export type Routine = z.infer<typeof Routine>
 
+/**
+ * One note a bot keeps.
+ *
+ * Notes belong to a bot rather than a conversation and outlive both the transcript and
+ * the runtime's own context: they are shown to the bot at the top of every turn, on
+ * whatever provider runs it. A bot writes them during ordinary turns; the person can
+ * read, rewrite and remove them. `source` says who last touched one.
+ *
+ * `scope` is `bot` for a bot's own notes and `user` for facts about the person that
+ * every bot reads — those have no `botId`, so no bot's deletion takes them along.
+ */
+export const Memory = z.object({
+  id: z.string(),
+  botId: z.string().nullable(),
+  scope: z.enum(['bot', 'user']),
+  text: z.string(),
+  source: z.enum(['bot', 'user']),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
+})
+export type Memory = z.infer<typeof Memory>
+
 export const ModelInfo = z.object({
   id: z.string(),
   displayName: z.string(),

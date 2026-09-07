@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The bot right sidebar: this bot's live screen, and its routines.
+/// The bot right sidebar: this bot's live screen, its routines, and its notes.
 struct DetailRail: View {
     @Environment(AppModel.self) private var model
     let bot: Bot
@@ -16,6 +16,7 @@ struct DetailRail: View {
                 }
                 surfacePanel
                 routinesPanel
+                memoryPanel
             }
             .padding(16)
         }
@@ -170,6 +171,74 @@ struct DetailRail: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /**
+     What this bot has written down.
+
+     The bot keeps these itself during ordinary turns — a decision, a preference, a
+     number worth having next week — and they are read back to it at the start of every
+     turn on whatever runs it, so they are what survives a restart, a compaction, or a
+     change of provider. Listed rather than edited in place, like routines: this is the
+     bot's, and the rail is where a person sees it. A click opens a note to correct or
+     remove. What every bot knows about the person lives in Settings, not here.
+     */
+    private var memoryPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Memory")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            if model.memories.isEmpty {
+                Text("Nothing noted yet. The bot writes down what matters as you talk — ask it to remember something and it will appear here.")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(model.memories) { memory in
+                    MemoryCard(memory: memory)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// One note. A click opens it for correction; nothing is edited in the rail itself.
+private struct MemoryCard: View {
+    let memory: Memory
+    @State private var isOpen = false
+
+    private var footer: String {
+        let date = Date(timeIntervalSince1970: memory.updatedAt / 1000)
+        let when = date.formatted(.dateTime.month(.abbreviated).day())
+        return memory.source == "user" ? "Edited by you · \(when)" : when
+    }
+
+    var body: some View {
+        Button { isOpen = true } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(memory.text)
+                    .font(.system(size: 13))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(footer)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(.background, in: .rect(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(.separator, lineWidth: 0.5)
+        }
+        .sheet(isPresented: $isOpen) {
+            NoteEditor(title: "Note", memory: memory)
+        }
     }
 }
 

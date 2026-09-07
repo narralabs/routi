@@ -222,7 +222,7 @@ restarts mid-turn keeps what the bot had said; what a running turn has said so f
 overlaid on `messages.list`, so a load mid-turn shows it; and rows still empty at boot
 are swept, since nothing can finish those turns.
 
-## What survives a restart
+## Memory, and what survives a restart
 
 A bot on a harness keeps its thread in the harness: Claude Code, Codex and Grok each
 hold a session per bot-in-conversation and compact it themselves. The core keeps each
@@ -230,6 +230,17 @@ session's id and resumes it after a restart; when the runtime no longer has it, 
 transcript from SQLite leads the next turn instead, so the bot never starts blank in a
 conversation the person can still scroll. A bot on a plain API has no session and is
 sent the transcript every turn.
+
+Memory is the layer above both: short notes the bot writes for itself during ordinary
+turns — a decision, a preference, a deadline, where something was found — read back to
+it at the top of every turn on whatever runs it. They belong to the bot, not the
+conversation, so they are what carries into a routine's run, across a restart, and
+across a change of provider. Facts about the person — a name, a timezone — are a second,
+shared scope that every bot reads, kept in Settings rather than in any bot's rail. The
+rail lists a bot's notes and opens one on click to correct or remove; an edit reaches a
+warm bot with its next message. The runtimes' own memory features are not used: they
+are per home directory, which would make every bot share one, and they are exactly the
+operator configuration the isolation work keeps out.
 
 ## Design notes
 

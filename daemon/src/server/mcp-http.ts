@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Store } from '../db/store.js'
+import { memoryTools, type MemoryOwner } from '../sessions/memory-tools.js'
 import { routineTools } from '../sessions/routine-tools.js'
 import type { Handovers } from '../surfaces/handover.js'
 import type { DesktopPool } from '../surfaces/pool.js'
@@ -27,6 +28,8 @@ export class McpHttp {
     private readonly desktops: DesktopPool,
     private readonly store: Store,
     private readonly handovers: Handovers,
+    /** Told when a bot writes or drops a note, so the app can be. Null means a shared one. */
+    private readonly onMemoryChanged: (owner: MemoryOwner) => void,
   ) {}
 
   /** True when this request is ours to answer. */
@@ -47,6 +50,7 @@ export class McpHttp {
     const bot = this.store.getBot(botId)
     return {
       routines: routineTools(this.store, botId, conversationId),
+      memory: memoryTools(this.store, botId, (owner) => this.onMemoryChanged(owner)),
       ...(bot && bot.surfaceMode !== 'none'
         ? { handover: (reason: string) => this.handovers.request({ botId, conversationId, reason }) }
         : {}),

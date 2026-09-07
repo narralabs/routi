@@ -149,6 +149,20 @@ struct Routine: Codable, Identifiable, Hashable {
     var nextRunAt: Double?
 }
 
+/// Swift mirror of the daemon's `Memory`: one note a bot keeps.
+struct Memory: Codable, Identifiable, Hashable {
+    var id: String
+    /// Nil for a shared note, which belongs to the person rather than to any bot.
+    var botId: String?
+    /// "bot" for the bot's own notes, "user" for facts about the person every bot reads.
+    var scope: String
+    var text: String
+    /// Who last touched it: "bot" or "user".
+    var source: String
+    var createdAt: Double
+    var updatedAt: Double
+}
+
 struct ModelInfo: Codable, Identifiable, Hashable {
     var id: String
     var displayName: String

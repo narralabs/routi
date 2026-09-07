@@ -58,7 +58,7 @@ with a mode until 0.1.11; `migrateAnthropicProvider()` moves a plan and its bots
 
 ### What a bot remembers, and where
 
-Two layers, and the distinction matters when something "forgets":
+Three layers, and the distinction matters when something "forgets":
 
 - **The transcript** is SQLite (`messages`). The API-shaped adapters replay the last 200
   rows every turn and nothing compacts them. The harness adapters ignore it while a warm
@@ -70,9 +70,23 @@ Two layers, and the distinction matters when something "forgets":
   adapter rebuilds blank and leads the turn with `replayTranscript()` from
   `providers/replay.ts`. Codex and Grok get the replay only; their own resume verbs are
   not driven yet.
+- **Memory** is Routi's, not the runtime's: `memories` rows, written by the bot with
+  `remember` / `forget` / `recall` (`sessions/memory-tools.ts`), rendered into the
+  standing prompt by `policy.ts`, over `memory.*` RPCs. Two scopes: `bot` (its own,
+  listed in the rail, cascade-deleted with it) and `user` (about the person, no
+  `bot_id`, read by every bot, shown under Settings › General › About you; a bot's own
+  note wins a conflict). Notes are the bot's to write: the app only lists them and
+  opens one in `NoteEditor` on click; the single place a person adds one is About you.
+  The prompt shows the newest that fit; `recall` searches the rest. It is deliberately not
+  Claude Code's or Grok's own memory feature: those are per home directory, so every bot
+  would share one file, and they are the operator's config that `settingSources: []` /
+  `GROK_HOME` exist to keep out. A person's edit reaches a warm session as a prefix on
+  the bot's next turn (`SessionManager.memoryEdited`), since its prompt is already built.
+
 Routi's tool server is mounted for every bot; `ToolOptions.screen` decides whether the
-nine desktop verbs are in it. Routines are answered in `runDesktopTool` before the
-desktop is touched, so saving one never starts a container.
+nine desktop verbs are in it. Notes and routines are answered in `runDesktopTool`
+before the desktop is touched, so saving one never starts a container.
+`pnpm --filter routid spike:memory` proves all three layers against the real CLI.
 
 ### Two things every harness adapter has had to solve
 

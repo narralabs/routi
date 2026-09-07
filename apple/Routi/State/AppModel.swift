@@ -32,6 +32,11 @@ final class AppModel {
     var busyRoutineNames: [String: String] = [:]
     /// The selected bot's routines. Loaded with the bot, reloaded after each run.
     var routines: [Routine] = []
+    /// The selected bot's own notes. Loaded with the bot, reloaded whenever the daemon
+    /// says they changed — the bot writes them mid-turn.
+    var memories: [Memory] = []
+    /// What every bot knows about the person. Not tied to a selection; shown in Settings.
+    var sharedMemories: [Memory] = []
     /// Last failure per conversation, shown inline in that thread rather than only
     /// as an alert — an alert that fires while you are looking elsewhere is lost.
     var conversationErrors: [String: String] = [:]
@@ -572,6 +577,8 @@ final class AppModel {
                 }
             }
 
+            await loadSharedMemories()
+
             // A client that connects late still needs to see what is being waited on.
             if let pending = try? await client.rpc("handover.list", field: "handovers", as: [Handover].self) {
                 handovers = Dictionary(uniqueKeysWithValues: pending.map { ($0.botId, $0) })
@@ -608,10 +615,12 @@ final class AppModel {
         selectedConversationID = conversation.id
         messages = []
         routines = []
+        memories = []
         isLoadingMessages = true
         client.subscribe(conversation.id)
         await loadMessages(conversation.id)
         await loadRoutines()
+        await loadMemories()
     }
 
     /// What is running on the selected bot's behalf, and how far along it is.
@@ -638,6 +647,49 @@ final class AppModel {
     func deleteRoutine(_ id: String) async {
         _ = try? await client.rpc("routines.delete", ["id": id])
         await loadRoutines()
+    }
+
+    // MARK: - Memory
+
+    func loadMemories() async {
+        guard let botID = selectedBotID else { return }
+        if let list = try? await client.rpc("memory.list", ["botId": botID], field: "memories", as: [Memory].self),
+           botID == selectedBotID {
+            memories = list.filter { $0.scope == "bot" }
+            sharedMemories = list.filter { $0.scope == "user" }
+        }
+    }
+
+    func loadSharedMemories() async {
+        if let list = try? await client.rpc("memory.list", field: "memories", as: [Memory].self) {
+            sharedMemories = list.filter { $0.scope == "user" }
+        }
+    }
+
+    /// The one note a person writes themselves: a fact about them, for every bot.
+    func addSharedMemory(_ text: String) async {
+        do {
+            try await client.rpc("memory.add", ["text": text, "scope": "user"])
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await loadSharedMemories()
+    }
+
+    func updateMemory(_ id: String, _ text: String) async {
+        do {
+            try await client.rpc("memory.update", ["id": id, "text": text])
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await loadMemories()
+        await loadSharedMemories()
+    }
+
+    func deleteMemory(_ id: String) async {
+        _ = try? await client.rpc("memory.delete", ["id": id])
+        await loadMemories()
+        await loadSharedMemories()
     }
 
     func clearSelection() {
@@ -825,6 +877,16 @@ final class AppModel {
                   let data = try? JSONSerialization.data(withJSONObject: raw),
                   let bot = try? JSONDecoder().decode(Bot.self, from: data) else { return }
             if let index = bots.firstIndex(where: { $0.id == bot.id }) { bots[index] = bot }
+
+        case "memory.updated":
+            // The bot wrote or dropped a note mid-turn, or another device edited one.
+            // A shared note carries no bot.
+            let owner = event.payload["botId"] as? String
+            if owner == nil {
+                Task { await loadSharedMemories() }
+            } else if owner == selectedBotID {
+                Task { await loadMemories() }
+            }
 
         case "handover.requested":
             if let raw = event.payload["handover"],

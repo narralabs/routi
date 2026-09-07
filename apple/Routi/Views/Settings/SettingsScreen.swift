@@ -222,6 +222,15 @@ struct GeneralPane: View {
                 AccountCard()
             }
 
+            // What every bot knows about the person. Here rather than in a bot's rail
+            // because it is not any one bot's: the same list reaches all of them.
+            SettingsSection(
+                "About you",
+                footnote: "Read by every bot before it answers — your name, your timezone, how you like things done. Bots add to this as they learn; you can too."
+            ) {
+                AboutYouRows()
+            }
+
             SettingsSection("Appearance") {
                 SettingsRow(title: "Theme", detail: "How Routi looks on this device.", isFirst: true) {
                     Picker("", selection: $appearance) {
@@ -299,6 +308,58 @@ private struct AccountCard: View {
         } message: {
             Text("You'll go back through setup to reconnect.")
         }
+    }
+}
+
+/// The shared notes as rows. A row opens the note; the last row adds one.
+private struct AboutYouRows: View {
+    @Environment(AppModel.self) private var model
+    @State private var editing: Memory?
+    @State private var adding = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(model.sharedMemories.enumerated()), id: \.element.id) { index, memory in
+                if index > 0 { Divider().padding(.leading, 14) }
+                Button { editing = memory } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(memory.text)
+                            .font(.system(size: 13))
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if !model.sharedMemories.isEmpty { Divider().padding(.leading, 14) }
+            Button { adding = true } label: {
+                Label("Add a fact", systemImage: "plus")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .sheet(item: $editing) { memory in
+            NoteEditor(title: "About you", memory: memory)
+        }
+        .sheet(isPresented: $adding) {
+            NoteEditor(title: "About you", memory: nil) { text in
+                await model.addSharedMemory(text)
+            }
+        }
+        .task { await model.loadSharedMemories() }
     }
 }
 

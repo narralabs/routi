@@ -26,6 +26,7 @@
 		8C1FB2AFAB34503F6F28467B /* ScreenWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C419477237E8F8F539AB6D /* ScreenWindow.swift */; };
 		8E79CDC70EF57C2C8B2B4694 /* RoutiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 366F6379C430E013241DB531 /* RoutiClient.swift */; };
 		92ECCE6EDA5BDDF9C5B0CBEF /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */; };
+		A71839107A782FF6A0A74BE4 /* NoteEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A829C4CB13084CF2DEEE912D /* NoteEditor.swift */; };
 		A7CC511EBDE57164BEAD0FB7 /* ToolbarStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */; };
 		A82B92A42AE70C57D9A2F486 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E531433B6982110683524454 /* AppModel.swift */; };
 		AEEE9600AFA8BA8AA7B788BF /* HandoverCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E2F25951C19F693EF8EE16 /* HandoverCard.swift */; };
@@ -61,6 +62,7 @@
 		97647FF55564F4B40332D6CA /* Routi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Routi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F745F0678DD8714864203C0 /* Handover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Handover.swift; sourceTree = "<group>"; };
 		A0128A80F54B6560A538AC1C /* ScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenView.swift; sourceTree = "<group>"; };
+		A829C4CB13084CF2DEEE912D /* NoteEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditor.swift; sourceTree = "<group>"; };
 		AE9EE469AEAC6433B4672D15 /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		B2D720880BAD6D2F0296D4A8 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B7400158C8ADF31FCEE7EA29 /* Surface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Surface.swift; sourceTree = "<group>"; };
@@ -182,6 +184,7 @@
 				87CC49000AD0941F4B4E281A /* InstallCommand.swift */,
 				EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */,
 				DB45665E5E45F01F8945DBB6 /* MessageRow.swift */,
+				A829C4CB13084CF2DEEE912D /* NoteEditor.swift */,
 				A0128A80F54B6560A538AC1C /* ScreenView.swift */,
 				5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */,
 			);
@@ -308,6 +311,7 @@
 				DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */,
 				5AC5D791694CFB6FB3A4DAC1 /* ModelName.swift in Sources */,
 				3C30816F38EAD85EBFEFA0CE /* NewBotSheet.swift in Sources */,
+				A71839107A782FF6A0A74BE4 /* NoteEditor.swift in Sources */,
 				7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */,
 				23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */,
 				F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */,

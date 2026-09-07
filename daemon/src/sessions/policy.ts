@@ -1,5 +1,6 @@
-import type { Bot } from '@routi/protocol'
+import type { Bot, Memory } from '@routi/protocol'
 import { channelInstructions } from './channel.js'
+import { renderMemory } from './memory-tools.js'
 
 /**
  * What every bot is told, whatever runs it.
@@ -21,9 +22,11 @@ interface Context {
   hasSurface: boolean
   /** Present when the turn is happening in a room. */
   channel?: { members: Bot[] }
+  /** The bot's notes and the shared ones, shown whenever it has the tools to keep them. */
+  memory?: { own: Memory[]; shared: Memory[] }
 }
 
-export function standingInstructions({ bot, hasSurface, channel }: Context): string {
+export function standingInstructions({ bot, hasSurface, channel, memory }: Context): string {
   const sections = [
     `Your name is ${bot.name}.`,
     bot.systemPrompt.trim(),
@@ -33,6 +36,8 @@ export function standingInstructions({ bot, hasSurface, channel }: Context): str
     SAFETY,
     hasSurface ? SCREEN : NO_SCREEN,
     ROUTINES,
+    memory ? MEMORY : '',
+    memory ? renderMemory(memory) : '',
     channel ? channelInstructions(bot, channel.members) : '',
   ]
   return sections.filter(Boolean).join('\n\n')
@@ -170,4 +175,33 @@ const ROUTINES = [
   '',
   'Always say what you saved and when it will run. A routine acts while they are away,',
   'so one they do not know about is one they cannot stop.',
+].join('\n')
+
+/**
+ * Notes: what should outlive the conversation.
+ *
+ * The runtime keeps the transcript and compacts it as it likes; a restart or a change
+ * of provider can lose it altogether. The notes are the part that is meant to survive
+ * all of that, and they are shown at the top of every turn on every runtime. They are
+ * the bot's, written in a turn, and the person can read and rewrite them in the app —
+ * which is why the bot is told to say what it saved.
+ */
+const MEMORY = [
+  'You keep notes: a short list of things worth having next week, on whatever runs you.',
+  'Save one with remember whenever the user asks you to remember something, and whenever',
+  'something lands that you would not want to lose — a decision, a preference, a name, a',
+  'number, a deadline, where something was found, what was tried and did not work. Use',
+  'forget when a note stops being true; to change one, forget it and save the new one.',
+  '',
+  'Write a note as one or two plain sentences that will make sense out of context. Do',
+  'not save the transcript, and do not save what your notes already say. Say what you',
+  'saved when you save it — the person can see and edit your notes, so they should know',
+  'a new one exists.',
+  '',
+  'Facts about the person themselves — their name, where they live, their timezone, how',
+  'they like to be addressed, a standing preference any assistant should honour — save',
+  'with shared set to true; every bot reads those. Anything about your own work stays',
+  'yours. If a shared note and one of yours disagree, yours is the more specific and',
+  'wins. Your newest notes are shown below; recall searches all of them, including',
+  'older ones that no longer fit.',
 ].join('\n')

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Block } from './blocks.js'
 import {
-  AccountInfo, AuthStatus, Bot, Conversation, DesktopHostStatus, Handover, Message, ModelInfo, Routine, SurfaceMode, SurfaceStatus,
+  AccountInfo, AuthStatus, Bot, Conversation, DesktopHostStatus, Handover, Memory, Message, ModelInfo, Routine, SurfaceMode, SurfaceStatus,
 } from './entities.js'
 
 /**
@@ -140,6 +140,32 @@ export const RpcMethods = {
   'routines.setEnabled': { params: z.object({ id: z.string(), enabled: z.boolean() }), result: z.object({}) },
   'routines.delete': { params: z.object({ id: z.string() }), result: z.object({}) },
 
+  // What a bot has written down for itself. Unlike routines the person may add here
+  // too: a note is a fact, and a fact is as true from them as from the bot.
+  /**
+   * A bot's own notes and the shared ones, together; `scope` tells them apart. With no
+   * bot named, only the shared ones — Settings reads them without a bot selected.
+   */
+  'memory.list': {
+    params: z.object({ botId: z.string().optional() }),
+    result: z.object({ memories: z.array(Memory) }),
+  },
+  'memory.add': {
+    params: z
+      .object({
+        botId: z.string().optional(),
+        text: z.string().trim().min(1).max(2000),
+        scope: z.enum(['bot', 'user']).default('bot'),
+      })
+      .refine((p) => p.scope === 'user' || !!p.botId, { message: 'A bot\'s own note needs a botId.' }),
+    result: z.object({ memory: Memory }),
+  },
+  'memory.update': {
+    params: z.object({ id: z.string(), text: z.string().trim().min(1).max(2000) }),
+    result: z.object({ memory: Memory }),
+  },
+  'memory.delete': { params: z.object({ id: z.string() }), result: z.object({}) },
+
   'surface.clipboard': {
     params: z.object({ botId: z.string() }),
     result: z.object({ text: z.string() }),
@@ -253,6 +279,10 @@ export const ServerEvent = z.discriminatedUnion('e', [
   z.object({ e: z.literal('conversation.updated'), conversation: Conversation }),
   z.object({ e: z.literal('bot.updated'), bot: Bot }),
   z.object({ e: z.literal('bot.deleted'), botId: z.string() }),
+  // A bot's notes changed — written by the bot mid-turn or edited by a person on
+  // another device. Carries only the owner, null for a shared note: the list is small
+  // and fetched whole.
+  z.object({ e: z.literal('memory.updated'), botId: z.string().nullable() }),
   z.object({ e: z.literal('surface.state'), botId: z.string(), surface: SurfaceStatus }),
   // A room message that was never written: a bot chose silence.
   z.object({ e: z.literal('message.deleted'), conversationId: z.string(), messageId: z.string() }),

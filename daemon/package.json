@@ -14,6 +14,7 @@
     "poke": "tsx scripts/poke.ts",
     "spike:isolation": "tsx scripts/spike-isolation.ts",
     "spike:grok": "tsx scripts/spike-grok.ts",
+    "spike:memory": "tsx scripts/spike-memory.ts",
     "parity": "tsx scripts/parity.ts",
     "dev:isolated": "ROUTI_DATA_DIR=$HOME/.routi-dev ROUTI_PORT=7172 tsx watch src/index.ts"
   },

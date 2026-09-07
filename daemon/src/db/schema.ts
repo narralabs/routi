@@ -143,7 +143,14 @@ const MIGRATIONS: string[] = [
   `,
 
   /**
-   * Whose warm session belongs to whom.
+   * Memory: the notes a bot keeps, and whose warm session belongs to whom.
+   *
+   * A note is one row rather than a line in one blob, so a bot can add or drop a single
+   * fact without rewriting everything it knows — a model asked to retype a whole page
+   * to change one line quietly loses lines. Notes belong to a bot, not a conversation:
+   * they are the part that is meant to outlive the transcript. `scope` is `bot` for a
+   * bot's own notes and `user` for facts about the person that every bot reads — a name,
+   * a timezone — which have no bot and so survive any one bot's deletion.
    *
    * `provider_sessions` replaces the single `provider_session_id` on a conversation.
    * That column dated from one bot per conversation; a room has several, each with its
@@ -152,6 +159,18 @@ const MIGRATIONS: string[] = [
    * is what the adapters already key their sessions by. The old column stays, unused.
    */
   `
+  CREATE TABLE memories (
+    id         TEXT PRIMARY KEY,
+    bot_id     TEXT REFERENCES bots(id) ON DELETE CASCADE,
+    scope      TEXT NOT NULL DEFAULT 'bot',
+    text       TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX idx_memories_bot ON memories(bot_id, created_at);
+  CREATE INDEX idx_memories_scope ON memories(scope, created_at);
+
   CREATE TABLE provider_sessions (
     conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     bot_id          TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE,

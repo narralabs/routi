@@ -230,6 +230,37 @@ async function main(): Promise<void> {
   const storedAssistant = before.messages.find((m) => m.role === 'assistant')
   check('assistant blocks persisted, not empty', (storedAssistant?.blocks.length ?? 0) > 0)
 
+  // --- memory ---------------------------------------------------------------
+  const botId = created.bot.id
+  const noteEvent = client.waitFor((e) => e.e === 'memory.updated' && e.botId === botId, 10_000)
+  const added = await client.rpc<{ memory: { id: string; text: string; source: string } }>('memory.add', {
+    botId, text: 'The person collects analog synthesizers.',
+  })
+  check('memory.add returns the note as the person\'s', added.memory.source === 'user', added.memory.text)
+  let announced = true
+  try {
+    await noteEvent
+  } catch {
+    announced = false
+  }
+  check('memory.updated announced to every client', announced)
+
+  const edited = await client.rpc<{ memory: { text: string } }>('memory.update', {
+    id: added.memory.id, text: 'The person collects analog synthesizers, mostly Korg.',
+  })
+  check('memory.update rewrites in place', edited.memory.text.endsWith('Korg.'))
+
+  const shared = await client.rpc<{ memory: { id: string; botId: string | null; scope: string } }>('memory.add', {
+    botId, text: 'The person is called Probe.', scope: 'user',
+  })
+  check('a shared note belongs to no bot', shared.memory.scope === 'user' && shared.memory.botId === null)
+
+  const listed = await client.rpc<{ memories: { id: string; scope: string }[] }>('memory.list', { botId })
+  check('memory.list shows own and shared notes',
+    listed.memories.length === 2 && listed.memories.some((m) => m.id === added.memory.id),
+    listed.memories.map((m) => m.scope).join(','))
+  await client.rpc('memory.delete', { id: shared.memory.id })
+
   // --- restart --------------------------------------------------------------
   client.close()
   await stopDaemon(daemon)
@@ -244,6 +275,9 @@ async function main(): Promise<void> {
 
   const afterBots = await client.rpc<{ bots: unknown[] }>('bots.list')
   check('bots survive daemon restart', afterBots.bots.length === 2, `${afterBots.bots.length} bots`)
+
+  const afterNotes = await client.rpc<{ memories: { id: string }[] }>('memory.list', { botId })
+  check('notes survive daemon restart', afterNotes.memories.length === 1)
 
   // The harness session is resumed by id, so the bot still has the first exchange —
   // without the transcript being replayed from the database.
@@ -261,6 +295,9 @@ async function main(): Promise<void> {
   check('bot resumes its thread after restart', recalled.e === 'message.completed' && /analog synthesizer/i.test(recalledText),
     JSON.stringify(recalledText.trim().slice(0, 60)))
 
+  await client.rpc('memory.delete', { id: added.memory.id })
+  const gone = await client.rpc<{ memories: unknown[] }>('memory.list', { botId })
+  check('memory.delete removes the note', gone.memories.length === 0)
 
   // --- error handling -------------------------------------------------------
   let rejected = false

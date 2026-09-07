@@ -4,6 +4,7 @@ import type { Routine, Store } from '../db/store.js'
 import type { ProviderAdapter } from '../providers/types.js'
 import { wakeFor } from './channel.js'
 import type { Handovers } from '../surfaces/handover.js'
+import { memoryTools, type MemoryOwner } from './memory-tools.js'
 import { standingInstructions } from './policy.js'
 import { routineTools } from './routine-tools.js'
 import type { DesktopPool, Surface } from '../surfaces/pool.js'
@@ -31,6 +32,18 @@ export class SessionManager {
   private readonly live = new Map<string, { messageId: string; blocks: Block[] }>()
   /** Messages sent while a reply was in flight, waiting for it to finish. */
   private readonly queued = new Map<string, Message[]>()
+  /**
+   * Bots whose notes a person edited since the bot last spoke.
+   *
+   * A harness session takes its system prompt once, when it is built, so an edit made
+   * in the app would not reach a warm bot until something rebuilt it. Rather than tear
+   * the session down — which costs the bot its thread — the next turn carries the
+   * edited notes in with it.
+   */
+  private readonly memoryEdited = new Set<string>()
+  /** When a person last edited the shared notes, and when each bot was last shown them. */
+  private sharedEditedAt = 0
+  private readonly sharedShownAt = new Map<string, number>()
 
   constructor(
     private readonly store: Store,
@@ -47,6 +60,18 @@ export class SessionManager {
   /** What the running turn has written so far, if one is running. */
   liveMessage(conversationId: string): { messageId: string; blocks: Block[] } | null {
     return this.live.get(conversationId) ?? null
+  }
+
+  /**
+   * A bot's notes changed. The app is told either way; an edit by a person is also
+   * carried into the bot's next turn, since its warm session will not have seen it.
+   */
+  memoryChanged(owner: MemoryOwner, by: 'bot' | 'user'): void {
+    if (by === 'user') {
+      if (owner === null) this.sharedEditedAt = Date.now()
+      else this.memoryEdited.add(owner)
+    }
+    this.emit({ e: 'memory.updated', botId: owner })
   }
 
   interrupt(conversationId: string): boolean {
@@ -303,10 +328,32 @@ export class SessionManager {
 
     const history = this.store.listMessages(conversationId, 200).filter((m) => m.id !== messageId)
 
+    const memory = this.store.memoriesFor(bot.id)
     // Only the harness knows whether it still holds this thread; what is offered is
     // the last id it reported, and only if the same runtime reported it.
     const saved = this.store.getProviderSession(conversationId, bot.id)
     const resumeSessionId = saved && saved.provider === bot.provider ? saved.sessionId : undefined
+
+    // A person edited the notes since this bot last spoke; a warm session's prompt
+    // still shows the old ones, so the new ones ride in with the message.
+    const sharedStale = this.sharedEditedAt > (this.sharedShownAt.get(bot.id) ?? 0)
+    this.sharedShownAt.set(bot.id, Date.now())
+    if (this.memoryEdited.delete(bot.id) || sharedStale) {
+      const list = (notes: typeof memory.own) => (notes.length === 0 ? ['- nothing'] : notes.map((m) => `- ${m.text}`))
+      input = [
+        {
+          type: 'text',
+          text: [
+            '(The person edited the notes since your last turn. Shared, about them:',
+            ...list(memory.shared),
+            'Your own:',
+            ...list(memory.own),
+            'Carry on; no need to mention this unless it changes your answer.)',
+          ].join('\n'),
+        },
+        ...input,
+      ]
+    }
 
     try {
       const stream = provider.stream(
@@ -318,10 +365,12 @@ export class SessionManager {
             bot,
             hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
             channel,
+            memory,
           }),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
             routines: routineTools(this.store, bot.id, conversationId),
+            memory: memoryTools(this.store, bot.id, (owner) => this.memoryChanged(owner, 'bot')),
             // Only offered where there is a screen to hand over.
             ...(bot.surfaceMode !== 'none' && provider.supportsSurface && this.handovers
               ? {

@@ -20,7 +20,7 @@ export class RoutiServer {
   private readonly clients = new Set<Client>()
 
   constructor(private readonly ctx: RpcContext) {
-    const mcp = new McpHttp(ctx.desktops, ctx.store, ctx.handovers)
+    const mcp = new McpHttp(ctx.desktops, ctx.store, ctx.handovers, (owner) => ctx.sessions.memoryChanged(owner, 'bot'))
 
     this.http = createServer((req, res) => {
       // Tools over HTTP, for harnesses that sandbox the processes they launch.

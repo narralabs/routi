@@ -238,6 +238,39 @@ const handlers: Record<RpcMethod, Handler> = {
     return {}
   },
 
+  // A bot's notes. The bot writes them during turns; a person may add, rewrite and
+  // remove them here. Every change is announced so the rail and the bot both learn of
+  // it — the bot on its next turn, since a warm session's prompt is already built.
+  'memory.list': async (p, ctx) => {
+    const { botId } = p as { botId?: string }
+    if (!botId) return { memories: ctx.store.listSharedMemories() }
+    const { own, shared } = ctx.store.memoriesFor(botId)
+    return { memories: [...own, ...shared] }
+  },
+
+  'memory.add': async (p, ctx) => {
+    const { botId, text, scope } = p as { botId?: string; text: string; scope: 'bot' | 'user' }
+    if (scope === 'bot' && !ctx.store.getBot(botId ?? '')) throw new RpcError('not_found', `No such bot: ${botId}`)
+    const memory = ctx.store.addMemory({ botId: botId ?? null, scope, text, source: 'user' })
+    ctx.sessions.memoryChanged(memory.botId, 'user')
+    return { memory }
+  },
+
+  'memory.update': async (p, ctx) => {
+    const { id, text } = p as { id: string; text: string }
+    const memory = ctx.store.updateMemory(id, text, 'user')
+    if (!memory) throw new RpcError('not_found', `No such note: ${id}`)
+    ctx.sessions.memoryChanged(memory.botId, 'user')
+    return { memory }
+  },
+
+  'memory.delete': async (p, ctx) => {
+    const { id } = p as { id: string }
+    const memory = ctx.store.getMemory(id)
+    if (memory && ctx.store.deleteMemory(id)) ctx.sessions.memoryChanged(memory.botId, 'user')
+    return {}
+  },
+
   'surface.clipboard': async (p, ctx) => {
     const { botId } = p as { botId: string }
     return { text: await ctx.desktops.for(botId).readClipboard() }

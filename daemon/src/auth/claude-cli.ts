@@ -8,29 +8,33 @@ import { promisify } from 'node:util'
 const run = promisify(execFile)
 
 /**
- * The Claude Code that turns already run on.
+ * The Claude Code that turns run on — and the only one sign-in runs on.
  *
  * Nobody has to install Claude Code for this daemon. The Agent SDK pins a version in
  * its manifest and fetches that build, checksummed, into the native installer's own
- * layout the first time a turn needs it — measured: with no `claude` on PATH and an
- * empty HOME, a turn still ran, on the manifest's version rather than the newer one
- * installed on this Mac. Sign-in should use the same binary rather than assume a
- * global install, so this looks where the SDK puts it, then where the native installer
- * links it, and only then on PATH.
+ * layout the first time a session initialises. This is that path, and it is the whole
+ * list: the Mac's own `claude` used to be a fallback for sign-in, which meant a Mac
+ * that already had one signed in on that binary while turns ran on ours — two
+ * versions, and two ideas of where the credential lives. One pinned binary for both,
+ * the way the core runs on its own Node. `ROUTI_CLAUDE_BIN` remains for development.
  */
-function claudeCandidates(): string[] {
+export function managedClaudePath(): string {
   const configured = process.env['ROUTI_CLAUDE_BIN']
-  if (configured) return [configured]
-  const candidates: string[] = []
+  if (configured) return configured
+  const root = dirname(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk'))
+  const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8')) as { version?: string }
+  if (!manifest.version) throw new Error('The Claude Agent SDK on this install has no manifest; cannot tell which Claude Code it runs.')
+  return join(homedir(), '.local', 'share', 'claude', 'versions', manifest.version)
+}
+
+/** The pinned binary if it has been fetched, for a turn to name explicitly. */
+export function managedClaudeIfPresent(): string | undefined {
   try {
-    const root = dirname(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk'))
-    const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8')) as { version?: string }
-    if (manifest.version) candidates.push(join(homedir(), '.local', 'share', 'claude', 'versions', manifest.version))
+    const path = managedClaudePath()
+    return existsSync(path) ? path : undefined
   } catch {
-    // No manifest in this SDK build; the other two still apply.
+    return undefined
   }
-  candidates.push(join(homedir(), '.local', 'bin', 'claude'))
-  return candidates
 }
 
 /**
@@ -84,11 +88,11 @@ interface RawStatus {
 }
 
 export class ClaudeCli {
-  private binary = 'claude'
+  private binary = ''
 
-  /** The first candidate that exists, else PATH. Re-resolved each time: the SDK may have fetched one since. */
+  /** Re-resolved each time: the SDK may have fetched it since. */
   private resolve(): string {
-    this.binary = claudeCandidates().find((path) => existsSync(path)) ?? 'claude'
+    this.binary = managedClaudePath()
     return this.binary
   }
 

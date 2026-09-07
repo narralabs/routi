@@ -6,6 +6,7 @@ import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { desktopToolServer, toolNames } from '../surfaces/tools.js'
+import { managedClaudeIfPresent } from '../auth/claude-cli.js'
 
 /**
  * Anthropic via the user's personal Claude plan.
@@ -48,7 +49,13 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
     const input = new PushQueue<SDKUserMessage>()
     const q = query({
       prompt: input,
-      options: { cwd: this.opts.cwd, tools: [], persistSession: false, settingSources: [] },
+      options: {
+        cwd: this.opts.cwd,
+        ...(managedClaudeIfPresent() ? { pathToClaudeCodeExecutable: managedClaudeIfPresent() } : {}),
+        tools: [],
+        persistSession: false,
+        settingSources: [],
+      },
     })
     try {
       return await fn(q)
@@ -99,6 +106,8 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
       prompt: input,
       options: {
         cwd: this.opts.cwd,
+        // The same binary sign-in ran on, named rather than left to the SDK's own search.
+        ...(managedClaudeIfPresent() ? { pathToClaudeCodeExecutable: managedClaudeIfPresent() } : {}),
         model: req.model,
         effort: req.effort,
         // A chat bot, not a coding agent: no built-in tools, no claude_code preset.

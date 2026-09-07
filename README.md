@@ -3,9 +3,9 @@
 # Routi Bot
 
 Bots that live on your Mac, each with its own personality, model and screen. Give one a
-job — watch a market, find a hotel, check a price every morning — and it opens a browser
-and does it, on any AI you already pay for: a Claude plan, a ChatGPT plan, or an API
-key. Your phone is a window onto the same bots.
+job, like watching a market, finding a hotel, or checking a price every morning, and it
+opens a browser and does it, on any AI you already pay for: a Claude plan, a ChatGPT
+plan, or an API key. Your phone is a window onto the same bots.
 
 ## Install
 

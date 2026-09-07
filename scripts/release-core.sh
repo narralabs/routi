@@ -1,8 +1,8 @@
 #!/bin/sh
 # Cuts a core release:  scripts/release-core.sh 0.1.9
 #
-# Sets the version in daemon/package.json and protocol/package.json, commits, tags
-# v<version>, and pushes. The tag is what the release workflow builds from, so the
+# Sets the version in daemon/package.json, protocol/package.json and the app's
+# project.yml, commits, tags v<version>, and pushes. The tag is what the release workflow builds from, so the
 # tarball it publishes reports the same version the tag says — /health, the
 # handshake and Settings → Routi Core all read the package. Run from a clean tree
 # on main.
@@ -19,7 +19,12 @@ cd "$root"
 for pkg in daemon/package.json protocol/package.json; do
   sed -i '' "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$version\"/" "$pkg"
 done
-git add daemon/package.json protocol/package.json
+# The app carries the same number, and its build number is the patch: the two used to
+# be bumped by hand and drifted, so a release's DMG reported the release before it.
+build="${version##*.}"
+sed -i '' "s/MARKETING_VERSION: \"[^\"]*\"/MARKETING_VERSION: \"$version\"/; s/CURRENT_PROJECT_VERSION: \"[^\"]*\"/CURRENT_PROJECT_VERSION: \"$build\"/" apple/project.yml
+(cd apple && ./bootstrap.sh >/dev/null)
+git add daemon/package.json protocol/package.json apple/project.yml apple/Routi.xcodeproj/project.pbxproj
 git commit -q -m "Core $version"
 git tag "v$version"
 git push -q origin HEAD:main "v$version"

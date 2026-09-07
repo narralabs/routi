@@ -10,6 +10,9 @@ struct BotListView: View {
     @Environment(AppModel.self) private var model
     @Binding var showingNewBot: Bool
     @State private var search = ""
+    /// Phone only: the search field exists while it is wanted, summoned by the toolbar
+    /// icon and gone again on cancel, so the list opens without a field above it.
+    @State private var searching = false
     /// The column's width, as laid out. Below `railWidth` the list becomes a rail of
     /// avatars: the window can then go as narrow as a phone-shaped chat, and every
     /// bot is still one click away.
@@ -43,6 +46,7 @@ struct BotListView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .navigationTitle("Routi Bot")
         .toolbar {
+            #if os(macOS)
             // At rail width there is no room beside the traffic lights, and a toolbar
             // item that does not fit becomes an overflow chevron; the rail carries its
             // own + at the bottom instead, where Grok Bot keeps it.
@@ -50,15 +54,46 @@ struct BotListView: View {
                 ToolbarItem {
                     Button("New Bot", systemImage: "plus") { showingNewBot = true }
                 }
-                #if os(macOS)
                 .flatBackground()
-                #endif
             }
+            #else
+            // The phone's chrome: you on the left, search and New Bot on the right. The
+            // Mac keeps its account row at the foot of the sidebar; a phone has no room
+            // for a second bar, and the top one is where a person looks for these.
+            ToolbarItem(placement: .topBarLeading) {
+                Button { model.isShowingSettings = true } label: {
+                    Text(model.userInitials)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                        .background(.quaternary, in: .circle)
+                        .overlay(alignment: .bottomTrailing) {
+                            Circle().fill(connectionColor).frame(width: 8, height: 8)
+                                .overlay { Circle().stroke(.background, lineWidth: 1.5) }
+                        }
+                }
+                // Plain, or the toolbar tints the initial and its disc the accent colour.
+                .buttonStyle(.plain)
+                .accessibilityLabel("Account and settings")
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Search", systemImage: "magnifyingglass") { searching = true }
+                Button("New Bot", systemImage: "plus") { showingNewBot = true }
+            }
+            #endif
         }
         #if os(macOS)
         // No toggle: the sidebar is always present, so nothing in the chrome moves.
         .toolbar(removing: .sidebarToggle)
         #endif
+    }
+
+    private var connectionColor: Color {
+        switch model.connection {
+        case .connected: return .green
+        case .connecting: return .secondary
+        case .disconnected: return .red
+        }
     }
 
     /// Avatars only, centred, with the footer reduced to its icons.
@@ -114,7 +149,7 @@ struct BotListView: View {
         #if os(macOS)
         .searchable(text: $search, placement: .sidebar, prompt: "Search")
         #else
-        .searchable(text: $search, prompt: "Search")
+        .modifier(PhoneSearch(text: $search, searching: $searching))
         #endif
         .overlay {
             if model.bots.isEmpty {
@@ -127,10 +162,36 @@ struct BotListView: View {
                 ContentUnavailableView.search(text: search)
             }
         }
+        #if os(macOS)
         SidebarFooter(isRail: false, onNewBot: { showingNewBot = true })
+        #endif
         }
     }
 }
+
+#if !os(macOS)
+/// A search field that is only there while searching.
+///
+/// `searchable` always draws its field; on a phone that put a bar under the title
+/// before anyone wanted one. Applied only while `searching`, the field appears on the
+/// toolbar icon, focused, and is removed again when the person cancels.
+private struct PhoneSearch: ViewModifier {
+    @Binding var text: String
+    @Binding var searching: Bool
+
+    func body(content: Content) -> some View {
+        if searching {
+            content
+                .searchable(text: $text, isPresented: $searching, prompt: "Search")
+                .onChange(of: searching) { _, on in
+                    if !on { text = "" }
+                }
+        } else {
+            content
+        }
+    }
+}
+#endif
 
 private struct BotRow: View {
     @Environment(AppModel.self) private var model

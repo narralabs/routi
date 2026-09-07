@@ -51,11 +51,13 @@ Logs are in `~/.routi/logs/routid.log`; with Homebrew, `brew services info routi
 ```bash
 pnpm install && pnpm --filter @routi/protocol build
 pnpm --filter routid dev:isolated     # a second core on ~/.routi-dev, port 7172
-cd apple && ./bootstrap.sh && open Routi.xcodeproj
+scripts/dev-app.sh                    # builds the app and opens it on that core
 ```
 
-Point the Debug app at port 7172 under Settings → Routi Core, and the core serving your
-real bots is never touched. How it's built and released: [`docs/ENGINEERING.md`](docs/ENGINEERING.md).
+`dev:isolated` reloads on every daemon change; run `dev-app.sh` again after an app
+change. Or `cd apple && ./bootstrap.sh && open Routi.xcodeproj` and ⌘R in Xcode, with
+`-daemonPort 7172` under the scheme's arguments. Either way the core serving your real
+bots is never touched. How it's built and released: [`docs/ENGINEERING.md`](docs/ENGINEERING.md).
 Adding an AI provider: [`CLAUDE.md`](CLAUDE.md).
 
 ## License

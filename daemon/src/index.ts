@@ -10,6 +10,7 @@ import { RoutiServer } from './server/ws.js'
 import { Scheduler } from './sessions/scheduler.js'
 import { Handovers } from './surfaces/handover.js'
 import { DesktopPool } from './surfaces/pool.js'
+import { Updater } from './update.js'
 
 const DATA_DIR = process.env['ROUTI_DATA_DIR'] ?? join(homedir(), '.routi')
 
@@ -65,6 +66,7 @@ async function main(): Promise<void> {
 
   let server: RoutiServer
   const handovers = new Handovers((event) => server.broadcast(event))
+  const updater = new Updater(DATA_DIR, (stage, line) => server.broadcast({ e: 'core.update.progress', stage, line }))
   const sessions = new SessionManager(
     store,
     providers,
@@ -72,7 +74,7 @@ async function main(): Promise<void> {
     desktops,
     handovers,
   )
-  server = new RoutiServer({ store, sessions, providers, auth, desktops, handovers })
+  server = new RoutiServer({ store, sessions, providers, auth, desktops, handovers, updater })
 
   // Routines are saved by bots during ordinary turns; this only fires what is due.
   const scheduler = new Scheduler(store, sessions)

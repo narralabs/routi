@@ -7,6 +7,7 @@ import type { AuthManager } from '../auth/manager.js'
 import { Desktop, desktopHost, type DesktopInput } from '../surfaces/desktop.js'
 import type { Handovers } from '../surfaces/handover.js'
 import type { DesktopPool } from '../surfaces/pool.js'
+import type { Updater } from '../update.js'
 
 export interface RpcContext {
   store: Store
@@ -15,6 +16,7 @@ export interface RpcContext {
   auth: AuthManager
   desktops: DesktopPool
   handovers: Handovers
+  updater: Updater
 }
 
 export class RpcError extends Error {
@@ -328,6 +330,10 @@ const handlers: Record<RpcMethod, Handler> = {
     if (!adapter) throw new RpcError('not_configured', 'No Anthropic credential configured yet.')
     return { account: await adapter.accountInfo() }
   },
+
+  'core.update.check': async (p, ctx) => ({ update: await ctx.updater.check((p as { force: boolean }).force) }),
+
+  'core.update.start': async (_p, ctx) => ctx.updater.start(),
 
   'settings.get': async (_p, ctx) => ({ settings: ctx.store.getSettings() }),
 

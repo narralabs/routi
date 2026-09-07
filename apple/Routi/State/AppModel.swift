@@ -160,6 +160,123 @@ final class AppModel {
     var account: AccountInfo? { client.account }
     var coreVersion: String? { client.serverVersion }
 
+    // MARK: - Updates
+
+    /// What the core says about newer releases. Nil until asked; asked on every connect.
+    struct CoreUpdate: Codable, Hashable {
+        var current: String
+        var latest: String?
+        var available: Bool
+        var canUpdate: Bool
+        var reason: String?
+        var checkedAt: Double
+    }
+
+    var coreUpdate: CoreUpdate?
+    /// The stage line the core last reported, while an update runs.
+    var coreUpdateStage: String?
+    var isUpdatingCore = false
+    /// How the last update ended, for the pane to show once.
+    var coreUpdateOutcome: String?
+    /// The version the running update is meant to land on, and whether the core has
+    /// gone away and come back since it started — which is how a rollback is told
+    /// apart from a core that has simply not restarted yet.
+    private var updatingTo: String?
+    private var sawRestart = false
+
+    var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0" }
+
+    /// The app is behind the latest release. It cannot update itself; it links the DMG.
+    var appUpdateAvailable: Bool {
+        guard let latest = coreUpdate?.latest else { return false }
+        return Self.compareVersions(latest, appVersion) > 0
+    }
+
+    /// Something — core or app — is behind, and worth a line in the sidebar.
+    var updateAvailable: Bool {
+        (coreUpdate?.available ?? false) || appUpdateAvailable
+    }
+
+    static let dmgURL = URL(string: "https://github.com/narralabs/routi/releases/latest/download/RoutiBot.dmg")!
+
+    /// Dotted versions, numerically: 0.1.10 is newer than 0.1.9.
+    static func compareVersions(_ a: String, _ b: String) -> Int {
+        let pa = a.split(separator: ".").map { Int($0) ?? 0 }
+        let pb = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(pa.count, pb.count) {
+            let d = (i < pa.count ? pa[i] : 0) - (i < pb.count ? pb[i] : 0)
+            if d != 0 { return d }
+        }
+        return 0
+    }
+
+    func checkCoreUpdate(force: Bool = false) async {
+        if let update = try? await client.rpc("core.update.check", ["force": force], field: "update", as: CoreUpdate.self) {
+            coreUpdate = update
+        }
+    }
+
+    /**
+     Asks the core to update itself, then watches it go.
+
+     The core downloads and verifies the release, hands over to the release's own
+     update script, and is restarted by it — so the socket drops partway through, on
+     purpose. Reconnecting to the new version is success; reconnecting after a restart
+     to the old one means the script put it back; nothing within ten minutes is a
+     failure to say out loud, with the installer as the way out.
+     */
+    func startCoreUpdate() async {
+        guard let target = coreUpdate?.latest, !isUpdatingCore else { return }
+        coreUpdateOutcome = nil
+        do {
+            let result = try await client.rpc("core.update.start")
+            guard result["ok"] as? Bool == true else {
+                coreUpdateOutcome = result["why"] as? String ?? "The update could not start."
+                return
+            }
+        } catch {
+            coreUpdateOutcome = error.localizedDescription
+            return
+        }
+        isUpdatingCore = true
+        updatingTo = target
+        sawRestart = false
+        coreUpdateStage = "Starting…"
+        Task { await watchCoreUpdate() }
+    }
+
+    private func watchCoreUpdate() async {
+        let started = coreUpdate?.current
+        let deadline = Date().addingTimeInterval(10 * 60)
+        while isUpdatingCore && Date() < deadline {
+            try? await Task.sleep(for: .seconds(2))
+            switch connection {
+            case .connected:
+                guard sawRestart, let version = coreVersion else { continue }
+                if version == updatingTo {
+                    finishCoreUpdate("Updated to Routi Core \(version).")
+                } else if version == started {
+                    finishCoreUpdate("Routi Core \(version) is back: the new one did not start, so it was put back. See ~/.routi/logs/update.log on the host Mac.")
+                }
+            case .disconnected, .connecting:
+                sawRestart = true
+                coreUpdateStage = "Restarting Routi Core…"
+                client.connectNow()
+            }
+        }
+        if isUpdatingCore {
+            finishCoreUpdate("The update did not finish. On the Mac running Routi Core, run the installer again:\ncurl -fsSL https://raw.githubusercontent.com/narralabs/routi/main/scripts/install.sh | sh")
+        }
+    }
+
+    private func finishCoreUpdate(_ outcome: String) {
+        isUpdatingCore = false
+        coreUpdateStage = nil
+        updatingTo = nil
+        coreUpdateOutcome = outcome
+        Task { await checkCoreUpdate(force: true) }
+    }
+
     /// Shown in the sidebar footer, and used by the daemon to greet the user by name
     /// when a bot is created.
     ///
@@ -578,6 +695,7 @@ final class AppModel {
             }
 
             await loadSharedMemories()
+            await checkCoreUpdate()
 
             // A client that connects late still needs to see what is being waited on.
             if let pending = try? await client.rpc("handover.list", field: "handovers", as: [Handover].self) {
@@ -877,6 +995,14 @@ final class AppModel {
                   let data = try? JSONSerialization.data(withJSONObject: raw),
                   let bot = try? JSONDecoder().decode(Bot.self, from: data) else { return }
             if let index = bots.firstIndex(where: { $0.id == bot.id }) { bots[index] = bot }
+
+        case "core.update.progress":
+            guard let line = event.payload["line"] as? String else { return }
+            if event.payload["stage"] as? String == "failed" {
+                finishCoreUpdate(line)
+            } else {
+                coreUpdateStage = line
+            }
 
         case "routines.updated":
             // A bot saved or removed a routine mid-turn, or another device toggled one.

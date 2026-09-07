@@ -88,6 +88,15 @@ nine desktop verbs are in it. Notes and routines are answered in `runDesktopTool
 before the desktop is touched, so saving one never starts a container.
 `pnpm --filter routid spike:memory` proves all three layers against the real CLI.
 
+### Updating the core from the app
+
+`daemon/src/update.ts` + `scripts/update-core.sh`. The core fetches, verifies and unpacks
+the release, then hands over to the *new* release's script, detached; the script
+builds in `~/.routi/core.next`, swaps, restarts the agent, and rolls back on a failed
+health check. `Updater.installed` is false for a checkout, so the dev core never tries.
+The installer's `ROUTI_INSTALL_NO_AGENT` / `ROUTI_INSTALL_AGENT_ONLY` are the updater's
+two halves. See ENGINEERING.md for the full sequence and what was measured.
+
 ### Two things every harness adapter has had to solve
 
 **Isolation.** These CLIs read the operator's personal config — MCP servers, skills,

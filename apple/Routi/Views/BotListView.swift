@@ -303,6 +303,19 @@ private struct SidebarFooter: View {
             BuildStamp()
             #endif
 
+            // A release is out. One quiet row, which opens the pane with the button; the
+            // core updates itself from there, and the app links its download.
+            if model.updateAvailable && !model.isUpdatingCore {
+                FooterRow(title: "Update available") {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 22, height: 22)
+                } action: {
+                    model.showSettings(pane: "core")
+                }
+            }
+
             // The account row opens Settings — the name is the affordance, as in the
             // reference, rather than the word "Settings".
             FooterRow(title: model.userName, statusColor: statusColor) {

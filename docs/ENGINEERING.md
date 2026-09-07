@@ -91,6 +91,24 @@ cd apple && xcodebuild -scheme Routi -destination 'platform=macOS' build
 blocked on the UI. With a daemon running, `pnpm --filter routid poke "..."` sends a
 message to it so the app's render path can be watched without driving the UI.
 
+## Updating an installed core from the app
+
+Settings › Routi Core shows "Update Routi Core" when a newer release exists, and the
+sidebar says so. The core does the work on itself, because the app may be a phone: it
+asks GitHub for the latest release (cached six hours), downloads the tarball, checks it
+against the release's sha256, unpacks it to `~/.routi/core.next`, and runs that
+release's `scripts/update-core.sh` detached — in its own process group, which is what
+lets it outlive the core that started it (measured on a launchd install: the child
+survives `bootout`). The script builds in the staging folder, swaps `core` and
+`core.prev`, reruns the installer in agent-only mode so a changed plist takes effect,
+and waits for `/health` to answer with the new version. If it does not within ninety
+seconds, the previous core is swapped back and restarted, and the failed one is left as
+`~/.routi/core.failed`. The app watches the socket drop and reconnects: the new version
+is success, the old version after a restart is a rollback, and nothing in ten minutes
+is reported with the installer one-liner as the way out. A core run from a source
+checkout reports that it cannot update itself. The app does not update itself; the
+same row links the latest DMG.
+
 ## Releasing
 
 A core release is one command: `scripts/release-core.sh 0.1.9` sets the version in

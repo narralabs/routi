@@ -38,15 +38,19 @@ node_dir="$(dirname "$node_bin")"
 # corepack's shim is `#!/usr/bin/env node`, so this Node must be first on PATH.
 export PATH="$node_dir:$PATH"
 
-say "Installing and building"
-cd "$here"
-# corepack ships with Node and runs the pnpm version package.json pins — the same one
-# every other install path uses.
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-pnpm="$node_dir/corepack pnpm"
-$pnpm install --frozen-lockfile
-$pnpm --filter @routi/protocol build
-$pnpm --filter routid build
+# The in-app updater builds in a staging folder first (ROUTI_INSTALL_NO_AGENT), swaps
+# it in, then comes back only for the agent (ROUTI_INSTALL_AGENT_ONLY).
+if [ -z "$ROUTI_INSTALL_AGENT_ONLY" ]; then
+  say "Installing and building"
+  cd "$here"
+  # corepack ships with Node and runs the pnpm version package.json pins — the same one
+  # every other install path uses.
+  export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+  pnpm="$node_dir/corepack pnpm"
+  $pnpm install --frozen-lockfile
+  $pnpm --filter @routi/protocol build
+  $pnpm --filter routid build
+fi
 
 if [ -n "$ROUTI_INSTALL_NO_AGENT" ]; then
   echo "Built. Skipping the login agent (ROUTI_INSTALL_NO_AGENT is set)."

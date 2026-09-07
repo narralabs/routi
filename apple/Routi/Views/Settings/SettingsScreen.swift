@@ -416,6 +416,32 @@ struct ConnectionPane: View {
                 SettingsRow(title: "Version", isFirst: true) {
                     SettingsValue(text: model.coreVersion.map { "v\($0)" } ?? "—")
                 }
+                if showsCoreUpdate {
+                    SettingsRow(title: "Update", detail: coreUpdateDetail) {
+                        if model.isUpdatingCore {
+                            HStack(spacing: 8) {
+                                ProgressView().controlSize(.small)
+                                Text(model.coreUpdateStage ?? "Updating…")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: 260, alignment: .trailing)
+                            }
+                        } else if model.coreUpdate?.available == true {
+                            Button("Update Routi Core") { Task { await model.startCoreUpdate() } }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(!(model.coreUpdate?.canUpdate ?? false))
+                        }
+                    }
+                }
+                if model.appUpdateAvailable {
+                    SettingsRow(
+                        title: "App",
+                        detail: "Routi Bot \(model.coreUpdate?.latest ?? "") is out; this is \(model.appVersion). The app does not update itself yet."
+                    ) {
+                        Link("Download", destination: AppModel.dmgURL)
+                    }
+                }
                 SettingsRow(title: "Protocol") {
                     SettingsValue(text: "v\(RoutiClient.protocolVersion)")
                 }
@@ -428,6 +454,20 @@ struct ConnectionPane: View {
             draftHost = host
             draftPort = port
         }
+        .task { await model.checkCoreUpdate() }
+    }
+
+    private var showsCoreUpdate: Bool {
+        model.isUpdatingCore || model.coreUpdateOutcome != nil || model.coreUpdate?.available == true
+    }
+
+    /// What the Update row says: the outcome of the last run, else the offer.
+    private var coreUpdateDetail: String? {
+        if model.isUpdatingCore { return "Bots pause while the core is rebuilt and restarted. This window reconnects by itself." }
+        if let outcome = model.coreUpdateOutcome { return outcome }
+        guard let update = model.coreUpdate, update.available, let latest = update.latest else { return nil }
+        if !update.canUpdate, let reason = update.reason { return "Routi Core \(latest) is out. \(reason)" }
+        return "Routi Core \(latest) is out; this core is \(update.current). Downloads and builds it, then restarts the core — a few minutes, during which bots pause."
     }
 
     private func apply() {

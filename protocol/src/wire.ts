@@ -215,6 +215,34 @@ export const RpcMethods = {
   },
   'account.info': { params: z.object({}), result: z.object({ account: AccountInfo }) },
 
+  /**
+   * Whether a newer core exists, and the update itself.
+   *
+   * The core asks GitHub for the latest release — the core, not the app, because the
+   * app may be a phone and the core is the thing with the install. `start` downloads,
+   * verifies and unpacks the release, then hands over to the release's own update
+   * script, which builds it beside the running core, swaps them and restarts the
+   * agent; the socket drops when that happens and the app reconnects to the new one.
+   */
+  'core.update.check': {
+    params: z.object({ force: z.boolean().default(false) }),
+    result: z.object({
+      update: z.object({
+        current: z.string(),
+        latest: z.string().nullable(),
+        available: z.boolean(),
+        /** False for a core run from a source checkout, which git updates. */
+        canUpdate: z.boolean(),
+        reason: z.string().optional(),
+        checkedAt: z.number().int(),
+      }),
+    }),
+  },
+  'core.update.start': {
+    params: z.object({}),
+    result: z.object({ ok: z.boolean(), why: z.string().optional() }),
+  },
+
   'settings.get': { params: z.object({}), result: z.object({ settings: z.record(z.string(), z.unknown()) }) },
   'settings.set': { params: z.object({ patch: z.record(z.string(), z.unknown()) }), result: z.object({ settings: z.record(z.string(), z.unknown()) }) },
 } as const
@@ -286,6 +314,8 @@ export const ServerEvent = z.discriminatedUnion('e', [
   // A bot's routines changed — one saved or removed mid-turn, or toggled on another
   // device. The rail used to learn of a new routine only when the bot was reselected.
   z.object({ e: z.literal('routines.updated'), botId: z.string() }),
+  // What the update is doing, while the old core is still alive to say.
+  z.object({ e: z.literal('core.update.progress'), stage: z.string(), line: z.string() }),
   z.object({ e: z.literal('surface.state'), botId: z.string(), surface: SurfaceStatus }),
   // A room message that was never written: a bot chose silence.
   z.object({ e: z.literal('message.deleted'), conversationId: z.string(), messageId: z.string() }),

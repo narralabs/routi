@@ -1,8 +1,6 @@
 import { execFile, spawn } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
@@ -10,52 +8,47 @@ const run = promisify(execFile)
 /**
  * The Claude Code that turns run on — and the only one sign-in runs on.
  *
- * Nobody has to install Claude Code for this daemon. The Agent SDK pins a version in
- * its manifest and fetches that build, checksummed, into the native installer's own
- * layout the first time a session initialises. This is that path, and it is the whole
- * list: the Mac's own `claude` used to be a fallback for sign-in, which meant a Mac
- * that already had one signed in on that binary while turns ran on ours — two
- * versions, and two ideas of where the credential lives. One pinned binary for both,
- * the way the core runs on its own Node. `ROUTI_CLAUDE_BIN` remains for development.
+ * Nobody has to install Claude Code for this daemon: the Agent SDK depends on a
+ * platform package (`@anthropic-ai/claude-agent-sdk-darwin-arm64` and its siblings)
+ * whose whole content is the native `claude` binary, pinned to the SDK's version and
+ * installed with the rest of `node_modules`. That is the binary the SDK spawns, found
+ * the way the SDK itself finds it — resolving the package for this platform and
+ * architecture — so sign-in and turns cannot disagree about which Claude Code they
+ * are on.
+ *
+ * Two earlier ideas were wrong, measured: the SDK does not fetch a binary into
+ * `~/.local/share/claude/versions` (that folder comes from Anthropic's own installer,
+ * which a Mac may or may not have), and falling back to the Mac's own `claude` on
+ * PATH signed in on one version while turns ran on another. `ROUTI_CLAUDE_BIN`
+ * remains for development.
  */
 export function managedClaudePath(): string {
   const configured = process.env['ROUTI_CLAUDE_BIN']
   if (configured) return configured
-  const root = dirname(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk'))
-  const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8')) as { version?: string }
-  if (!manifest.version) throw new Error('The Claude Agent SDK on this install has no manifest; cannot tell which Claude Code it runs.')
-  return join(homedir(), '.local', 'share', 'claude', 'versions', manifest.version)
+  const require = createRequire(import.meta.url)
+  const sdk = require.resolve('@anthropic-ai/claude-agent-sdk')
+  const fromSdk = createRequire(sdk)
+  const suffix = process.platform === 'win32' ? '.exe' : ''
+  const names = process.platform === 'linux'
+    ? [`linux-${process.arch}`, `linux-${process.arch}-musl`]
+    : [`${process.platform}-${process.arch}`]
+  for (const name of names) {
+    try {
+      return fromSdk.resolve(`@anthropic-ai/claude-agent-sdk-${name}/claude${suffix}`)
+    } catch {
+      // Not this variant.
+    }
+  }
+  throw new Error(`The Claude Agent SDK on this install has no Claude Code for ${process.platform}-${process.arch}.`)
 }
 
-/** The pinned binary if it has been fetched, for a turn to name explicitly. */
+/** The pinned binary, for a turn to name explicitly; undefined if the install lacks it. */
 export function managedClaudeIfPresent(): string | undefined {
   try {
     const path = managedClaudePath()
     return existsSync(path) ? path : undefined
   } catch {
     return undefined
-  }
-}
-
-/**
- * Has the SDK fetch its Claude Code, on a machine that has none.
- *
- * The download happens as a session initialises, before any credential is looked at,
- * so a throwaway query that stops at the init message is enough — and it is the SDK's
- * own code path doing the fetching and the checksum, not ours.
- */
-async function fetchClaudeCodeViaSdk(): Promise<void> {
-  const { query } = await import('@anthropic-ai/claude-agent-sdk')
-  const abort = new AbortController()
-  try {
-    for await (const message of query({ prompt: 'ok', options: { maxTurns: 1, abortController: abort } })) {
-      if (message.type === 'system') break
-    }
-  } catch {
-    // Not signed in, or offline: the binary is either there now or it is not, and
-    // status() will say which.
-  } finally {
-    abort.abort()
   }
 }
 
@@ -106,11 +99,7 @@ export class ClaudeCli {
   }
 
   async status(): Promise<ClaudeAuthStatus> {
-    let version = await this.version()
-    if (version === null) {
-      await fetchClaudeCodeViaSdk()
-      version = await this.version()
-    }
+    const version = await this.version()
     if (version === null) return { installed: false, loggedIn: false }
 
     try {

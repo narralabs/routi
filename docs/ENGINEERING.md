@@ -121,11 +121,16 @@ skips dependency build scripts it has not been told to run.
 
 ## Authentication
 
-Nobody installs a vendor CLI to use a plan. The Agent SDK pins a Claude Code version in
-its manifest and fetches that build, checksummed, the first time a turn needs it; Codex
-is a dependency versioned with the SDK that drives it. Sign-in uses those same binaries.
-Grok is the exception — xAI ships it only through their own installer — and the app says
-where to get it.
+Nobody installs a vendor CLI to use a plan. Claude Code arrives as a platform package the
+Agent SDK depends on (`@anthropic-ai/claude-agent-sdk-darwin-arm64` — the whole package
+is the native `claude` binary, pinned to the SDK's version), so it is in `node_modules`
+after `pnpm install`; Codex is a dependency versioned with the SDK that drives it.
+Sign-in runs on exactly those binaries — `managedClaudePath()` resolves the platform
+package the way the SDK does — never on a `claude` the Mac happens to have, which
+signed in on one version while turns ran on another. Nothing is fetched at run time;
+`~/.local/share/claude/versions` is Anthropic's own installer's folder and plays no
+part. Grok is the exception — xAI ships it only through their own installer — and the
+app says where to get it.
 
 Signing in with a Claude account runs `claude auth login --claudeai`: the browser opens,
 the real OAuth happens, and the token stays owned by the CLI in the Keychain. Routi does

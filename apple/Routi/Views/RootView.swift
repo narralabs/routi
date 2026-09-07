@@ -8,11 +8,10 @@ import SwiftUI
 /// - **main content** — the conversation
 /// - **bot right sidebar** — that bot's screen and routines, hidden until asked for
 ///
-/// The first two are a `NavigationSplitView`; the third is an `.inspector`. That is
-/// not an arbitrary split. A three-column `NavigationSplitView` cannot hide its
-/// trailing column — `columnVisibility` only ever reaches the leading ones — whereas
-/// hiding and showing is exactly what an inspector is for, and it still renders as a
-/// real resizable column rather than an overlay.
+/// The first two are a `NavigationSplitView`; the third is a fixed column beside the
+/// chat. A three-column `NavigationSplitView` cannot hide its trailing column —
+/// `columnVisibility` only ever reaches the leading ones — and `.inspector` inflated
+/// the window's minimum width wherever it was attached (see `detail`).
 ///
 /// `NavigationSplitView` does the adapting itself: columns on the Mac, a sidebar over
 /// content on iPad, and a push-navigation stack on iPhone. That is the whole reason to
@@ -71,25 +70,6 @@ struct RootView: View {
         } detail: {
             detail
         }
-        // The bot right sidebar hangs off the split view, not the chat inside it. Inside
-        // the detail column it hosted its own split view, whose content pane carried an
-        // implicit minimum near 330pt on top of the chat's — the window could not go
-        // below ~900pt however narrow the chat was willing to be. Out here it is the
-        // same panel in the same place, and the window shrinks to what the columns ask.
-        .inspector(isPresented: Binding(
-            get: { showBotSidebar },
-            // Opening only ever happens through the toolbar button, which writes the
-            // state directly. AppKit also writes through here when it restores the
-            // window's saved split-view state, which would reopen the panel at launch
-            // after any session that left it open — so an uninvited `true` is dropped
-            // and the panel keeps its promise to start closed.
-            set: { if !$0 { showBotSidebar = false } }
-        )) {
-            if let bot = model.selectedBot {
-                DetailRail(bot: bot, showingSettings: $showingRailSettings)
-                    .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
-            }
-        }
         .sheet(isPresented: $showingNewBot) {
             NewBotSheet()
         }
@@ -110,12 +90,29 @@ struct RootView: View {
         )
     }
 
+    /// The chat, and beside it the bot right sidebar when asked for.
+    ///
+    /// A plain trailing column, not an `.inspector`. The inspector was tried in both
+    /// places it can go — inside the detail column and on the split view — and each
+    /// added hundreds of points to the window's minimum width that no content asked
+    /// for (1189 with the panel open, against 464 without). A fixed 300pt column
+    /// costs resizability nobody used and gives back a window that shrinks to what
+    /// the chat and the panel actually need.
     @ViewBuilder
     private var detail: some View {
         @Bindable var model = model
             if let bot = model.selectedBot {
-                ChatView(bot: bot, showBotSidebar: $showBotSidebar)
-                    .navigationSplitViewColumnWidth(min: 380, ideal: 760)
+                HStack(spacing: 0) {
+                    ChatView(bot: bot, showBotSidebar: $showBotSidebar)
+                        .frame(minWidth: 340)
+                    if showBotSidebar {
+                        DetailRail(bot: bot, showingSettings: $showingRailSettings)
+                            .frame(width: 300)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+                }
+                .animation(.snappy(duration: 0.25), value: showBotSidebar)
+                .navigationSplitViewColumnWidth(min: 340, ideal: 760)
             } else {
                 ContentUnavailableView(
                     "No Bot Selected",

@@ -160,6 +160,15 @@ async function main(): Promise<void> {
     check('daemon reports a credential', !!hello.account.authMode, `${hello.account.authMode} / ${hello.account.subscriptionType ?? '?'}`)
   }
 
+  // --- sign-in --------------------------------------------------------------
+  // A fresh data dir has no provider installed: the core starts bare so the app can
+  // walk a person through setup. This is that step, against the Claude Code sign-in
+  // already on this Mac — nothing interactive happens when one is present.
+  const auth = await client.rpc<{ auth: { providers?: Record<string, { configured?: boolean }> } }>(
+    'auth.providerLogin', { provider: 'anthropic-claude' },
+  )
+  check('Claude Code sign-in installs the provider', !!auth.auth)
+
   // --- bots -----------------------------------------------------------------
   const { bots } = await client.rpc<{ bots: { id: string; name: string }[] }>('bots.list')
   check('seeded bot exists on fresh db', bots.length === 1, bots[0]?.name)
@@ -168,11 +177,21 @@ async function main(): Promise<void> {
     name: 'Probe Bot',
     systemPrompt: 'You are terse. Reply in under 12 words.',
     model: 'default',
+    provider: 'anthropic-claude',
   })
   check('bots.create returns bot + conversation', !!created.bot.id && !!created.conversation.id)
 
   const conversationId = created.conversation.id
   client.subscribe(conversationId)
+
+  // The bot greets the moment it is made. Let that finish — busy goes off last, after
+  // the completion — so the checks below see exactly one exchange of their own.
+  // (Its message.created is missed on purpose: it fires before the subscribe lands,
+  // which is why busy is broadcast to everyone.)
+  const greeting = await client.waitFor((e) => e.e === 'message.completed')
+  await client.waitFor((e) => e.e === 'conversation.busy' && e.conversationId === conversationId && !e.busy)
+  check('bot greets on creation', greeting.e === 'message.completed' && greeting.stopReason !== 'error')
+  client.events.splice(0)
 
   // --- streaming ------------------------------------------------------------
   const t0 = Date.now()
@@ -191,7 +210,8 @@ async function main(): Promise<void> {
   check('user + assistant messages announced', createdMsgs.length === 2, `${createdMsgs.length}`)
   check('text deltas streamed', deltas.length > 0, `${deltas.length} deltas in ${elapsed}ms`)
   check('busy toggled on then off',
-    busyEvents.length === 2 && (busyEvents[0] as { busy: boolean }).busy && !(busyEvents[1] as { busy: boolean }).busy)
+    busyEvents.length === 2 && (busyEvents[0] as { busy: boolean }).busy && !(busyEvents[1] as { busy: boolean }).busy,
+    busyEvents.map((e) => (e as { busy: boolean }).busy).join(','))
   check('turn completed without error', completed.e === 'message.completed' && completed.stopReason !== 'error',
     completed.e === 'message.completed' ? String(completed.stopReason) : '')
 
@@ -206,7 +226,7 @@ async function main(): Promise<void> {
 
   // --- persistence ----------------------------------------------------------
   const before = await client.rpc<{ messages: { role: string; blocks: unknown[] }[] }>('messages.list', { conversationId })
-  check('both messages persisted', before.messages.length === 2, `${before.messages.length} messages`)
+  check('greeting and both messages persisted', before.messages.length === 3, `${before.messages.length} messages`)
   const storedAssistant = before.messages.find((m) => m.role === 'assistant')
   check('assistant blocks persisted, not empty', (storedAssistant?.blocks.length ?? 0) > 0)
 
@@ -216,6 +236,7 @@ async function main(): Promise<void> {
   daemon = await startDaemon()
   client = new ProbeClient()
   await client.connect()
+  client.subscribe(conversationId)
 
   const after = await client.rpc<{ messages: { role: string; blocks: unknown[] }[] }>('messages.list', { conversationId })
   check('conversation survives daemon restart', after.messages.length === before.messages.length,
@@ -223,6 +244,23 @@ async function main(): Promise<void> {
 
   const afterBots = await client.rpc<{ bots: unknown[] }>('bots.list')
   check('bots survive daemon restart', afterBots.bots.length === 2, `${afterBots.bots.length} bots`)
+
+  // The harness session is resumed by id, so the bot still has the first exchange —
+  // without the transcript being replayed from the database.
+  const eventsBefore = client.events.length
+  await client.rpc('messages.send', {
+    conversationId,
+    blocks: [{ type: 'text', text: 'Repeat my first question to you, word for word, and nothing else.' }],
+  })
+  const recalled = await client.waitFor((e, i = client.events.indexOf(e)) => e.e === 'message.completed' && i >= eventsBefore)
+  const recalledText = client.events
+    .slice(eventsBefore)
+    .filter((e): e is Extract<ServerEvent, { e: 'message.delta' }> => e.e === 'message.delta')
+    .map((e) => e.delta.text)
+    .join('')
+  check('bot resumes its thread after restart', recalled.e === 'message.completed' && /analog synthesizer/i.test(recalledText),
+    JSON.stringify(recalledText.trim().slice(0, 60)))
+
 
   // --- error handling -------------------------------------------------------
   let rejected = false

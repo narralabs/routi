@@ -53,6 +53,12 @@ export class McpHttp {
     }
   }
 
+  /** Whether this bot's screen verbs are real. A bot with no screen still gets the rest. */
+  private hasScreen(botId: string): boolean {
+    const bot = this.store.getBot(botId)
+    return bot !== null && bot.surfaceMode !== 'none'
+  }
+
   async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     // /mcp/:botId/:conversationId — a routine belongs to a bot in a conversation, so
     // both travel in the path.
@@ -105,7 +111,7 @@ export class McpHttp {
 
       case 'tools/list':
         return {
-          tools: desktopToolSpecs(this.contextFor(botId, conversationId)).map((spec) => ({
+          tools: desktopToolSpecs(this.contextFor(botId, conversationId), { screen: this.hasScreen(botId) }).map((spec) => ({
             name: spec.name,
             description: spec.description,
             inputSchema: spec.parameters,
@@ -117,7 +123,7 @@ export class McpHttp {
         const args = (request.params?.['arguments'] ?? {}) as Record<string, unknown>
         try {
           const outcome = await runDesktopTool(
-            this.desktops.for(botId),
+            this.hasScreen(botId) ? this.desktops.for(botId) : null,
             name,
             args,
             this.contextFor(botId, conversationId),

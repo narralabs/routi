@@ -96,7 +96,7 @@ export class OpenAiApiAdapter implements ProviderAdapter {
   async *stream(req: ChatRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {
     const model = MODELS.some((m) => m.id === req.model) ? req.model : FALLBACK_MODEL
     const desktop = req.hasSurface === true ? this.desktops?.for(req.botId) : undefined
-    const tools = desktopToolSpecs(req.toolContext ?? {}).map(toResponsesTool)
+    const tools = desktopToolSpecs(req.toolContext ?? {}, { screen: desktop !== undefined }).map(toResponsesTool)
 
     // Responses keeps no session for us, so the whole thread is replayed each turn.
     const input: ResponseInput = []
@@ -197,10 +197,10 @@ export class OpenAiApiAdapter implements ProviderAdapter {
           yield { type: 'block_end', index: textIndex, block: { type: 'text', text: '' } }
         }
 
-        if (calls.length === 0 || !desktop) break
+        if (calls.length === 0) break
 
         for (const call of calls) {
-          const result = await runDesktopTool(desktop!, call.name, safeParse(call.args), req.toolContext ?? {})
+          const result = await runDesktopTool(desktop ?? null, call.name, safeParse(call.args), req.toolContext ?? {})
           yield {
             type: 'block_end',
             index: call.index,

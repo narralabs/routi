@@ -142,6 +142,30 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_routines_bot ON routines(bot_id);
   `,
 
+  /**
+   * Whose warm session belongs to whom.
+   *
+   * `provider_sessions` replaces the single `provider_session_id` on a conversation.
+   * That column dated from one bot per conversation; a room has several, each with its
+   * own warm session, and one column meant the last bot to finish overwrote the rest and
+   * the next restart resumed a teammate's thread. Keyed by conversation and bot, which
+   * is what the adapters already key their sessions by. The old column stays, unused.
+   */
+  `
+  CREATE TABLE provider_sessions (
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    bot_id          TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE,
+    provider        TEXT NOT NULL,
+    session_id      TEXT NOT NULL,
+    updated_at      INTEGER NOT NULL,
+    PRIMARY KEY (conversation_id, bot_id)
+  );
+  INSERT INTO provider_sessions (conversation_id, bot_id, provider, session_id, updated_at)
+    SELECT c.id, c.bot_id, b.provider, c.provider_session_id, c.updated_at
+    FROM conversations c JOIN bots b ON b.id = c.bot_id
+    WHERE c.provider_session_id IS NOT NULL AND c.bot_id IS NOT NULL;
+  `,
+
 ]
 
 export function openDb(path: string): Database.Database {

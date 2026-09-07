@@ -2,6 +2,7 @@ import { query, type Query, type SDKMessage, type SDKUserMessage } from '@anthro
 import type { MessageParam } from '@anthropic-ai/sdk/resources'
 import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import { PushQueue } from './push-queue.js'
+import { replayTranscript } from './replay.js'
 import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 import type { DesktopPool } from '../surfaces/pool.js'
@@ -16,9 +17,17 @@ import { managedClaudeIfPresent } from '../auth/claude-cli.js'
  * Verified in the M0 spike: subscriptionType "Claude Max", apiKeySource none, and it
  * works from a scrubbed launchd-style environment.
  *
- * One warm session is held per conversation. The SDK owns conversation history for
- * that session, so ChatRequest.history is intentionally ignored here — replaying it
- * would double the context. It is used only when rebuilding a session from scratch.
+ * One warm session is held per bot-in-conversation. The SDK owns conversation history
+ * for that session, so ChatRequest.history is intentionally ignored while one is warm —
+ * replaying it would double the context.
+ *
+ * After a restart the session is resumed by the id the last turn reported, which is
+ * the whole thread, compaction included. When that cannot work — the CLI's session file
+ * is gone, or nothing was ever kept — the transcript from the database leads the first
+ * turn instead, so the bot does not start blank halfway through a conversation the
+ * person can still scroll. Measured: a resume of an unknown id comes back as a result
+ * with subtype `error_during_execution` ("No conversation found with session ID") and
+ * the query then throws, so the failure is visible before the bot has said anything.
  */
 
 interface WarmSession {
@@ -28,6 +37,10 @@ interface WarmSession {
   turn: PushQueue<ProviderEvent> | null
   sessionId: string | null
   pump: Promise<void>
+  /** Set while a resume is unproven: an error before any output means it failed. */
+  resuming: boolean
+  /** Built this call, with nothing behind it; the transcript should lead its first turn. */
+  fresh: boolean
 }
 
 export class AnthropicSubscriptionAdapter implements ProviderAdapter {
@@ -107,11 +120,11 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
     if (existing) return existing
 
     const input = new PushQueue<SDKUserMessage>()
-    // A bot with a screen gets hands; one without stays a pure chat bot.
+    // A bot with a screen gets hands; one without still gets its notes and routines.
     // Resolved per request rather than held on the adapter: one adapter serves every
     // bot, and each bot drives its own desktop.
-    const desktop = this.opts.desktops?.for(req.botId)
-    const withDesktop = req.hasSurface === true && desktop !== undefined
+    const desktop = req.hasSurface === true ? this.opts.desktops?.for(req.botId) : undefined
+    const withDesktop = desktop !== undefined
     const q = query({
       prompt: input,
       options: {
@@ -124,14 +137,15 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         // A chat bot, not a coding agent: no built-in tools, no claude_code preset.
         // Composed once by the session manager, so every runtime says the same things.
         systemPrompt: { type: 'custom', prompt: req.systemPrompt },
-        ...(withDesktop
-          ? {
-              mcpServers: { desktop: desktopToolServer(desktop!, req.toolContext) },
-              // Pre-approved: the user granted this by giving the bot a screen, and
-              // a permission prompt per click would make any real task unusable.
-              allowedTools: toolNames(req.toolContext),
-            }
-          : { tools: [] }),
+        // Routi's own tools for every bot; the screen verbs only where there is one.
+        // Pre-approved: the user granted the screen by giving the bot one, and the rest
+        // touch nothing but Routi's database. A permission prompt per click would make
+        // any real task unusable.
+        mcpServers: { desktop: desktopToolServer(desktop ?? null, req.toolContext, { screen: withDesktop }) },
+        allowedTools: toolNames(req.toolContext, { screen: withDesktop }),
+        // No built-in tools on a screenless bot: it is a chat bot, not a coding agent.
+        // (A bot with a screen keeps the SDK's default set, as it always has.)
+        ...(withDesktop ? {} : { tools: [] }),
         /**
          * Isolation mode. Without this the SDK loads the host's own Claude Code
          * configuration — ~/.claude/settings.json, its MCP servers, and any CLAUDE.md
@@ -157,7 +171,10 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
       },
     })
 
-    const session: WarmSession = { q, input, turn: null, sessionId: resumeId, pump: Promise.resolve() }
+    const session: WarmSession = {
+      q, input, turn: null, sessionId: resumeId, pump: Promise.resolve(),
+      resuming: resumeId !== null, fresh: true,
+    }
     // One consumer drains the query for the life of the session and routes each event
     // to whichever turn is in flight.
     session.pump = this.pump(session)
@@ -247,39 +264,58 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
   // ------------------------------------------------------------------ stream
 
   async *stream(req: ChatRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {
-    const session = this.ensureSession(req, null)
+    let session = this.ensureSession(req, req.resumeSessionId ?? null)
 
     if (session.turn) {
       yield { type: 'error', code: 'busy', message: 'This conversation is already generating a reply.' }
       return
     }
 
-    const turn = new PushQueue<ProviderEvent>()
-    session.turn = turn
+    // Twice at most: once as asked, and once more blank if a resume proves dead.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // A session built this call with no id to resume knows nothing of the
+      // conversation; if there is one, it leads.
+      const input = session.fresh && !session.resuming ? withTranscript(req) : req.input
+      session.fresh = false
 
-    const onAbort = () => {
-      void session.q.interrupt().catch(() => {})
+      const turn = new PushQueue<ProviderEvent>()
+      session.turn = turn
+      const onAbort = () => {
+        void session.q.interrupt().catch(() => {})
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+
+      session.input.push({
+        type: 'user',
+        message: { role: 'user', content: blocksToAnthropicContent(input) },
+        parent_tool_use_id: null,
+        session_id: session.sessionId ?? '',
+      })
+
+      let spoke = false
+      let resumeFailed = false
+      try {
+        for await (const ev of turn) {
+          if (ev.type === 'block_start' || ev.type === 'text_delta' || ev.type === 'thinking_delta') spoke = true
+          if (ev.type === 'done') session.resuming = false
+          if (ev.type === 'error' && session.resuming && !spoke) {
+            resumeFailed = true
+            break
+          }
+          yield ev
+        }
+      } finally {
+        signal.removeEventListener('abort', onAbort)
+        if (session.turn === turn) session.turn = null
+      }
+
+      if (!resumeFailed || signal.aborted) return
+
+      // The thread the id named is gone. Start over without it — the query behind a
+      // failed resume is dead — and let the transcript stand in.
+      this.release(sessionKey(req))
+      session = this.ensureSession(req, null)
     }
-    signal.addEventListener('abort', onAbort, { once: true })
-
-    session.input.push({
-      type: 'user',
-      message: { role: 'user', content: blocksToAnthropicContent(req.input) },
-      parent_tool_use_id: null,
-      session_id: session.sessionId ?? '',
-    })
-
-    try {
-      for await (const ev of turn) yield ev
-    } finally {
-      signal.removeEventListener('abort', onAbort)
-      if (session.turn === turn) session.turn = null
-    }
-  }
-
-  /** The session id, once known, so it can be persisted and resumed after a restart. */
-  sessionIdFor(conversationId: string): string | null {
-    return this.sessions.get(conversationId)?.sessionId ?? null
   }
 
   release(conversationId: string): void {
@@ -297,6 +333,12 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
 
 
 // ------------------------------------------------------------------ mapping
+
+/** The turn's input with the conversation so far ahead of it, when there is one. */
+function withTranscript(req: ChatRequest): Block[] {
+  const transcript = replayTranscript(req.history, req.botId)
+  return transcript ? [{ type: 'text', text: transcript }, ...req.input] : req.input
+}
 
 function anthropicBlockToRouti(raw: { type: string }): Block | null {
   // The SDK's content-block union is far wider than the handful the UI renders, so

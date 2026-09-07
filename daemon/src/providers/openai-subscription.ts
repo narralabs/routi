@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { codexBinary } from '../auth/codex-cli.js'
 import { CodexAppServer, type AppServerEvent } from './codex-app-server.js'
 import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
+import { replayTranscript } from './replay.js'
 import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 
@@ -251,11 +252,16 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       }
     })
 
-    const threadId = await this.threadFor(req, server)
+    const { threadId, created } = await this.threadFor(req, server)
+    // A thread made partway through a conversation — after a restart — knows none of
+    // it, so the transcript leads the first turn. Codex's own thread/resume is not yet
+    // driven here; this is the fallback that would follow it.
+    const replay = created ? replayTranscript(req.history, req.botId) : null
+    const text = replay ? [req.systemPrompt.trim(), '', replay, '', prompt].filter(Boolean).join('\n') : framed
     void server
       .request('turn/start', {
         threadId,
-        input: [{ type: 'text', text: framed }],
+        input: [{ type: 'text', text }],
         // Per turn rather than per thread: the schema puts them here, and a bot
         // switched mid-conversation keeps its thread and answers on the new model.
         ...(req.model && req.model !== 'default' ? { model: req.model } : {}),
@@ -310,9 +316,12 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     return this.server
   }
 
-  private async threadFor(req: ChatRequest, server: CodexAppServer): Promise<string> {
+  private async threadFor(
+    req: ChatRequest,
+    server: CodexAppServer,
+  ): Promise<{ threadId: string; created: boolean }> {
     const existing = this.threads.get(sessionKey(req))
-    if (existing) return existing
+    if (existing) return { threadId: existing, created: false }
 
     const started = await server.request('thread/start', {
       cwd: this.opts.cwd,
@@ -322,7 +331,9 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       approvalPolicy: 'on-request',
       sandbox: 'read-only',
       config: {
-        mcp_servers: { routi: { url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}` } },
+        // Bot and conversation both: a routine or a note saved over this URL is filed
+        // under the conversation it was made in.
+        mcp_servers: { routi: { url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}/${req.conversationId}` } },
       },
     })
 
@@ -331,7 +342,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     if (!threadId) throw new Error('Codex did not return a thread.')
     this.threads.set(sessionKey(req), threadId)
     this.threadOwners.set(threadId, sessionKey(req))
-    return threadId
+    return { threadId, created: true }
   }
 
   release(conversationId: string): void {

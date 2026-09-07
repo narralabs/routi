@@ -222,6 +222,15 @@ restarts mid-turn keeps what the bot had said; what a running turn has said so f
 overlaid on `messages.list`, so a load mid-turn shows it; and rows still empty at boot
 are swept, since nothing can finish those turns.
 
+## What survives a restart
+
+A bot on a harness keeps its thread in the harness: Claude Code, Codex and Grok each
+hold a session per bot-in-conversation and compact it themselves. The core keeps each
+session's id and resumes it after a restart; when the runtime no longer has it, the
+transcript from SQLite leads the next turn instead, so the bot never starts blank in a
+conversation the person can still scroll. A bot on a plain API has no session and is
+sent the transcript every turn.
+
 ## Design notes
 
 **A new bot speaks first.** Creating a bot runs a turn whose prompt is never persisted,

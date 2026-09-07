@@ -32,6 +32,12 @@ export interface ChatRequest {
   hasSurface?: boolean
   /** Non-screen abilities: saving a routine, listing what is scheduled. */
   toolContext?: import('../surfaces/tools.js').ToolContext
+  /**
+   * The runtime's own id for this bot's session in this conversation, from the last
+   * time it spoke, when one was kept. A harness adapter resumes it rather than starting
+   * blank after a restart; an adapter with no sessions ignores it.
+   */
+  resumeSessionId?: string
 }
 
 export interface ProviderAdapter {

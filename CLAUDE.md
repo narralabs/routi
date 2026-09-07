@@ -56,6 +56,24 @@ with a mode until 0.1.11; `migrateAnthropicProvider()` moves a plan and its bots
 `anthropic-claude` at boot, and the old `auth.loginWithClaude` / `auth.setApiKey` /
 `auth.signOut` RPCs remain as aliases onto the pair.
 
+### What a bot remembers, and where
+
+Two layers, and the distinction matters when something "forgets":
+
+- **The transcript** is SQLite (`messages`). The API-shaped adapters replay the last 200
+  rows every turn and nothing compacts them. The harness adapters ignore it while a warm
+  session exists — the runtime holds the thread and compacts it as it likes.
+- **The warm session** is per `conversationId:botId`, and its id is kept in
+  `provider_sessions` after every turn. After a restart the adapter resumes it
+  (`ChatRequest.resumeSessionId`); a resume of a dead id fails before the bot has spoken
+  (measured: result subtype `error_during_execution`, "No conversation found"), so the
+  adapter rebuilds blank and leads the turn with `replayTranscript()` from
+  `providers/replay.ts`. Codex and Grok get the replay only; their own resume verbs are
+  not driven yet.
+Routi's tool server is mounted for every bot; `ToolOptions.screen` decides whether the
+nine desktop verbs are in it. Routines are answered in `runDesktopTool` before the
+desktop is touched, so saving one never starts a container.
+
 ### Two things every harness adapter has had to solve
 
 **Isolation.** These CLIs read the operator's personal config — MCP servers, skills,

@@ -376,16 +376,29 @@ export class Store {
     return this.getConversation(id)
   }
 
-  /** Lets a warm agent session be resumed after a daemon restart. */
-  getProviderSessionId(conversationId: string): string | null {
-    const r = this.db.prepare('SELECT provider_session_id AS s FROM conversations WHERE id = ?').get(conversationId) as
-      | { s: string | null }
-      | undefined
-    return r?.s ?? null
+  /**
+   * The warm session a bot holds in a conversation, so a restart can resume it.
+   *
+   * Keyed the way the adapters key theirs — by conversation and bot — because a room
+   * has one session per member. The provider travels with it so a bot's id is never
+   * offered to a different runtime.
+   */
+  getProviderSession(conversationId: string, botId: string): { provider: string; sessionId: string } | null {
+    const r = this.db
+      .prepare('SELECT provider, session_id FROM provider_sessions WHERE conversation_id = ? AND bot_id = ?')
+      .get(conversationId, botId) as { provider: string; session_id: string } | undefined
+    return r ? { provider: r.provider, sessionId: r.session_id } : null
   }
 
-  setProviderSessionId(conversationId: string, sessionId: string | null): void {
-    this.db.prepare('UPDATE conversations SET provider_session_id = ? WHERE id = ?').run(sessionId, conversationId)
+  setProviderSession(conversationId: string, botId: string, provider: string, sessionId: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO provider_sessions (conversation_id, bot_id, provider, session_id, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(conversation_id, bot_id) DO UPDATE SET
+           provider = excluded.provider, session_id = excluded.session_id, updated_at = excluded.updated_at`,
+      )
+      .run(conversationId, botId, provider, sessionId, now())
   }
 
   // --------------------------------------------------------------- messages

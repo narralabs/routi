@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import { GrokCli, grokAuthFile, grokBinary } from '../auth/grok-cli.js'
 import { GrokAcp, ROUTI_MCP_SERVER, isRoutiTool, toolTargetOf, type AcpEvent } from './grok-acp.js'
+import { replayTranscript } from './replay.js'
 import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 
@@ -186,11 +187,15 @@ export class XaiSubscriptionAdapter implements ProviderAdapter {
       }
     })
 
-    const sessionId = await this.sessionFor(req, agent)
+    const { sessionId, created } = await this.sessionFor(req, agent)
+    // A session made partway through a conversation — after a restart — knows none of
+    // it, so the transcript leads the first turn.
+    const replay = created ? replayTranscript(req.history, req.botId) : null
+    const text = replay ? [req.systemPrompt.trim(), '', replay, '', prompt].filter(Boolean).join('\n') : framed
 
     void agent
       // No deadline: a turn is over when the agent says so, or when the user stops it.
-      .request('session/prompt', { sessionId, prompt: [{ type: 'text', text: framed }] }, 0)
+      .request('session/prompt', { sessionId, prompt: [{ type: 'text', text }] }, 0)
       .then((result) => {
         const usage = (result['_meta'] as Record<string, unknown> | undefined)?.['usage']
         if (usage) meta['usage'] = usage
@@ -248,24 +253,25 @@ export class XaiSubscriptionAdapter implements ProviderAdapter {
     return this.agent
   }
 
-  private async sessionFor(req: ChatRequest, agent: GrokAcp): Promise<string> {
+  private async sessionFor(
+    req: ChatRequest,
+    agent: GrokAcp,
+  ): Promise<{ sessionId: string; created: boolean }> {
     const existing = this.sessions.get(sessionKey(req))
-    if (existing) return existing
+    if (existing) return { sessionId: existing, created: false }
 
     const started = await agent.request('session/new', {
       cwd: this.opts.cwd,
-      // A bot with no screen is handed no servers at all, rather than tools it would
-      // call and be told it has nowhere to point them.
-      mcpServers: req.hasSurface
-        ? [
-            {
-              type: 'http',
-              name: ROUTI_MCP_SERVER,
-              url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}/${req.conversationId}`,
-              headers: [],
-            },
-          ]
-        : [],
+      // Every bot gets the server: notes and routines need no screen, and the server
+      // leaves the screen verbs out for a bot that has none.
+      mcpServers: [
+        {
+          type: 'http',
+          name: ROUTI_MCP_SERVER,
+          url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}/${req.conversationId}`,
+          headers: [],
+        },
+      ],
     })
 
     const sessionId = String(started['sessionId'] ?? '')
@@ -286,7 +292,7 @@ export class XaiSubscriptionAdapter implements ProviderAdapter {
 
     this.sessions.set(sessionKey(req), sessionId)
     this.sessionOwners.set(sessionId, sessionKey(req))
-    return sessionId
+    return { sessionId, created: true }
   }
 
   /** What a new session says the account can reach, kept for the model picker. */

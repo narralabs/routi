@@ -33,14 +33,14 @@ type ToolResult = { content: Array<TextContent | ImageContent> }
 
 const say = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] })
 
-export function desktopToolServer(desktop: Surface, ctx: ToolContext = {}) {
+export function desktopToolServer(desktop: Surface | null, ctx: ToolContext = {}, opts: ToolOptions = {}) {
   /**
    * Built from the same specs every other provider gets, rather than written out
    * again here. The two lists drifted the moment the browser verbs were added — the
    * OpenAI path had them and Claude did not — which is exactly the bug a second
    * source of truth guarantees.
    */
-  const tools: ToolDef[] = desktopToolSpecs(ctx).map((spec) => ({
+  const tools: ToolDef[] = desktopToolSpecs(ctx, opts).map((spec) => ({
     name: spec.name,
     description: spec.description,
     inputSchema: zodShapeOf(spec.parameters),
@@ -163,7 +163,19 @@ function browserFor(desktop: Surface): Browser {
   return browser
 }
 
-export function desktopToolSpecs(ctx: ToolContext = {}): DesktopToolSpec[] {
+/**
+ * Which of the verbs a bot is offered.
+ *
+ * `screen` is whether the nine desktop verbs are in the list. A bot without a screen
+ * still keeps notes and routines — those touch nothing but the database — so the tool
+ * server is mounted for every bot, and this is what makes it honest about what the
+ * bot can actually reach.
+ */
+export interface ToolOptions {
+  screen?: boolean
+}
+
+export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}): DesktopToolSpec[] {
   const routineTools: DesktopToolSpec[] = ctx.routines
     ? [
         {
@@ -220,9 +232,7 @@ export function desktopToolSpecs(ctx: ToolContext = {}): DesktopToolSpec[] {
       ]
     : []
 
-  return [
-    ...handoverTool,
-    ...routineTools,
+  const screenTools: DesktopToolSpec[] = opts.screen === false ? [] : [
     {
       name: 'read_page',
       description:
@@ -298,6 +308,8 @@ export function desktopToolSpecs(ctx: ToolContext = {}): DesktopToolSpec[] {
       ),
     },
   ]
+
+  return [...handoverTool, ...routineTools, ...screenTools]
 }
 
 /**
@@ -333,13 +345,28 @@ export interface DesktopToolResult {
  * a caller can pass whatever its harness handed it.
  */
 export async function runDesktopTool(
-  desktop: Surface,
+  desktop: Surface | null,
   rawName: string,
   args: Record<string, unknown>,
   ctx: ToolContext = {},
 ): Promise<DesktopToolResult> {
   const name = rawName.startsWith('mcp__desktop__') ? rawName.slice('mcp__desktop__'.length) : rawName
   const num = (value: unknown): number => Math.round(Number(value) || 0)
+
+  // Notes and routines touch no screen, so they are answered before the desktop is
+  // woken — otherwise saving one would start a container for no reason. They used to
+  // come after the start below, which is exactly what happened.
+  if (ctx.routines && (name === 'create_routine' || name === 'list_routines' || name === 'delete_routine')) {
+    return runRoutineTool(ctx.routines, name, args)
+  }
+
+  if (!desktop) {
+    return {
+      ok: false,
+      output: 'You have no screen, so this tool is not available to you. Say so plainly if the task needs one.',
+      summary: 'No screen',
+    }
+  }
 
   // Starts the desktop on first use rather than making the model ask the user to.
   const status = await desktop.status()
@@ -363,12 +390,6 @@ export async function runDesktopTool(
         summary: 'Desktop unavailable',
       }
     }
-  }
-
-  // Routines touch no screen, so they are answered before the desktop is woken —
-  // otherwise saving one would start a container for no reason.
-  if (ctx.routines && (name === 'create_routine' || name === 'list_routines' || name === 'delete_routine')) {
-    return runRoutineTool(ctx.routines, name, args)
   }
 
   if (ctx.handover && name === 'ask_to_take_over') {
@@ -500,8 +521,8 @@ export async function runDesktopTool(
  * per click would make any real task unusable. Derived from the specs so a new verb
  * is allowed by existing.
  */
-export const toolNames = (ctx: ToolContext = {}): string[] =>
-  desktopToolSpecs(ctx).map((spec) => `mcp__desktop__${spec.name}`)
+export const toolNames = (ctx: ToolContext = {}, opts: ToolOptions = {}): string[] =>
+  desktopToolSpecs(ctx, opts).map((spec) => `mcp__desktop__${spec.name}`)
 
 /** The routine verbs, which touch no screen. */
 function runRoutineTool(

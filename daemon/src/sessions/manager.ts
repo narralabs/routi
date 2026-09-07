@@ -303,6 +303,11 @@ export class SessionManager {
 
     const history = this.store.listMessages(conversationId, 200).filter((m) => m.id !== messageId)
 
+    // Only the harness knows whether it still holds this thread; what is offered is
+    // the last id it reported, and only if the same runtime reported it.
+    const saved = this.store.getProviderSession(conversationId, bot.id)
+    const resumeSessionId = saved && saved.provider === bot.provider ? saved.sessionId : undefined
+
     try {
       const stream = provider.stream(
         {
@@ -331,6 +336,7 @@ export class SessionManager {
           input,
           botId: bot.id,
           hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
+          resumeSessionId,
         },
         ac.signal,
       )
@@ -429,7 +435,7 @@ export class SessionManager {
 
       // Remember the provider's session id so a restart can resume this thread.
       const sid = (meta?.['sessionId'] as string | undefined) ?? null
-      if (sid) this.store.setProviderSessionId(conversationId, sid)
+      if (sid) this.store.setProviderSession(conversationId, bot.id, bot.provider, sid)
 
       this.inFlight.delete(conversationId)
       this.live.delete(conversationId)

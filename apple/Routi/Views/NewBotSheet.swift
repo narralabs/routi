@@ -77,7 +77,7 @@ struct NewBotSheet: View {
                 if supportsEffort {
                     FormField(
                         "Effort",
-                        footnote: "\(selectedEffort.detail) Provider, model and effort are fixed once the bot is created."
+                        footnote: "\(selectedEffort.detail) The provider is fixed once the bot is created; model and effort can be changed later."
                     ) {
                         Picker("", selection: $selectedEffort) {
                             ForEach(availableEfforts) { Text($0.label).tag($0) }
@@ -86,7 +86,7 @@ struct NewBotSheet: View {
                         .labelsHidden()
                     }
                 } else {
-                    Text("Provider and model are fixed once the bot is created.")
+                    Text("The provider is fixed once the bot is created; the model can be changed later.")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
@@ -163,8 +163,20 @@ struct BotSettingsSheet: View {
     @State private var name: String
     @State private var systemPrompt: String
     @State private var surfaceMode: SurfaceMode
+    @State private var selectedModel: String
+    @State private var selectedEffort: Effort
 
     private var canHaveScreen: Bool { model.supportsScreen(bot.provider) }
+
+    /// The bot's own provider's models. Ids do not cross providers, and neither does
+    /// a bot — so the provider is the one thing this sheet does not offer to change.
+    private var providerModels: [ModelInfo] { model.models(for: bot.provider) }
+
+    private var availableEfforts: [Effort] {
+        let levels = providerModels.first { $0.id == selectedModel }?.effortLevels ?? []
+        return levels.compactMap(Effort.init(rawValue:))
+    }
+    private var supportsEffort: Bool { !availableEfforts.isEmpty }
 
     /// A bot's provider is fixed, so this is a statement about the bot rather than a
     /// choice: when its harness will not take Routi's browser tools, a screen here
@@ -180,6 +192,8 @@ struct BotSettingsSheet: View {
         _name = State(initialValue: bot.name)
         _systemPrompt = State(initialValue: bot.systemPrompt)
         _surfaceMode = State(initialValue: bot.surfaceMode)
+        _selectedModel = State(initialValue: bot.model)
+        _selectedEffort = State(initialValue: Effort.parse(bot.effort))
     }
 
     var body: some View {
@@ -194,6 +208,35 @@ struct BotSettingsSheet: View {
                     TextField("", text: $systemPrompt, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(4...10)
+                }
+
+                FormField(
+                    "Model",
+                    footnote: "Changing it keeps the conversation; the next reply comes from the new model."
+                ) {
+                    Picker("", selection: $selectedModel) {
+                        ForEach(providerModels) { info in
+                            Text(info.displayName).tag(info.id)
+                        }
+                        // A model the list no longer carries still needs a row, or the
+                        // picker would silently show the wrong one as current.
+                        if !providerModels.contains(where: { $0.id == bot.model }) {
+                            Text(bot.model).tag(bot.model)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(providerModels.isEmpty)
+                }
+
+                if supportsEffort {
+                    FormField("Effort", footnote: selectedEffort.detail) {
+                        Picker("", selection: $selectedEffort) {
+                            ForEach(availableEfforts) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
                 }
 
                 FormField("Screen", footnote: screenFootnote) {
@@ -211,13 +254,25 @@ struct BotSettingsSheet: View {
             .padding(.horizontal, 22)
             .padding(.top, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .task { await model.loadModels(for: bot.provider) }
+            .onChange(of: selectedModel) {
+                // A level the new model does not accept would be rejected on the
+                // first turn; land on one it does.
+                if supportsEffort, !availableEfforts.contains(selectedEffort) {
+                    selectedEffort = availableEfforts.contains(.implicitDefault) ? .implicitDefault : availableEfforts[0]
+                }
+            }
         } onConfirm: {
             Task {
-                await model.updateBot(bot.id, patch: [
+                var patch: [String: Any] = [
                     "name": name,
                     "systemPrompt": systemPrompt,
                     "surfaceMode": surfaceMode.rawValue,
-                ])
+                    "model": selectedModel,
+                ]
+                // Nil clears: a model with no levels hands effort back to the provider.
+                patch["effort"] = supportsEffort ? selectedEffort.rawValue : NSNull()
+                await model.updateBot(bot.id, patch: patch)
                 dismiss()
             }
         } onCancel: {

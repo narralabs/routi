@@ -207,16 +207,58 @@ struct ChatView: View {
         )
     }
 
-    /// Provider · Model · Effort, under the composer on the right.
-    ///
-    /// All three are fixed when the bot is created, so this is a standing statement of
-    /// what is answering rather than a control.
+    /// Provider · Model · Effort, under the composer on the right — and the place to
+    /// change the last two, the way /model does mid-conversation. The provider is the
+    /// bot's for life; the model and effort are a menu on the statement itself, so
+    /// switching is one click from where the answer is about to appear.
     private var configLine: some View {
-        HStack {
+        let models = model.models(for: bot.provider)
+        let current = models.first { $0.id == bot.model }
+        let efforts = (current?.effortLevels ?? []).compactMap(Effort.init(rawValue:))
+        return HStack {
             Spacer()
-            Text(BotConfig(bot: bot, models: model.models(for: bot.provider)).summary)
+            Menu {
+                Section("Model") {
+                    ForEach(models) { info in
+                        Button {
+                            Task { await model.updateBot(bot.id, patch: ["model": info.id]) }
+                        } label: {
+                            if info.id == bot.model {
+                                Label(info.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(info.displayName)
+                            }
+                        }
+                    }
+                }
+                if !efforts.isEmpty {
+                    Section("Effort") {
+                        ForEach(efforts) { effort in
+                            Button {
+                                Task { await model.updateBot(bot.id, patch: ["effort": effort.rawValue]) }
+                            } label: {
+                                if effort.rawValue == bot.effort {
+                                    Label(effort.label, systemImage: "checkmark")
+                                } else {
+                                    Text(effort.label)
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 3) {
+                    Text(BotConfig(bot: bot, models: models).summary)
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .semibold))
+                }
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(models.isEmpty)
+            .task { await model.loadModels(for: bot.provider) }
         }
         .padding(.horizontal, 8)
         .padding(.top, 6)

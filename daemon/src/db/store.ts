@@ -307,18 +307,19 @@ export class Store {
     return { bot, conversation }
   }
 
-  updateBot(id: string, patch: Partial<Bot>): Bot | null {
+  updateBot(id: string, patch: Partial<Bot> & { effort?: Bot['effort'] | null }): Bot | null {
     const existing = this.getBot(id)
     if (!existing) return null
-    // Provider and model are immutable after creation; pin them regardless of what
-    // the caller sent, so the schema and the storage layer agree.
+    // The provider is immutable after creation; pin it regardless of what the caller
+    // sent, so the schema and the storage layer agree. Model and effort may move —
+    // a null effort means "back to the provider's default", stored as none.
+    const { effort: patchedEffort, ...rest } = patch
     const next: Bot = {
       ...existing,
-      ...patch,
+      ...rest,
       id: existing.id,
       provider: existing.provider,
-      model: existing.model,
-      effort: existing.effort,
+      effort: 'effort' in patch ? (patchedEffort ?? undefined) : existing.effort,
       updatedAt: now(),
     }
     this.db

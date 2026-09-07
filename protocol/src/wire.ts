@@ -37,15 +37,18 @@ export const RpcMethods = {
     params: z.object({
       id: z.string(),
       /**
-       * `provider` and `model` are deliberately absent: they are chosen once, at
-       * creation, and fixed for the bot's lifetime. Changing the model mid-thread
-       * would silently reinterpret an existing conversation under different
-       * capabilities — and on the subscription adapter it would strand the warm
-       * agent session that owns that history.
+       * `provider` is absent: it is chosen once, at creation, because model ids do
+       * not cross providers and a bot's history lives in one harness. `model` and
+       * `effort` can change — the same switch Claude Code's own /model makes
+       * mid-conversation. The daemon releases the bot's warm session on update, and
+       * the next turn resumes the same history under the new model. A null effort
+       * hands the choice back to the provider's default.
        */
       patch: z.object({
         name: z.string().min(1).optional(),
         systemPrompt: z.string().optional(),
+        model: z.string().min(1).optional(),
+        effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional(),
         avatarColor: z.string().optional(),
         surfaceMode: SurfaceMode.optional(),
         archivedAt: z.number().int().nullable().optional(),

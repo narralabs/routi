@@ -360,10 +360,10 @@ struct ConnectionPane: View {
             }
 
             SettingsSection("Server") {
-                SettingsRow(title: "Core version", isFirst: true) {
+                SettingsRow(title: "Version", isFirst: true) {
                     SettingsValue(text: model.coreVersion.map { "v\($0)" } ?? "—")
                 }
-                SettingsRow(title: "Protocol version") {
+                SettingsRow(title: "Protocol") {
                     SettingsValue(text: "v\(RoutiClient.protocolVersion)")
                 }
                 SettingsRow(title: "Data") {

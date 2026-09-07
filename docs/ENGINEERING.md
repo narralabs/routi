@@ -214,9 +214,11 @@ Anthropic account attach server-side to every subscription session, and `setting
 The system prompt therefore states that the bot's description is the source of its
 identity and incidental tools are not.
 
-**Provider and model are fixed at creation.** Changing a model mid-thread would
-reinterpret an existing conversation under different capabilities, and on a harness
-adapter it would strand the warm session that owns that history.
+**The provider is fixed at creation; model and effort are not.** Model ids do not cross
+providers and a bot's history lives in one harness, so the provider stays. The model and
+effort switch mid-conversation the way Claude Code's own /model does: `bots.update`
+releases the bot's warm session, and the next turn resumes the same history under the
+new model. The line under the composer is the switch; Bot Settings has the same choice.
 
 **Messages are block arrays, never strings.** One assistant turn interleaves prose,
 screenshots and tool cards, and deltas are addressed by block index, which is what lets a

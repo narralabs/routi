@@ -31,6 +31,9 @@ final class RoutiClient: NSObject {
         didSet { if oldValue != state { onStateChange?(state) } }
     }
     private(set) var account: AccountInfo?
+    /// What the core said it is, from the handshake. Shown in Settings so "which core
+    /// is this" is answerable without a terminal.
+    private(set) var serverVersion: String?
 
     var onStateChange: ((ConnectionState) -> Void)?
     var onEvent: ((Event) -> Void)?
@@ -193,6 +196,7 @@ final class RoutiClient: NSObject {
         switch type {
         case "hello_ok":
             attempt = 0
+            serverVersion = root["serverVersion"] as? String
             if let accountDict = root["account"],
                let accountData = try? JSONSerialization.data(withJSONObject: accountDict) {
                 account = try? JSONDecoder().decode(AccountInfo.self, from: accountData)

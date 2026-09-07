@@ -93,6 +93,12 @@ message to it so the app's render path can be watched without driving the UI.
 
 ## Releasing
 
+A core release is one command: `scripts/release-core.sh 0.1.9` sets the version in
+`daemon/package.json` and `protocol/package.json`, commits, tags `v0.1.9` and pushes.
+The core reads its version from the package (`daemon/src/version.ts`), so `/health`,
+the handshake's `serverVersion` and Settings → Routi Core all report the tag's number.
+The workflow then publishes the tarball; attach the DMG and bump the tap as below.
+
 Two artifacts, one script. `scripts/package.sh` builds the app universal and Release,
 signs it with a Developer ID Application certificate when the keychain has one, and
 notarizes and staples when credentials are stored (`xcrun notarytool store-credentials

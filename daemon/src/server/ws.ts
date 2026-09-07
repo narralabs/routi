@@ -3,8 +3,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { McpHttp } from './mcp-http.js'
 import { ClientMessage, PROTOCOL_VERSION, type ServerEvent, type ServerMessage } from '@routi/protocol'
 import { dispatch, RpcError, type RpcContext } from './rpc.js'
-
-const VERSION = '0.0.1'
+import { VERSION } from '../version.js'
 
 interface Client {
   ws: WebSocket

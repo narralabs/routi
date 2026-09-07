@@ -146,6 +146,7 @@ final class AppModel {
     }
 
     var account: AccountInfo? { client.account }
+    var coreVersion: String? { client.serverVersion }
 
     /// Shown in the sidebar footer, and used by the daemon to greet the user by name
     /// when a bot is created.

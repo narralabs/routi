@@ -62,21 +62,32 @@ or the install command above, which needs nothing on the Mac beforehand.
 
 ## Uninstall
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/narralabs/routi/main/scripts/uninstall.sh | sh
-```
-
-Stops and removes the core, its login agent, the desktop machine and image in Docker,
-and the API keys Routi stored in the Keychain. Your bots and conversations stay in
-`~/.routi`, so reinstalling brings them back. To remove those and the app as well:
+Stop the core and remove it, the Node it runs on, and the agent that starts it at login:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/narralabs/routi/main/scripts/uninstall.sh | sh -s -- --purge
+launchctl bootout gui/$(id -u)/com.narralabs.routid
+rm -f ~/Library/LaunchAgents/com.narralabs.routid.plist
+rm -rf ~/.routi/core ~/.routi/node ~/.routi/logs
 ```
 
-Add `--dry-run` to either to see what would go without touching anything. Docker Desktop
-itself, and the sign-ins that belong to Claude Code, Codex and Grok, are left alone —
-they were yours before Routi.
+If you installed the core with Homebrew, `brew uninstall routi-core` does the first two.
+
+Your bots and conversations stay in `~/.routi/routi.db`, so reinstalling brings them
+back. To remove those too, and the app:
+
+```bash
+rm -rf ~/.routi "/Applications/Routi Bot.app"
+```
+
+The desktop machine in Docker, and any API keys Routi stored in the Keychain, go with:
+
+```bash
+docker rm -f routi-desktop; docker rmi routi-desktop:latest
+security delete-generic-password -s Routi    # once per stored key
+```
+
+Docker Desktop itself, and the sign-ins that belong to Claude Code, Codex and Grok, are
+left alone — they were yours before Routi.
 
 ## Roadmap
 

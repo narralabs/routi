@@ -878,6 +878,11 @@ final class AppModel {
                   let bot = try? JSONDecoder().decode(Bot.self, from: data) else { return }
             if let index = bots.firstIndex(where: { $0.id == bot.id }) { bots[index] = bot }
 
+        case "routines.updated":
+            // A bot saved or removed a routine mid-turn, or another device toggled one.
+            guard event.payload["botId"] as? String == selectedBotID else { return }
+            Task { await loadRoutines() }
+
         case "memory.updated":
             // The bot wrote or dropped a note mid-turn, or another device edited one.
             // A shared note carries no bot.

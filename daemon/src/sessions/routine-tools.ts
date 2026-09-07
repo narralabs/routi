@@ -13,6 +13,8 @@ export function routineTools(
   store: Store,
   botId: string,
   conversationId: string,
+  /** Told after a save or a removal, so the rail can show it while the bot is still talking. */
+  onChange: () => void = () => {},
 ): NonNullable<ToolContext['routines']> {
   return {
     create(name, prompt, schedule) {
@@ -37,6 +39,7 @@ export function routineTools(
       }
 
       const routine = store.createRoutine({ botId, conversationId, name, prompt, schedule: parsed })
+      onChange()
       return { ok: true, described: describeSchedule(routine.schedule) }
     },
 
@@ -66,6 +69,7 @@ export function routineTools(
         (routines.length === 1 ? routines[0] : undefined)
       if (!target) return false
       store.deleteRoutine(target.id)
+      onChange()
       return true
     },
   }

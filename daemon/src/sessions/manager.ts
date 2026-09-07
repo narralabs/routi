@@ -74,6 +74,11 @@ export class SessionManager {
     this.emit({ e: 'memory.updated', botId: owner })
   }
 
+  /** A bot's routines changed; every client's rail is told. */
+  routinesChanged(botId: string): void {
+    this.emit({ e: 'routines.updated', botId })
+  }
+
   interrupt(conversationId: string): boolean {
     const ac = this.inFlight.get(conversationId)
     if (!ac) return false
@@ -369,7 +374,7 @@ export class SessionManager {
           }),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
-            routines: routineTools(this.store, bot.id, conversationId),
+            routines: routineTools(this.store, bot.id, conversationId, () => this.routinesChanged(bot.id)),
             memory: memoryTools(this.store, bot.id, (owner) => this.memoryChanged(owner, 'bot')),
             // Only offered where there is a screen to hand over.
             ...(bot.surfaceMode !== 'none' && provider.supportsSurface && this.handovers

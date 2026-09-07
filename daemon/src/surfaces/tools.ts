@@ -648,7 +648,13 @@ function runRoutineTool(
     String(args['prompt'] ?? '').trim(),
     args['schedule'],
   )
-  if (!result.ok) return { ok: false, output: result.why, summary: 'Could not save' }
+  if (!result.ok) {
+    return {
+      ok: false,
+      output: `${result.why} Nothing was saved: do not tell the user it is scheduled. Fix the call and try again, or say it could not be saved.`,
+      summary: 'Could not save',
+    }
+  }
   return {
     ok: true,
     output: `Saved "${String(args['name'])}" — ${result.described}. Tell the user plainly that you will do this, and when.`,

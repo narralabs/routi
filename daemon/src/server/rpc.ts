@@ -228,13 +228,17 @@ const handlers: Record<RpcMethod, Handler> = {
 
   'routines.setEnabled': async (p, ctx) => {
     const { id, enabled } = p as { id: string; enabled: boolean }
+    const routine = ctx.store.listRoutines().find((r) => r.id === id)
     ctx.store.setRoutineEnabled(id, enabled)
+    if (routine) ctx.sessions.routinesChanged(routine.botId)
     return {}
   },
 
   'routines.delete': async (p, ctx) => {
     const { id } = p as { id: string }
+    const routine = ctx.store.listRoutines().find((r) => r.id === id)
     ctx.store.deleteRoutine(id)
+    if (routine) ctx.sessions.routinesChanged(routine.botId)
     return {}
   },
 

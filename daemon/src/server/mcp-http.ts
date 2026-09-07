@@ -30,6 +30,8 @@ export class McpHttp {
     private readonly handovers: Handovers,
     /** Told when a bot writes or drops a note, so the app can be. Null means a shared one. */
     private readonly onMemoryChanged: (owner: MemoryOwner) => void,
+    /** Told when a bot saves or removes a routine. */
+    private readonly onRoutinesChanged: (botId: string) => void,
   ) {}
 
   /** True when this request is ours to answer. */
@@ -49,7 +51,7 @@ export class McpHttp {
   private contextFor(botId: string, conversationId: string) {
     const bot = this.store.getBot(botId)
     return {
-      routines: routineTools(this.store, botId, conversationId),
+      routines: routineTools(this.store, botId, conversationId, () => this.onRoutinesChanged(botId)),
       memory: memoryTools(this.store, botId, (owner) => this.onMemoryChanged(owner)),
       ...(bot && bot.surfaceMode !== 'none'
         ? { handover: (reason: string) => this.handovers.request({ botId, conversationId, reason }) }

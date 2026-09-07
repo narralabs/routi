@@ -283,6 +283,9 @@ export const ServerEvent = z.discriminatedUnion('e', [
   // another device. Carries only the owner, null for a shared note: the list is small
   // and fetched whole.
   z.object({ e: z.literal('memory.updated'), botId: z.string().nullable() }),
+  // A bot's routines changed — one saved or removed mid-turn, or toggled on another
+  // device. The rail used to learn of a new routine only when the bot was reselected.
+  z.object({ e: z.literal('routines.updated'), botId: z.string() }),
   z.object({ e: z.literal('surface.state'), botId: z.string(), surface: SurfaceStatus }),
   // A room message that was never written: a bot chose silence.
   z.object({ e: z.literal('message.deleted'), conversationId: z.string(), messageId: z.string() }),

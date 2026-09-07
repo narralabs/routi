@@ -150,14 +150,17 @@ export class Updater {
      * ends by restarting the login agent, which ends the core that started it; launchd
      * takes the job's process group with it, and a new group is what survives.
      */
+    // Relayed from here on, not from the top: the log keeps every past update, and the
+    // first run of this replayed an old rollback's stages as though they were today's.
+    const from = statSync(logPath).size
     const child = spawn('/bin/sh', [script, staging], { detached: true, stdio: ['ignore', fd, fd], env: process.env })
     child.unref()
-    this.relay(logPath)
+    this.relay(logPath, from)
   }
 
   /** Passes the script's stage lines on, for as long as this core is alive to read them. */
-  private relay(logPath: string): void {
-    let offset = 0
+  private relay(logPath: string, from: number): void {
+    let offset = from
     const timer = setInterval(() => {
       try {
         const size = statSync(logPath).size

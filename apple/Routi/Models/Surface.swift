@@ -48,12 +48,23 @@ struct DesktopHostStatus: Codable, Hashable {
         var botId: String
         var state: String
     }
+    /// Where the image build is, while one runs.
+    struct Build: Codable, Hashable {
+        var step: Int?
+        var of: Int?
+        /// The Dockerfile instruction being run, as written.
+        var detail: String
+        /// The newest line it printed.
+        var line: String
+        var elapsedMs: Int
+    }
 
     var docker: Docker
     var dockerVersion: String?
     var image: Image
     var machine: Machine
     var screens: [Screen]
+    var build: Build?
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -62,9 +73,10 @@ struct DesktopHostStatus: Codable, Hashable {
         image = (try? c.decode(Image.self, forKey: .image)) ?? .unknown
         machine = (try? c.decode(Machine.self, forKey: .machine)) ?? .stopped
         screens = (try? c.decode([Screen].self, forKey: .screens)) ?? []
+        build = try? c.decodeIfPresent(Build.self, forKey: .build)
     }
 
-    private enum CodingKeys: String, CodingKey { case docker, dockerVersion, image, machine, screens }
+    private enum CodingKeys: String, CodingKey { case docker, dockerVersion, image, machine, screens, build }
 
     /// Ready means a bot asking for a screen gets one without anything else happening.
     var isReady: Bool { docker == .running && image == .ready && machine == .running }

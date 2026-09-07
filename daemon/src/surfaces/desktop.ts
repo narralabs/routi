@@ -86,6 +86,41 @@ export interface HostStatus {
   /** The desktop image: not built yet, being built now, or ready. Unknown without Docker. */
   image: 'missing' | 'building' | 'ready' | 'unknown'
   machine: 'stopped' | 'running'
+  /** How far the build has got, while one is running. */
+  build?: BuildProgress
+}
+
+/**
+ * Where a build is, read off `docker build --progress=plain`.
+ *
+ * BuildKit numbers the Dockerfile's steps and prefixes every line with the step it
+ * belongs to, so the current instruction and its latest line of output are both there
+ * to be read. That is what lets setup say "step 2 of 4, installing the browser" instead
+ * of sitting on a disabled button for the minutes the first build takes.
+ */
+export interface BuildProgress {
+  step: number | null
+  of: number | null
+  /** The Dockerfile instruction being run, as written. */
+  detail: string
+  /** The newest line the step printed. */
+  line: string
+  elapsedMs: number
+}
+
+/** One line of plain BuildKit output, as what it says about progress. */
+export function parseBuildLine(raw: string): Partial<Pick<BuildProgress, 'step' | 'of' | 'detail' | 'line'>> | null {
+  const text = raw.replace(/\r/g, '').trimEnd()
+  // "#5 [2/4] RUN apt-get update ..." — a step beginning (or being reported CACHED).
+  const step = /^#\d+ \[(\d+)\/(\d+)\] (.+)$/.exec(text)
+  if (step) return { step: Number(step[1]), of: Number(step[2]), detail: step[3]!.trim() }
+  // "#5 12.34 Get:3 http://..." — output from inside a step, timestamped by BuildKit.
+  const out = /^#\d+ \d+\.\d+ (.+)$/.exec(text)
+  if (out) return { line: out[1]!.trim().slice(0, 160) }
+  // "#2 sha256:... 10.49MB / 29.15MB 1.2s" — a layer of the base image downloading.
+  const pull = /^#\d+ sha256:\S+ ([\d.]+[kMG]?B \/ [\d.]+[kMG]?B)/.exec(text)
+  if (pull) return { line: `Downloading ${pull[1]}` }
+  return null
 }
 
 export type DesktopInput =
@@ -112,7 +147,11 @@ export type DesktopInput =
  */
 class Host {
   private ensuring: Promise<string | null> | null = null
-  private building = false
+  /** Set for the life of a build; what setup reads while it waits. */
+  private build: BuildProgress | null = null
+  private get building(): boolean {
+    return this.build !== null
+  }
 
   /**
    * The state of the machine, for a person rather than a bot.
@@ -129,7 +168,8 @@ class Host {
     }
     const image = this.building ? 'building' : (await this.imageExists()) ? 'ready' : 'missing'
     const machine = (await this.isRunning()) ? 'running' : 'stopped'
-    return { docker: 'running', dockerVersion: docker.version, image, machine }
+    const build = this.build ? { ...this.build, elapsedMs: Date.now() - buildStart(this.build) } : undefined
+    return { docker: 'running', dockerVersion: docker.version, image, machine, ...(build ? { build } : {}) }
   }
 
   private async dockerState(): Promise<{ state: HostStatus['docker']; version: string | null }> {
@@ -232,16 +272,57 @@ class Host {
       return 'The desktop image is missing and its Dockerfile is not with this core. Build it with: docker build -t routi-desktop containers/desktop'
     }
     console.log(`building the desktop image from ${dockerfileDir} (a few minutes, once)`)
-    this.building = true
+    const startedAt = Date.now()
+    this.build = { step: null, of: null, detail: '', line: '', elapsedMs: 0 }
+    buildStarts.set(this.build, startedAt)
     try {
-      await docker(['build', '-t', IMAGE, dockerfileDir], { timeout: 15 * 60_000, maxBuffer: 64 * 1024 * 1024 })
+      /**
+       * Spawned rather than run to completion, so the output can be read as it comes:
+       * `describe()` reports the current step while the build runs. `--progress=plain`
+       * is what makes the output parseable — the default renderer redraws a TTY.
+       */
+      const tail: string[] = []
+      const code = await new Promise<number>((resolve, reject) => {
+        const child = spawn(dockerBinary(), ['build', '--progress=plain', '-t', IMAGE, dockerfileDir!], {
+          env: dockerEnv(),
+          stdio: ['ignore', 'pipe', 'pipe'],
+        })
+        const timer = setTimeout(() => child.kill('SIGKILL'), 15 * 60_000)
+        let pending = ''
+        const onData = (chunk: Buffer) => {
+          pending += chunk.toString()
+          const lines = pending.split('\n')
+          pending = lines.pop() ?? ''
+          for (const line of lines) {
+            if (line.trim()) {
+              tail.push(line)
+              if (tail.length > 5) tail.shift()
+            }
+            const parsed = parseBuildLine(line)
+            if (!parsed || !this.build) continue
+            // Cached steps are reported out of order; the bar should never move back.
+            if (parsed.step !== undefined && this.build.step !== null && parsed.step < this.build.step) continue
+            this.build = { ...this.build, ...parsed }
+          }
+        }
+        child.stdout.on('data', onData)
+        child.stderr.on('data', onData)
+        child.on('error', (err) => {
+          clearTimeout(timer)
+          reject(err)
+        })
+        child.on('close', (exitCode) => {
+          clearTimeout(timer)
+          resolve(exitCode ?? 1)
+        })
+      })
+      if (code !== 0) return `Building the desktop image failed: ${tail.join(' ')}`
       console.log('desktop image built')
       return null
     } catch (err) {
-      const detail = err instanceof Error ? err.message.split('\n').slice(-3).join(' ') : String(err)
-      return `Building the desktop image failed: ${detail}`
+      return `Building the desktop image failed: ${err instanceof Error ? err.message : String(err)}`
     } finally {
-      this.building = false
+      this.build = null
     }
   }
 
@@ -284,6 +365,10 @@ class Host {
 }
 
 const host = new Host()
+
+/** When each build began, kept off the progress object so the wire shape stays flat. */
+const buildStarts = new WeakMap<BuildProgress, number>()
+const buildStart = (build: BuildProgress): number => buildStarts.get(build) ?? Date.now()
 
 /** The machine as a whole, for setup and Settings: what state it is in, and bring it up. */
 export const desktopHost = {

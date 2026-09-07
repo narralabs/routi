@@ -203,6 +203,16 @@ export const DesktopHostStatus = z.object({
   image: z.enum(['missing', 'building', 'ready', 'unknown']),
   machine: z.enum(['stopped', 'running']),
   screens: z.array(z.object({ botId: z.string(), state: z.string() })),
+  /** Where the image build is, while one runs: which Dockerfile step, and its newest line. */
+  build: z
+    .object({
+      step: z.number().int().nullable(),
+      of: z.number().int().nullable(),
+      detail: z.string(),
+      line: z.string(),
+      elapsedMs: z.number().int(),
+    })
+    .optional(),
 })
 export type DesktopHostStatus = z.infer<typeof DesktopHostStatus>
 

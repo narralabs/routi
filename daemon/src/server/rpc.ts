@@ -59,10 +59,19 @@ const handlers: Record<RpcMethod, Handler> = {
 
   'bots.update': async (p, ctx) => {
     const { id, patch } = p as { id: string; patch: Record<string, unknown> }
+    const before = ctx.store.getBot(id)
     const bot = ctx.store.updateBot(id, patch)
-    if (!bot) throw new RpcError('not_found', `No such bot: ${id}`)
-    // The bot's model or prompt may have changed, so its warm session is now stale.
-    ctx.providers.get(bot.provider)?.release(id)
+    if (!bot || !before) throw new RpcError('not_found', `No such bot: ${id}`)
+    // A changed description means a stale system prompt in every warm session, so
+    // those are dropped — keyed per conversation and bot, so each is named. Model and
+    // effort are applied per turn by every adapter and need no drop; dropping for
+    // them would cost a harness bot its thread, which is its memory of the chat.
+    if (bot.systemPrompt !== before.systemPrompt) {
+      const adapter = ctx.providers.get(bot.provider)
+      for (const conversation of ctx.store.listConversations(bot.id)) {
+        adapter?.release(`${conversation.id}:${bot.id}`)
+      }
+    }
     return { bot }
   },
 

@@ -20,35 +20,64 @@ import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
  * than replayed — the model's own context is better than a reconstruction of it.
  */
 
+/** What `model/list` returns, as much of it as this reads. */
+interface CodexModel {
+  id: string
+  displayName?: string
+  description?: string
+  hidden?: boolean
+  isDefault?: boolean
+  supportedReasoningEfforts?: { reasoningEffort: string }[]
+  defaultReasoningEffort?: string
+}
+
+/** The effort levels Routi's protocol names; Codex also has "ultra", which it does not. */
+type EffortLevel = NonNullable<ModelInfo['effortLevels']>[number]
+const EFFORT_LEVELS: ReadonlySet<string> = new Set<EffortLevel>(['low', 'medium', 'high', 'xhigh', 'max'])
+const isEffortLevel = (e: string): e is EffortLevel => EFFORT_LEVELS.has(e)
+
 /**
- * Codex resolves the model itself from the account's plan, so `default` is a real
- * choice here rather than a placeholder: it means "whatever this plan gives you",
- * which keeps working when OpenAI ships something new.
+ * The account's models, asked of Codex rather than hardcoded.
+ *
+ * A fixed list of two — "let Codex decide" and one named model — was what shipped,
+ * and it was months stale the day it was written: the app server answers
+ * `model/list` with the plan's real lineup, each with its reasoning levels and its
+ * default, and that is what the picker should show. `default` stays as the first
+ * entry, meaning the plan's current default, and names which model that is today so
+ * the transcript can say what answered rather than "model chosen by Codex".
  */
-const MODELS: ModelInfo[] = [
-  {
-    id: 'default',
-    // Phrased as an instruction, because in the picker it is one.
-    displayName: 'Let Codex decide',
-    statusName: 'Model chosen by Codex',
-    description:
-      'Codex selects the model from your ChatGPT plan at run time and does not report ' +
-      'which. Pick a named model below if you want to know exactly what answered.',
-    effortLevels: ['low', 'medium', 'high', 'xhigh'],
-    // Codex decides, and no event reports it, so claiming a level would be a guess.
-    defaultEffort: null,
-  },
-  {
-    id: 'gpt-5.2-codex',
-    displayName: 'GPT-5.2 Codex',
-    description: 'Tuned for long agentic work. Named explicitly, so the transcript can say so.',
-    resolvedModel: 'gpt-5.2-codex',
-    effortLevels: ['low', 'medium', 'high', 'xhigh'],
-    defaultEffort: null,
-  },
-]
+function toModelInfo(models: CodexModel[]): ModelInfo[] {
+  const visible = models.filter((m) => !m.hidden)
+  const preferred = visible.find((m) => m.isDefault) ?? visible[0]
+  const efforts = (m: CodexModel | undefined): EffortLevel[] =>
+    (m?.supportedReasoningEfforts ?? []).map((e) => e.reasoningEffort).filter(isEffortLevel)
+  const defaultEffort = (m: CodexModel | undefined): EffortLevel | null => {
+    const e = m?.defaultReasoningEffort
+    return e && isEffortLevel(e) ? e : null
+  }
 
-
+  const list: ModelInfo[] = [
+    {
+      id: 'default',
+      displayName: preferred ? `Default (${preferred.displayName ?? preferred.id})` : 'Default',
+      description: "Whatever your ChatGPT plan's default is, which keeps working when OpenAI ships something new.",
+      ...(preferred ? { resolvedModel: preferred.id } : {}),
+      effortLevels: efforts(preferred),
+      defaultEffort: defaultEffort(preferred),
+    },
+  ]
+  for (const m of visible) {
+    list.push({
+      id: m.id,
+      displayName: m.displayName ?? m.id,
+      description: m.description ?? '',
+      resolvedModel: m.id,
+      effortLevels: efforts(m),
+      defaultEffort: defaultEffort(m),
+    })
+  }
+  return list
+}
 
 /**
  * A Codex home belonging to Routi rather than to whoever owns this Mac.
@@ -122,8 +151,14 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     }
   }
 
+  private modelCache: ModelInfo[] | null = null
+
   async listModels(): Promise<ModelInfo[]> {
-    return MODELS
+    if (this.modelCache) return this.modelCache
+    const server = await this.serverFor({ conversationId: 'models', botId: 'models' } as ChatRequest, () => {})
+    const answer = (await server.request('model/list', {}, 30_000)) as { data?: CodexModel[] }
+    this.modelCache = toModelInfo(answer.data ?? [])
+    return this.modelCache
   }
 
   async accountInfo(): Promise<AccountInfo> {
@@ -218,7 +253,14 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
 
     const threadId = await this.threadFor(req, server)
     void server
-      .request('turn/start', { threadId, input: [{ type: 'text', text: framed }] })
+      .request('turn/start', {
+        threadId,
+        input: [{ type: 'text', text: framed }],
+        // Per turn rather than per thread: the schema puts them here, and a bot
+        // switched mid-conversation keeps its thread and answers on the new model.
+        ...(req.model && req.model !== 'default' ? { model: req.model } : {}),
+        ...(req.effort ? { effort: normaliseEffort(req.effort) } : {}),
+      })
       .catch((err: unknown) => {
         finished = true
         push({
@@ -279,8 +321,6 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       // approving Routi's own tools and nothing else.
       approvalPolicy: 'on-request',
       sandbox: 'read-only',
-      ...(req.model && req.model !== 'default' ? { model: req.model } : {}),
-      ...(req.effort ? { effort: normaliseEffort(req.effort) } : {}),
       config: {
         mcp_servers: { routi: { url: `${this.opts.mcpBaseUrl}/mcp/${req.botId}` } },
       },
@@ -371,9 +411,9 @@ function completeBlock(item: Record<string, any>): Block | null {
   }
 }
 
-function normaliseEffort(effort: string): 'low' | 'medium' | 'high' | 'xhigh' {
-  if (effort === 'low') return 'low'
-  if (effort === 'medium') return 'medium'
-  if (effort === 'max') return 'xhigh'
-  return effort === 'xhigh' ? 'xhigh' : 'high'
+function normaliseEffort(effort: string): 'low' | 'medium' | 'high' | 'xhigh' | 'max' {
+  // Codex now takes every level Routi names; a model that lacks one is not offered it
+  // by the picker, which reads the levels `model/list` reports per model.
+  if (effort === 'low' || effort === 'medium' || effort === 'xhigh' || effort === 'max') return effort
+  return 'high'
 }

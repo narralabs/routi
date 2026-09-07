@@ -221,9 +221,12 @@ identity and incidental tools are not.
 
 **The provider is fixed at creation; model and effort are not.** Model ids do not cross
 providers and a bot's history lives in one harness, so the provider stays. The model and
-effort switch mid-conversation the way Claude Code's own /model does: `bots.update`
-releases the bot's warm session, and the next turn resumes the same history under the
-new model. The line under the composer is the switch; Bot Settings has the same choice.
+effort switch mid-conversation the way Claude Code's own /model does: every adapter
+applies them per turn (Codex takes them on `turn/start`, not `thread/start`), so a bot
+keeps its session — a harness bot's session is its memory of the chat — and answers the
+next message on the new model. Only a changed description drops the warm sessions,
+since that is a stale system prompt. Codex's models come from `model/list` at run time,
+not a hardcoded pair; `default` names the plan's current default.
 
 **Messages are block arrays, never strings.** One assistant turn interleaves prose,
 screenshots and tool cards, and deltas are addressed by block index, which is what lets a

@@ -74,10 +74,9 @@ and the API keys Routi stored in the Keychain. Your bots and conversations stay 
 curl -fsSL https://raw.githubusercontent.com/narralabs/routi/main/scripts/uninstall.sh | sh -s -- --purge
 ```
 
-Add `--docker` to remove Docker Desktop as well, using Docker's own uninstaller, and
-`--dry-run` to any of these to see what would go without touching anything. The sign-ins
-that belong to Claude Code, Codex and Grok are always left alone — they were yours
-before Routi.
+Add `--dry-run` to either to see what would go without touching anything. Docker Desktop
+itself, and the sign-ins that belong to Claude Code, Codex and Grok, are left alone —
+they were yours before Routi.
 
 ## Roadmap
 

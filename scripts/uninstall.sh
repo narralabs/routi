@@ -10,22 +10,16 @@
 #
 #   curl -fsSL ... | sh -s -- --purge
 #
-# Docker Desktop is left alone unless asked, since it may have been yours before Routi.
-# `--docker` removes it too, with Docker's own uninstaller, then the app:
-#
-#   curl -fsSL ... | sh -s -- --purge --docker
-#
-# `--dry-run` says what would go without touching anything. Untouched either way: the
-# sign-ins that belong to the vendors' own tools — Claude Code's, Codex's (~/.codex),
-# Grok's (~/.grok). Those were yours before Routi.
+# `--dry-run` says what would go without touching anything. Untouched either way:
+# Docker Desktop itself, and the sign-ins that belong to the vendors' own tools —
+# Claude Code's, Codex's (~/.codex), Grok's (~/.grok). Those were yours before Routi.
 set -u
-purge=0; dry=0; docker=0
+purge=0; dry=0
 for arg in "$@"; do
   case "$arg" in
     --purge) purge=1 ;;
-    --docker) docker=1 ;;
     --dry-run) dry=1 ;;
-    *) echo "usage: uninstall.sh [--purge] [--docker] [--dry-run]" >&2; exit 1 ;;
+    *) echo "usage: uninstall.sh [--purge] [--dry-run]" >&2; exit 1 ;;
   esac
 done
 
@@ -78,22 +72,6 @@ for dir in core node logs codex grok; do
   [ -e "$HOME/.routi/$dir" ] && do_ rm -rf "$HOME/.routi/$dir"
 done
 did "Removed ~/.routi/core, ~/.routi/node and the logs."
-
-if [ "$docker" = 1 ]; then
-  say "Removing Docker Desktop"
-  # Docker ships its own uninstaller, which stops the engine and removes its VM, data,
-  # symlinks and helpers — the same thing Troubleshoot > Uninstall does in its window.
-  # The app bundle is what it leaves behind.
-  uninstaller="/Applications/Docker.app/Contents/MacOS/uninstall"
-  if [ -x "$uninstaller" ]; then
-    do_ "$uninstaller" && did "Ran Docker's uninstaller."
-    do_ rm -rf "/Applications/Docker.app" && did "Removed Docker Desktop."
-  elif [ -d "/Applications/Docker.app" ]; then
-    do_ rm -rf "/Applications/Docker.app" && did "Removed Docker Desktop (no uninstaller in this version)."
-  else
-    echo "Docker Desktop is not installed."
-  fi
-fi
 
 if [ "$purge" = 1 ]; then
   say "Removing your bots and the app"

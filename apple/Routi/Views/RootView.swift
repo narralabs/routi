@@ -70,6 +70,13 @@ struct RootView: View {
         } detail: {
             detail
         }
+        #if !os(macOS)
+        // Side by side on an iPad, in portrait too. The automatic style treats the
+        // detail as prominent there and floats the sidebar over it, dimming the chat
+        // behind; the toggle in the bar still hides the sidebar for anyone who wants
+        // the room.
+        .navigationSplitViewStyle(.balanced)
+        #endif
         .sheet(isPresented: $showingNewBot) {
             NewBotSheet()
         }

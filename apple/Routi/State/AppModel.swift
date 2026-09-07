@@ -183,6 +183,15 @@ final class AppModel {
     var account: AccountInfo? { client.account }
     var coreVersion: String? { client.serverVersion }
 
+    /// Whether the list and a thread are on screen together, so one should be open.
+    static var startsOnThread: Bool {
+        #if os(macOS)
+        return true
+        #else
+        return UIDevice.current.userInterfaceIdiom == .pad
+        #endif
+    }
+
     // MARK: - Updates
 
     /// What the core says about newer releases. Nil until asked; asked on every connect.
@@ -734,10 +743,9 @@ final class AppModel {
 
             let selectionStillValid = selectedBotID.map { id in bots.contains { $0.id == id } } ?? false
             if !selectionStillValid {
-                #if os(macOS)
-                // The Mac always shows a thread; a phone starts on the list.
-                if let first = bots.first { await select(bot: first.id) }
-                #endif
+                // The Mac and the iPad show a thread beside the list; a phone starts
+                // on the list, since the thread would cover it.
+                if Self.startsOnThread, let first = bots.first { await select(bot: first.id) }
             } else if let convID = selectedConversationID {
                 await loadMessages(convID)
             }

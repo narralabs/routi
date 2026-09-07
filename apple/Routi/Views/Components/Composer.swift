@@ -14,10 +14,6 @@ struct Composer: View {
     let onSend: () -> Void
     let onInterrupt: () -> Void
 
-    /// Read here rather than only in Settings, which is where it was being ignored:
-    /// the picker offered a choice the composer never consulted.
-    @AppStorage("sendBehavior") private var sendBehavior = SendBehavior.returnKey.rawValue
-
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -109,9 +105,9 @@ struct Composer: View {
         #if os(macOS)
         TextField(placeholder, text: $text, axis: .vertical)
             .onKeyPress(.return, phases: .down) { press in
-                let sends = SendBehavior(rawValue: sendBehavior) == .commandReturn
-                    ? press.modifiers.contains(.command)
-                    : press.modifiers.isDisjoint(with: [.shift, .command, .option])
+                // Return sends; Return with shift, command or option starts a line.
+                // That was a setting once, and nobody needs the other way round.
+                let sends = press.modifiers.isDisjoint(with: [.shift, .command, .option])
                 if sends {
                     onSend()
                     return .handled

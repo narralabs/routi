@@ -22,18 +22,6 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum SendBehavior: String, CaseIterable, Identifiable {
-    case returnKey, commandReturn
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .returnKey: return "Return"
-        case .commandReturn: return "⌘ Return"
-        }
-    }
-}
-
 /// The settings screen.
 ///
 /// Replaces the whole window rather than opening a separate preferences panel, with a
@@ -225,7 +213,6 @@ private struct PaneRow: View {
 struct GeneralPane: View {
     @Environment(AppModel.self) private var model
     @AppStorage("appearance") private var appearance = AppearanceMode.system.rawValue
-    @AppStorage("sendBehavior") private var sendBehavior = SendBehavior.returnKey.rawValue
     @AppStorage("showThinking") private var showThinking = true
     @AppStorage("showToolActivity") private var showToolActivity = false
 
@@ -239,21 +226,6 @@ struct GeneralPane: View {
                 SettingsRow(title: "Theme", detail: "How Routi looks on this device.", isFirst: true) {
                     Picker("", selection: $appearance) {
                         ForEach(AppearanceMode.allCases) { Text($0.label).tag($0.rawValue) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
-                }
-            }
-
-            SettingsSection("Composing") {
-                SettingsRow(
-                    title: "Send with",
-                    detail: "The other combination inserts a line break.",
-                    isFirst: true
-                ) {
-                    Picker("", selection: $sendBehavior) {
-                        ForEach(SendBehavior.allCases) { Text($0.label).tag($0.rawValue) }
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()

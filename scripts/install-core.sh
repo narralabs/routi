@@ -76,8 +76,28 @@ cat > "$agent" <<PLIST
   <key>StandardErrorPath</key><string>$logs/routid.log</string>
 </dict></plist>
 PLIST
-launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$agent"
+# An upgrade replaces a running agent. `bootout` returns before the old core has
+# finished shutting down, and bootstrapping the label while its registration is still
+# being torn down fails with "5: Input/output error" — and leaves no core at all. So:
+# out, wait until launchd has forgotten it, then in; and a few more tries if launchd is
+# still not ready, since the wait is only as good as the moment it stops.
+domain="gui/$(id -u)"
+if launchctl print "$domain/$label" >/dev/null 2>&1; then
+  launchctl bootout "$domain/$label" 2>/dev/null || true
+  for _ in $(seq 1 60); do
+    launchctl print "$domain/$label" >/dev/null 2>&1 || break
+    sleep 0.5
+  done
+fi
+for attempt in 1 2 3 4 5; do
+  if launchctl bootstrap "$domain" "$agent" 2>/dev/null; then break; fi
+  if [ "$attempt" = 5 ]; then
+    echo "Could not start the login agent. Try again in a moment, or:" >&2
+    echo "  launchctl bootstrap $domain $agent" >&2
+    exit 1
+  fi
+  sleep 2
+done
 
 say "Waiting for the core"
 for _ in $(seq 1 20); do

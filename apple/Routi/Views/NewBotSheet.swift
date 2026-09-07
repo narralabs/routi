@@ -13,19 +13,14 @@ struct NewBotSheet: View {
 
     private var canHaveScreen: Bool { model.supportsScreen(selectedProvider) }
 
-    /// Says plainly when a provider cannot drive a screen, rather than offering one
-    /// that would be created and never reached.
-    private var screenFootnote: String {
-        canHaveScreen
-            ? surfaceMode.explanation
-            : "\(ProviderInfo.find(selectedProvider).name) runs its own agent, which does not take Routi's browser tools yet, so a bot here cannot use a screen."
-    }
     @State private var selectedModel = "default"
-    // Defaults to a screen, and an isolated one. A bot without a screen can only talk,
-    // and "a bot that does things" is the whole premise; a bot on the real desktop is
-    // a deliberate choice, not a default.
-    @State private var surfaceMode = SurfaceMode.container
     @State private var isSubmitting = false
+
+    /// Every bot gets a container screen — an isolated desktop is the premise, not a
+    /// choice to make on a form — except on a provider that cannot drive one, which
+    /// gets none rather than a screen it would never reach. This Mac stays in the
+    /// protocol for later; nothing offers it yet.
+    private var surfaceMode: SurfaceMode { canHaveScreen ? .container : .none }
 
     var body: some View {
         SheetScaffold(title: "New Bot", confirmLabel: "Create", canConfirm: !name.isEmpty && !isSubmitting) {
@@ -70,17 +65,6 @@ struct NewBotSheet: View {
                     .disabled(providerModels.isEmpty)
                 }
 
-                FormField("Screen", footnote: screenFootnote) {
-                    Picker("", selection: $surfaceMode) {
-                        ForEach(SurfaceMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                }
-                    .disabled(!canHaveScreen)
-
             }
             .padding(.horizontal, 22)
             .padding(.top, 6)
@@ -94,8 +78,6 @@ struct NewBotSheet: View {
                 }
             }
             .onChange(of: selectedProvider) { _, new in
-                // A provider that cannot drive a screen should not appear to offer one.
-                if !model.supportsScreen(new) { surfaceMode = .none }
                 // Only a connected provider can be chosen; snap back if the user
                 // reaches an unconfigured entry via the keyboard.
                 if !model.availableProviders.contains(new) {
@@ -129,7 +111,6 @@ struct NewBotSheet: View {
             if let first = providerModels.first, !providerModels.contains(where: { $0.id == selectedModel }) {
                 selectedModel = first.id
             }
-            if !canHaveScreen { surfaceMode = .none }
         }
     }
 }

@@ -65,31 +65,29 @@ struct RootView: View {
             set: { model.sidebarVisibility = $0 == .detailOnly ? .doubleColumn : $0 }
         )) {
             BotListView(showingNewBot: $showingNewBot)
-                // A firm stop rather than a shrinking rail. The divider refuses to go
-                // below a width the sidebar is still readable at.
-                .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 360)
+                // Down to a rail: below about 170pt the list drops its text and shows
+                // avatars only, so a narrow window keeps every bot reachable.
+                .navigationSplitViewColumnWidth(min: 76, ideal: 268, max: 360)
         } detail: {
+            detail
+        }
+        // The bot right sidebar hangs off the split view, not the chat inside it. Inside
+        // the detail column it hosted its own split view, whose content pane carried an
+        // implicit minimum near 330pt on top of the chat's — the window could not go
+        // below ~900pt however narrow the chat was willing to be. Out here it is the
+        // same panel in the same place, and the window shrinks to what the columns ask.
+        .inspector(isPresented: Binding(
+            get: { showBotSidebar },
+            // Opening only ever happens through the toolbar button, which writes the
+            // state directly. AppKit also writes through here when it restores the
+            // window's saved split-view state, which would reopen the panel at launch
+            // after any session that left it open — so an uninvited `true` is dropped
+            // and the panel keeps its promise to start closed.
+            set: { if !$0 { showBotSidebar = false } }
+        )) {
             if let bot = model.selectedBot {
-                ChatView(bot: bot, showBotSidebar: $showBotSidebar)
-                    .inspector(isPresented: Binding(
-                        get: { showBotSidebar },
-                        // Opening only ever happens through the toolbar button, which
-                        // writes the state directly. AppKit also writes through here
-                        // when it restores the window's saved split-view state, which
-                        // would reopen the panel at launch after any session that left
-                        // it open — so an uninvited `true` is dropped and the panel
-                        // keeps its promise to start closed.
-                        set: { if !$0 { showBotSidebar = false } }
-                    )) {
-                        DetailRail(bot: bot, showingSettings: $showingRailSettings)
-                            .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
-                    }
-            } else {
-                ContentUnavailableView(
-                    "No Bot Selected",
-                    systemImage: "bubble.left.and.bubble.right",
-                    description: Text("Pick a bot from the sidebar, or create one.")
-                )
+                DetailRail(bot: bot, showingSettings: $showingRailSettings)
+                    .inspectorColumnWidth(min: 260, ideal: 300, max: 420)
             }
         }
         .sheet(isPresented: $showingNewBot) {
@@ -110,6 +108,21 @@ struct RootView: View {
             actions: { Button("OK", role: .cancel) { model.errorMessage = nil } },
             message: { Text(model.errorMessage ?? "") }
         )
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        @Bindable var model = model
+            if let bot = model.selectedBot {
+                ChatView(bot: bot, showBotSidebar: $showBotSidebar)
+                    .navigationSplitViewColumnWidth(min: 380, ideal: 760)
+            } else {
+                ContentUnavailableView(
+                    "No Bot Selected",
+                    systemImage: "bubble.left.and.bubble.right",
+                    description: Text("Pick a bot from the sidebar, or create one.")
+                )
+            }
     }
 }
 

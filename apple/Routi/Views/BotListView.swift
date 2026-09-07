@@ -10,6 +10,12 @@ struct BotListView: View {
     @Environment(AppModel.self) private var model
     @Binding var showingNewBot: Bool
     @State private var search = ""
+    /// The column's width, as laid out. Below `railWidth` the list becomes a rail of
+    /// avatars: the window can then go as narrow as a phone-shaped chat, and every
+    /// bot is still one click away.
+    @State private var width: CGFloat = 268
+    private static let railWidth: CGFloat = 170
+    private var isRail: Bool { width < Self.railWidth }
 
     private var filtered: [Bot] {
         guard !search.isEmpty else { return model.bots }
@@ -20,16 +26,74 @@ struct BotListView: View {
         }
     }
 
-    var body: some View {
-        @Bindable var model = model
-
-        return List(selection: Binding(
+    private var selection: Binding<String?> {
+        Binding(
             get: { model.selectedBotID },
             set: { newValue in
                 guard let id = newValue else { return }
                 Task { await model.select(bot: id) }
             }
-        )) {
+        )
+    }
+
+    var body: some View {
+        Group {
+            if isRail { rail } else { full }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .navigationTitle("Routi Bot")
+        .toolbar {
+            // At rail width there is no room beside the traffic lights, and a toolbar
+            // item that does not fit becomes an overflow chevron; the rail carries its
+            // own + at the bottom instead, where Grok Bot keeps it.
+            if !isRail {
+                ToolbarItem {
+                    Button("New Bot", systemImage: "plus") { showingNewBot = true }
+                }
+                #if os(macOS)
+                .flatBackground()
+                #endif
+            }
+        }
+        #if os(macOS)
+        // No toggle: the sidebar is always present, so nothing in the chrome moves.
+        .toolbar(removing: .sidebarToggle)
+        #endif
+    }
+
+    /// Avatars only, centred, with the footer reduced to its icons.
+    private var rail: some View {
+        List(selection: selection) {
+            ForEach(model.bots) { bot in
+                BotAvatar(color: bot.color, size: 36, isBusy: model.isBusy(botID: bot.id))
+                    .overlay(alignment: .topTrailing) {
+                        if model.handover(for: bot.id) != nil {
+                            Circle().fill(.orange).frame(width: 9, height: 9)
+                                .overlay { Circle().stroke(.background, lineWidth: 1.5) }
+                                .offset(x: 3, y: -3)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .help(bot.name)
+                    .tag(bot.id)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
+                    .contextMenu {
+                        Button("Delete \(bot.name)", systemImage: "trash", role: .destructive) {
+                            Task { await model.deleteBot(bot.id) }
+                        }
+                    }
+            }
+        }
+        .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            SidebarFooter(isRail: true, onNewBot: { showingNewBot = true })
+        }
+    }
+
+    private var full: some View {
+        List(selection: selection) {
             ForEach(filtered) { bot in
                 BotRow(
                     bot: bot,
@@ -48,20 +112,9 @@ struct BotListView: View {
         .listStyle(.sidebar)
         #if os(macOS)
         .searchable(text: $search, placement: .sidebar, prompt: "Search")
-        // No toggle: the sidebar is always present, so nothing in the chrome moves.
-        .toolbar(removing: .sidebarToggle)
         #else
         .searchable(text: $search, prompt: "Search")
         #endif
-        .navigationTitle("Routi Bot")
-        .toolbar {
-            ToolbarItem {
-                Button("New Bot", systemImage: "plus") { showingNewBot = true }
-            }
-            #if os(macOS)
-            .flatBackground()
-            #endif
-        }
         .overlay {
             if model.bots.isEmpty {
                 ContentUnavailableView(
@@ -74,7 +127,7 @@ struct BotListView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            SidebarFooter()
+            SidebarFooter(isRail: false, onNewBot: { showingNewBot = true })
         }
     }
 }
@@ -188,6 +241,10 @@ private struct WorkingDots: View {
 
 private struct SidebarFooter: View {
     @Environment(AppModel.self) private var model
+    /// Icons only, stacked, when the sidebar is a rail.
+    let isRail: Bool
+    /// The rail's own New Bot, since the toolbar has no room for one at that width.
+    let onNewBot: () -> Void
 
     private var statusColor: Color {
         switch model.connection {
@@ -198,7 +255,46 @@ private struct SidebarFooter: View {
     }
 
     var body: some View {
+        if isRail {
+            VStack(spacing: 8) {
+                Button(action: onNewBot) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .medium))
+                        .frame(width: 32, height: 32)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help("New Bot")
+                Button { } label: {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 15))
+                        .frame(width: 32, height: 32)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help("Marketplace")
+                Button { model.isShowingSettings = true } label: {
+                    Text(model.userInitials)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                        .background(.quaternary, in: .circle)
+                        .overlay(alignment: .bottomTrailing) {
+                            Circle().fill(statusColor).frame(width: 7, height: 7)
+                                .overlay { Circle().stroke(.background, lineWidth: 1.5) }
+                        }
+                }
+                .buttonStyle(.plain)
+                .help(model.userName)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, 12)
+        } else {
+            fullFooter
+        }
+    }
 
+    private var fullFooter: some View {
         VStack(spacing: 0) {
             #if DEBUG
             BuildStamp()

@@ -63,6 +63,7 @@ struct BotListView: View {
 
     /// Avatars only, centred, with the footer reduced to its icons.
     private var rail: some View {
+        VStack(spacing: 0) {
         List(selection: selection) {
             ForEach(model.bots) { bot in
                 BotAvatar(color: bot.color, seed: bot.id, size: 36, isBusy: model.isBusy(botID: bot.id))
@@ -87,12 +88,12 @@ struct BotListView: View {
             }
         }
         .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            SidebarFooter(isRail: true, onNewBot: { showingNewBot = true })
+        SidebarFooter(isRail: true, onNewBot: { showingNewBot = true })
         }
     }
 
     private var full: some View {
+        VStack(spacing: 0) {
         List(selection: selection) {
             ForEach(filtered) { bot in
                 BotRow(
@@ -126,8 +127,7 @@ struct BotListView: View {
                 ContentUnavailableView.search(text: search)
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            SidebarFooter(isRail: false, onNewBot: { showingNewBot = true })
+        SidebarFooter(isRail: false, onNewBot: { showingNewBot = true })
         }
     }
 }
@@ -256,10 +256,10 @@ private struct SidebarFooter: View {
     }
 
     var body: some View {
-        // The list scrolls underneath this inset, so it needs a ground of its own: the
-        // name was landing on top of whatever row was passing behind it.
+        // Below the list rather than over it, so nothing scrolls behind the name and
+        // the footer needs no ground of its own: it sits on the sidebar like the rest.
+        // A bar material here read as a separate white panel, which drew the eye.
         footer
-            .background(.bar)
             .overlay(alignment: .top) { Divider() }
     }
 

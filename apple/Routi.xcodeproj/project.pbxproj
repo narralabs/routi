@@ -58,6 +58,7 @@
 		5BD073724E27CFF96D741B5D /* NewBotSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBotSheet.swift; sourceTree = "<group>"; };
 		5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
 		75ECC9B53C46B40DF50283ED /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
+		84706E803B8FFFC6DFA36B93 /* Routi-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Routi-iOS.entitlements"; sourceTree = "<group>"; };
 		85E91F8038F61343E3273FD7 /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
 		87CC49000AD0941F4B4E281A /* InstallCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallCommand.swift; sourceTree = "<group>"; };
 		97647FF55564F4B40332D6CA /* Routi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Routi.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -78,13 +79,13 @@
 		F4DFC65D324CCCB7788FAC01 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
-		"TEMP_1B2F3206-7EBF-4A97-8E78-272E8B6C142D" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		2A4718C548C40F1CAAD6EB0D /* Routi */ = {
 			isa = PBXGroup;
 			children = (
+				84706E803B8FFFC6DFA36B93 /* Routi-iOS.entitlements */,
 				099C9C1462D777FC014D22E1 /* Routi.entitlements */,
 				184722C04D7C490D94182666 /* RoutiApp.swift */,
 				E7C53597C76C9CFF1D60B6AB /* Client */,
@@ -203,14 +204,6 @@
 			path = Client;
 			sourceTree = "<group>";
 		};
-		"TEMP_3B044DDD-1ED3-4F15-958F-9B1DC95D2ECA" /* apple */ = {
-			isa = PBXGroup;
-			children = (
-				"TEMP_1B2F3206-7EBF-4A97-8E78-272E8B6C142D" /* Local.xcconfig */,
-			);
-			path = apple;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -243,8 +236,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					56A6E8349922C39DB4FE5BDE = {
-						DevelopmentTeam = ZS958ZT4R9;
-						ProvisioningStyle = Automatic;
+						ProvisioningStyle = Manual;
 					};
 				};
 			};
@@ -346,7 +338,6 @@
 /* Begin XCBuildConfiguration section */
 		113C6E5CE499C37D0FF36EB1 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_1B2F3206-7EBF-4A97-8E78-272E8B6C142D" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -380,8 +371,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = YES;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 27;
 				DEBUG_INFORMATION_FORMAT = dwarf;
@@ -416,7 +407,6 @@
 		};
 		2725C9F9C067E0ADB1DDF697 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_1B2F3206-7EBF-4A97-8E78-272E8B6C142D" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -450,8 +440,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = YES;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 27;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -485,8 +475,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Routi/Routi.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Routi/Routi-iOS.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Routi/Routi-iOS.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = YES;
+				"ENABLE_APP_SANDBOX[sdk=iphoneos*]" = NO;
+				"ENABLE_APP_SANDBOX[sdk=iphonesimulator*]" = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Routi Bot";
@@ -496,16 +490,15 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"@executable_path/Frameworks",
+					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi;
 				PRODUCT_NAME = "Routi Bot";
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "";
 			};
 			name = Release;
 		};
@@ -514,8 +507,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Routi/Routi.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = "Routi/Routi-iOS.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = "Routi/Routi-iOS.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = YES;
+				"ENABLE_APP_SANDBOX[sdk=iphoneos*]" = NO;
+				"ENABLE_APP_SANDBOX[sdk=iphonesimulator*]" = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Routi Bot";
@@ -525,16 +522,15 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
-					"@executable_path/Frameworks",
+					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi;
 				PRODUCT_NAME = "Routi Bot";
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = macosx;
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "";
 			};
 			name = Debug;
 		};

@@ -82,6 +82,12 @@ targets:
         ENABLE_PREVIEWS: YES
         ENABLE_APP_SANDBOX: YES
         CODE_SIGN_ENTITLEMENTS: Routi/Routi.entitlements
+        # The Mac entitlements are the sandbox's; iOS has no such keys, and a profile
+        # for it will not carry them. iOS gets an entitlements file with nothing in it.
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Routi/Routi-iOS.entitlements
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Routi/Routi-iOS.entitlements
+        "ENABLE_APP_SANDBOX[sdk=iphoneos*]": "NO"
+        "ENABLE_APP_SANDBOX[sdk=iphonesimulator*]": "NO"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: >-
           UIInterfaceOrientationPortrait

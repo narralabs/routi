@@ -8,27 +8,11 @@ struct WelcomeStep: View {
     var body: some View {
         OnboardingScaffold(
             icon: "sparkles",
+            logo: "Logo",
             title: "Welcome to Routi Bot",
-            subtitle: "Bots that live on your Mac, work while you're away, and answer from your phone."
+            subtitle: "Bots that live on your Mac, work in a browser of their own, and run on the AI you already pay for."
         ) {
-            VStack(alignment: .leading, spacing: 18) {
-                FeatureRow(
-                    icon: "person.2.fill",
-                    title: "Bots with their own minds",
-                    detail: "Give each one a personality, a model, and its own ongoing conversation."
-                )
-                FeatureRow(
-                    icon: "desktopcomputer",
-                    title: "They get a screen",
-                    detail: "Hand a bot a sandboxed desktop — or your real one — and watch it work."
-                )
-                FeatureRow(
-                    icon: "iphone.and.arrow.forward",
-                    title: "Yours, everywhere",
-                    detail: "Everything runs on your Mac. Your phone is just another window onto it."
-                )
-            }
-            .frame(maxWidth: 400)
+            EmptyView()
         } actions: {
             Button(action: onContinue) {
                 Text("Get Started").frame(maxWidth: 260)
@@ -36,28 +20,6 @@ struct WelcomeStep: View {
             .controlSize(.large)
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
-        }
-    }
-}
-
-private struct FeatureRow: View {
-    let icon: String
-    let title: String
-    let detail: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 13) {
-            Image(systemName: icon)
-                .font(.system(size: 15))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 24, height: 22)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13.5, weight: .semibold))
-                Text(detail)
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 }

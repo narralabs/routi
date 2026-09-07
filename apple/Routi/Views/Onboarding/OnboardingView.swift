@@ -118,6 +118,8 @@ private struct BackdropGradient: View {
 
 struct OnboardingScaffold<Content: View, Actions: View>: View {
     let icon: String
+    /// An image asset in place of the symbol — the app's own mark on the first screen.
+    var logo: String? = nil
     let title: String
     let subtitle: String
     @ViewBuilder let content: Content
@@ -128,9 +130,17 @@ struct OnboardingScaffold<Content: View, Actions: View>: View {
             Spacer(minLength: 24)
 
             VStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(Color.accentColor.gradient)
+                if let logo {
+                    Image(logo)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 112, height: 112)
+                        .padding(.bottom, 2)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundStyle(Color.accentColor.gradient)
+                }
 
                 Text(title)
                     .font(.system(size: 26, weight: .bold, design: .rounded))

@@ -301,7 +301,7 @@ class Host {
             const parsed = parseBuildLine(line)
             if (!parsed || !this.build) continue
             // Cached steps are reported out of order; the bar should never move back.
-            if (parsed.step !== undefined && this.build.step !== null && parsed.step < this.build.step) continue
+            if (typeof parsed.step === 'number' && this.build.step !== null && parsed.step < this.build.step) continue
             this.build = { ...this.build, ...parsed }
           }
         }

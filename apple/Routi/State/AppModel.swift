@@ -14,7 +14,6 @@ final class AppModel {
     var bots: [Bot] = []
     var conversations: [String: Conversation] = [:]
     var messages: [Message] = []
-    var models: [ModelInfo] = []
     /// Model lists per provider. Each provider names its own, so the picker never
     /// offers a bot a model its provider cannot serve.
     var modelsByProvider: [String: [ModelInfo]] = [:]
@@ -427,25 +426,18 @@ final class AppModel {
     /// Drives `claude auth login` on the daemon's machine. Long-running: the user has
     /// to approve in a browser, so this can sit for minutes.
     func signInWithClaude() async throws {
-        let status = try await client.rpc(
-            "auth.loginWithClaude", field: "auth", as: AuthStatus.self, timeout: 360
-        )
-        auth = status
+        try await providerLogin("anthropic-claude")
         authKnown = true
-        await refreshAll()
     }
 
     func setApiKey(_ key: String) async throws {
-        let status = try await client.rpc(
-            "auth.setApiKey", ["key": key], field: "auth", as: AuthStatus.self
-        )
-        auth = status
+        _ = try await providerSetApiKey("anthropic", key: key)
         authKnown = true
         await refreshAll()
     }
 
     func models(for provider: String) -> [ModelInfo] {
-        provider == "anthropic" ? models : (modelsByProvider[provider] ?? [])
+        modelsByProvider[provider] ?? []
     }
 
     func loadModels(for provider: String) async {
@@ -455,7 +447,6 @@ final class AppModel {
             [ModelInfo].self, from: JSONSerialization.data(withJSONObject: raw)
         )) ?? []
         modelsByProvider[provider] = list
-        if provider == "anthropic" { models = list }
 
         if result["supportsSurface"] as? Bool ?? true {
             providersWithScreen.insert(provider)
@@ -467,10 +458,10 @@ final class AppModel {
     func supportsScreen(_ provider: String) -> Bool { providersWithScreen.contains(provider) }
 
     /// Providers a new bot can actually be built on.
+    /// In roster order, so the chips read vendor by vendor rather than alphabetically.
     var availableProviders: [String] {
-        var ids: [String] = auth.configured ? ["anthropic"] : []
-        ids += auth.providers.filter { $0.value.configured }.keys.sorted()
-        return ids
+        let configured = Set(auth.providers.filter { $0.value.configured }.keys)
+        return ProviderInfo.all.map(\.id).filter { configured.contains($0) }
     }
 
     // MARK: - Providers beyond the first
@@ -563,7 +554,6 @@ final class AppModel {
                 handovers = Dictionary(uniqueKeysWithValues: pending.map { ($0.botId, $0) })
             }
 
-            if models.isEmpty { await loadModels(for: "anthropic") }
             // Only providers with a working credential: the daemon answers with an
             // empty list otherwise, and an empty picker is worse than no picker.
             for (id, provider) in auth.providers where provider.configured {

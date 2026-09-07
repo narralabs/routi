@@ -31,13 +31,22 @@ interface WarmSession {
 }
 
 export class AnthropicSubscriptionAdapter implements ProviderAdapter {
-  readonly id = 'anthropic'
+  readonly id = 'anthropic-claude'
   readonly supportsSurface = true
   private readonly sessions = new Map<string, WarmSession>()
   private modelCache: ModelInfo[] | null = null
   private accountCache: AccountInfo | null = null
 
-  constructor(private readonly opts: { cwd: string; desktops?: DesktopPool }) {}
+  /**
+   * `apiKey` is the metered way in: Claude Code spends `ANTHROPIC_API_KEY` from its
+   * environment exactly as it spends a plan, so the two modes differ only in whether a
+   * key comes along — the same shape as Codex.
+   */
+  constructor(private readonly opts: { cwd: string; desktops?: DesktopPool; apiKey?: string }) {}
+
+  private get env(): Record<string, string | undefined> | undefined {
+    return this.opts.apiKey ? { ...process.env, ANTHROPIC_API_KEY: this.opts.apiKey } : undefined
+  }
 
   // ------------------------------------------------------------ capabilities
 
@@ -51,6 +60,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
       prompt: input,
       options: {
         cwd: this.opts.cwd,
+        ...(this.env ? { env: this.env } : {}),
         ...(managedClaudeIfPresent() ? { pathToClaudeCodeExecutable: managedClaudeIfPresent() } : {}),
         tools: [],
         persistSession: false,
@@ -82,7 +92,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
     if (this.accountCache) return this.accountCache
     const a = await this.withProbe((q) => q.accountInfo())
     this.accountCache = {
-      authMode: 'subscription',
+      authMode: this.opts.apiKey ? 'api_key' : 'subscription',
       subscriptionType: a.subscriptionType,
       organization: a.organization,
       email: a.email,
@@ -106,6 +116,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
       prompt: input,
       options: {
         cwd: this.opts.cwd,
+        ...(this.env ? { env: this.env } : {}),
         // The same binary sign-in ran on, named rather than left to the SDK's own search.
         ...(managedClaudeIfPresent() ? { pathToClaudeCodeExecutable: managedClaudeIfPresent() } : {}),
         model: req.model,

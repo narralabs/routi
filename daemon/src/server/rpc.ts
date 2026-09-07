@@ -270,7 +270,7 @@ const handlers: Record<RpcMethod, Handler> = {
   },
 
   'account.info': async (_p, ctx) => {
-    const adapter = ctx.providers.get('anthropic')
+    const adapter = ctx.providers.get('anthropic-claude') ?? ctx.providers.get('anthropic')
     if (!adapter) throw new RpcError('not_configured', 'No Anthropic credential configured yet.')
     return { account: await adapter.accountInfo() }
   },

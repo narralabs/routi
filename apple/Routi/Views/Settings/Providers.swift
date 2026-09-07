@@ -11,72 +11,87 @@ struct ProviderInfo: Identifiable, Hashable {
     let name: String
     /// What the provider is called in conversation, if different from the company.
     let models: String
+    /// One line on who runs the bot and what pays for it — the whole difference
+    /// between a vendor's two entries.
+    let summary: String
     /// Asset name of the brand mark. See `ProviderIcon`.
     let mark: String
     let tint: Color
     let isAvailable: Bool
 
     static let all: [ProviderInfo] = [
+        // Two entries per vendor, named by what runs the bot: the vendor's own agent,
+        // which is the only thing that can spend a personal plan, and the direct API,
+        // which Routi drives itself. Both can be connected at once, so a Max plan can
+        // carry the everyday bots while a key carries one that needs a named model.
         ProviderInfo(
-            id: "anthropic",
-            name: "Anthropic",
+            id: "anthropic-claude",
+            name: "Claude Code",
             models: "Claude",
+            summary: "Your Claude plan, or an API key. Anthropic's agent runs the bot.",
             mark: "ProviderAnthropic",
             tint: Color(red: 0.85, green: 0.47, blue: 0.34),
             isAvailable: true
         ),
         ProviderInfo(
-            id: "openai",
-            name: "OpenAI",
-            models: "GPT",
-            mark: "ProviderOpenai",
-            tint: Color(red: 0.07, green: 0.07, blue: 0.08),
+            id: "anthropic",
+            name: "Anthropic API",
+            models: "Claude",
+            summary: "An API key. Routi runs the bot against the API directly.",
+            mark: "ProviderAnthropic",
+            tint: Color(red: 0.62, green: 0.42, blue: 0.34),
             isAvailable: true
         ),
-        // Codex is its own entry rather than a setting on OpenAI. The two are
-        // different harnesses with different abilities — only the direct API can drive
-        // a bot's screen — and both can be connected at once, so a bot on the agent
-        // and a bot on a named model can run side by side.
         ProviderInfo(
             id: "openai-codex",
             name: "Codex",
-            models: "GPT via Codex",
+            models: "GPT",
+            summary: "Your ChatGPT plan, or an API key. OpenAI's agent runs the bot.",
             mark: "ProviderOpenaiCodex",
             tint: Color(red: 0.22, green: 0.23, blue: 0.25),
             isAvailable: true
         ),
         ProviderInfo(
-            id: "deepseek",
-            name: "DeepSeek",
-            models: "DeepSeek",
-            mark: "ProviderDeepseek",
-            tint: Color(red: 0.29, green: 0.40, blue: 0.95),
+            id: "openai",
+            name: "OpenAI API",
+            models: "GPT",
+            summary: "An API key. Routi runs the bot against the API directly.",
+            mark: "ProviderOpenai",
+            tint: Color(red: 0.07, green: 0.07, blue: 0.08),
+            isAvailable: true
+        ),
+        ProviderInfo(
+            id: "xai-grok",
+            name: "Grok CLI",
+            models: "Grok",
+            summary: "Your SuperGrok plan, or an API key. xAI's agent runs the bot.",
+            mark: "ProviderXai",
+            tint: Color(red: 0.28, green: 0.29, blue: 0.32),
             isAvailable: true
         ),
         ProviderInfo(
             id: "xai",
-            name: "xAI",
+            name: "xAI API",
             models: "Grok",
+            summary: "An API key. Routi runs the bot against the API directly.",
             mark: "ProviderXai",
             tint: Color(red: 0.13, green: 0.14, blue: 0.16),
             isAvailable: true
         ),
-        // Grok Build stands beside xAI for the same reason Codex stands beside OpenAI:
-        // it is a different harness, and it is the one a Grok plan can be spent
-        // through. The mark is xAI's own, because the company is the same one — only
-        // the tile is lighter, so the two are told apart at a glance.
         ProviderInfo(
-            id: "xai-grok",
-            name: "Grok CLI",
-            models: "Grok via the CLI",
-            mark: "ProviderXai",
-            tint: Color(red: 0.28, green: 0.29, blue: 0.32),
+            id: "deepseek",
+            name: "DeepSeek API",
+            models: "DeepSeek",
+            summary: "An API key. Routi runs the bot against the API directly.",
+            mark: "ProviderDeepseek",
+            tint: Color(red: 0.29, green: 0.40, blue: 0.95),
             isAvailable: true
         ),
         ProviderInfo(
             id: "moonshot",
             name: "Moonshot",
             models: "Kimi",
+            summary: "An API key. Routi runs the bot against the API directly.",
             mark: "ProviderMoonshot",
             tint: Color(red: 0.42, green: 0.34, blue: 0.85),
             isAvailable: false
@@ -132,99 +147,10 @@ struct ProviderPane: View {
     let provider: ProviderInfo
 
     var body: some View {
-        if provider.id == "anthropic" {
-            AnthropicPane(provider: provider)
-        } else if provider.isAvailable {
+        if provider.isAvailable {
             ProviderConnectPane(provider: provider)
         } else {
             UnavailableProviderPane(provider: provider)
-        }
-    }
-}
-
-private struct AnthropicPane: View {
-    @Environment(AppModel.self) private var model
-    let provider: ProviderInfo
-    @State private var showingDisconnect = false
-
-    private var methodLabel: String {
-        switch model.auth.mode {
-        case "api_key": return "API key"
-        case "subscription": return model.auth.subscription.planLabel
-        default: return "Not connected"
-        }
-    }
-
-    private var isConnected: Bool { model.auth.configured }
-
-    var body: some View {
-        SettingsPane(title: provider.name) {
-            ProviderHeader(provider: provider, isConnected: isConnected)
-
-            SettingsSection("Credential") {
-                SettingsRow(title: "Method", isFirst: true) {
-                    SettingsValue(text: methodLabel)
-                }
-                if model.auth.mode == "subscription", let email = model.auth.subscription.email {
-                    SettingsRow(title: "Account") { SettingsValue(text: email) }
-                }
-                if model.auth.mode == "subscription", let version = model.auth.subscription.cliVersion {
-                    SettingsRow(
-                        title: "Signed in through",
-                        detail: "Routi drives the Claude Code CLI's browser sign-in; the token stays with it."
-                    ) {
-                        // `claude --version` already reports "2.1.261 (Claude Code)",
-                        // so prefixing the name again reads as a stutter.
-                        SettingsValue(text: version)
-                    }
-                }
-                if model.auth.mode == "api_key" {
-                    SettingsRow(
-                        title: "Key storage",
-                        detail: "Held in the login Keychain on the Mac running Routi Core."
-                    ) {
-                        SettingsValue(text: "Keychain")
-                    }
-                }
-                SettingsRow(title: "") {
-                    HStack {
-                        Spacer()
-                        Button("Disconnect", role: .destructive) { showingDisconnect = true }
-                            .disabled(!isConnected)
-                    }
-                }
-            }
-
-            SettingsSection(
-                "Models you can choose",
-                footnote: "What a new bot can be built on. A bot's model is fixed when you create it."
-            ) {
-                if model.models.isEmpty {
-                    SettingsRow(title: "None available", isFirst: true) { EmptyView() }
-                } else {
-                    ForEach(Array(model.models.enumerated()), id: \.element.id) { index, info in
-                        SettingsRow(
-                            title: info.displayName,
-                            detail: info.description.isEmpty ? nil : info.description,
-                            isFirst: index == 0
-                        ) {
-                            if let resolved = info.resolvedModel {
-                                SettingsValue(text: resolved, monospaced: true)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .confirmationDialog("Disconnect \(provider.name)?", isPresented: $showingDisconnect) {
-            Button("Disconnect", role: .destructive) {
-                Task {
-                    await model.signOut()
-                    model.isShowingSettings = false
-                }
-            }
-        } message: {
-            Text("You'll go back through setup to reconnect.")
         }
     }
 }
@@ -259,8 +185,10 @@ private struct ProviderHeader: View {
             ProviderIcon(provider: provider, size: 44)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(provider.models)
-                    .font(.system(size: 15, weight: .semibold))
+                Text(provider.summary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 StatusPill(isConnected: isConnected, isAvailable: provider.isAvailable)
             }
 
@@ -289,16 +217,16 @@ private struct StatusPill: View {
     }
 }
 
-// MARK: - OpenAI
+// MARK: - Connect
 
 /// Connect a provider with either the vendor's own account or an API key.
 ///
-/// The same two paths as Anthropic, for the same reason: a plan someone already pays
-/// for should be spendable without a second, metered bill. The account path runs
-/// through the vendor CLI's own sign-in on the machine hosting the core, so Routi never
-/// sees the credential — it only asks the CLI whether one exists.
+/// A plan someone already pays for should be spendable without a second, metered
+/// bill, and the only way to spend one is the vendor's own agent — so the account
+/// path runs through that CLI's sign-in on the machine hosting the core, and Routi
+/// never sees the credential; it only asks the CLI whether one exists.
 ///
-/// One pane for every provider that isn't Anthropic: they differ in where a key comes
+/// One pane for every provider, Anthropic included: they differ in where a key comes
 /// from and whose account it is, which is copy, not structure.
 private struct ProviderConnectPane: View {
     @Environment(AppModel.self) private var model
@@ -319,7 +247,11 @@ private struct ProviderConnectPane: View {
 
     /// What the account is called where the user would recognise it.
     private var accountName: String {
-        provider.id == "xai-grok" ? "Grok" : "ChatGPT"
+        switch provider.id {
+        case "anthropic-claude": return "Claude"
+        case "xai-grok": return "Grok"
+        default: return "ChatGPT"
+        }
     }
 
     private func title(_ setup: Setup) -> String {
@@ -337,12 +269,13 @@ private struct ProviderConnectPane: View {
 
     /// Providers whose turns are run by a vendor CLI rather than by Routi.
     private var isHarness: Bool {
-        provider.id == "openai-codex" || provider.id == "xai-grok"
+        ["anthropic-claude", "openai-codex", "xai-grok"].contains(provider.id)
     }
 
     /// Where to get a key, per provider.
     private var keySource: String {
         switch provider.id {
+        case "anthropic", "anthropic-claude": return "console.anthropic.com"
         case "deepseek": return "platform.deepseek.com"
         case "xai", "xai-grok": return "console.x.ai"
         default: return "platform.openai.com"
@@ -351,6 +284,10 @@ private struct ProviderConnectPane: View {
 
     private func keyDetail(_ setup: Setup) -> String {
         switch provider.id {
+        case "anthropic-claude":
+            return "Billed per token, but run by Claude Code rather than by Routi. Choose this for Claude Code's behaviour without a Claude plan."
+        case "anthropic":
+            return "Billed per token. Routi runs the bot against the API directly."
         case "openai-codex":
             return "Billed per token, but run by the Codex agent rather than by Routi. Choose this for Codex's behaviour without a ChatGPT plan."
         case "xai-grok":
@@ -419,7 +356,7 @@ private struct ProviderConnectPane: View {
             if isConnected {
                 SettingsSection(
                     "Models you can choose",
-                    footnote: "What a new bot can be built on. A bot's model is fixed when you create it."
+                    footnote: "What a bot here can run on. The model can be changed on the bot at any time."
                 ) {
                     let list = model.models(for: provider.id)
                     if list.isEmpty {
@@ -527,13 +464,26 @@ private struct ProviderConnectPane: View {
 
     /// The CLI that holds this provider's account login.
     private var cliName: String {
-        provider.id == "xai-grok" ? "Grok" : "Codex"
+        switch provider.id {
+        case "anthropic-claude": return "Claude Code"
+        case "xai-grok": return "Grok"
+        default: return "Codex"
+        }
     }
 
     private var installHint: String {
         provider.id == "xai-grok"
             ? "Install it with `curl -fsSL https://x.ai/cli/install.sh | bash` on that Mac."
             : "It ships with Routi Core, so this shouldn't happen — restart the core."
+    }
+
+    /// Who the browser sign-in is with.
+    private var vendorName: String {
+        switch provider.id {
+        case "anthropic-claude": return "Anthropic"
+        case "xai-grok": return "xAI"
+        default: return "OpenAI"
+        }
     }
 
     private var cliDetail: String {
@@ -544,7 +494,7 @@ private struct ProviderConnectPane: View {
         if cli.loggedIn {
             return "Already signed in on that Mac\(cli.account.map { " as \($0)" } ?? ""). No per-token billing."
         }
-        return "Opens \(provider.name) in the browser on the Mac running Routi Core. No per-token billing."
+        return "Opens \(vendorName) in the browser on the Mac running Routi Core. No per-token billing."
     }
 
     /// Bots currently built on a given model. Answers "which of these is it?" by

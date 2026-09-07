@@ -49,10 +49,13 @@ const settingHarnessFor = (provider: string) => `authHarness.${provider}`
  * beside the vendor's direct API — a bot on the agent and a bot on a named API model
  * are different bots, and a person will want both alive rather than having to choose.
  */
-const HARNESS_PROVIDERS = new Set(['openai-codex', 'xai-grok'])
+const HARNESS_PROVIDERS = new Set(['anthropic-claude', 'openai-codex', 'xai-grok'])
 
 /** Where a harness provider's API key is proven, since the CLI cannot say. */
-const VENDOR_API_OF: Record<string, string> = { 'xai-grok': 'xai' }
+const VENDOR_API_OF: Record<string, string> = { 'xai-grok': 'xai', 'anthropic-claude': 'anthropic' }
+
+/** The two Anthropic ids: the key-only direct API, and Claude Code beside it. */
+const ANTHROPIC_IDS = new Set(['anthropic', 'anthropic-claude'])
 
 /**
  * Owns which credential the daemon uses and swaps the live provider when it changes.
@@ -80,18 +83,10 @@ export class AuthManager {
 
   async status(): Promise<AuthStatus> {
     const cliStatus = await this.cli.status()
-    const apiKey = await this.credentials.getApiKey()
-    const mode = (this.store.getSettings()[SETTING_MODE] as AuthMode | undefined) ?? null
-
-    const subscriptionUsable = cliStatus.installed && cliStatus.loggedIn
-    const apiUsable = apiKey !== null
-
-    // A stored mode only counts if its credential still works — a signed-out CLI or
-    // a deleted keychain item should send the user back through onboarding.
-    const anthropicConfigured =
-      (mode === 'subscription' && subscriptionUsable) || (mode === 'api_key' && apiUsable)
 
     const providers: Record<string, ProviderAuth> = {
+      anthropic: await this.keyOnlyStatus('anthropic'),
+      'anthropic-claude': await this.claudeStatus(cliStatus),
       openai: await this.openAiStatus('openai'),
       'openai-codex': await this.openAiStatus('openai-codex'),
       'xai-grok': await this.grokStatus(),
@@ -105,12 +100,18 @@ export class AuthManager {
       ),
     }
 
+    // The top-level fields predate per-provider status, when Anthropic was the only
+    // provider and had one mode. They now describe the Anthropic pair, so a client
+    // that still reads them sees the truth: Claude Code's mode if it is connected,
+    // else the direct API's.
+    const claude = providers['anthropic-claude']!
+    const direct = providers['anthropic']!
     return {
       // Set up means one working connection to anything. It used to mean Anthropic,
       // which made a person with a ChatGPT plan and no Claude account unable to get
       // past the first screen of an app that supports them perfectly well.
-      configured: anthropicConfigured || Object.values(providers).some((p) => p.configured),
-      mode,
+      configured: Object.values(providers).some((p) => p.configured),
+      mode: claude.configured ? claude.mode : direct.configured ? direct.mode : null,
       subscription: {
         cliInstalled: cliStatus.installed,
         cliVersion: cliStatus.installed ? await this.cli.version() : null,
@@ -119,8 +120,27 @@ export class AuthManager {
         organization: cliStatus.organization,
         subscriptionType: cliStatus.subscriptionType,
       },
-      apiKey: { present: apiUsable },
+      apiKey: { present: direct.apiKey.present },
       providers,
+    }
+  }
+
+  // --------------------------------------------------------------- Anthropic
+
+  /** Claude Code, which reaches a Claude plan the way Codex reaches ChatGPT. */
+  private async claudeStatus(cli: Awaited<ReturnType<ClaudeCli['status']>>): Promise<ProviderAuth> {
+    const key = await this.credentials.getApiKey('anthropic-claude')
+    const mode = (this.store.getSettings()[settingModeFor('anthropic-claude')] as AuthMode | undefined) ?? null
+    return {
+      configured: (mode === 'subscription' && cli.installed && cli.loggedIn) || (mode === 'api_key' && key !== null),
+      mode,
+      cli: {
+        installed: cli.installed,
+        version: cli.installed ? await this.cli.version() : null,
+        loggedIn: cli.loggedIn,
+        account: cli.email,
+      },
+      apiKey: { present: key !== null },
     }
   }
 
@@ -182,7 +202,15 @@ export class AuthManager {
 
   /** Opens the vendor's browser sign-in for a provider configured in Settings. */
   async providerLogin(provider: string): Promise<AuthStatus> {
-    if (provider === 'openai-codex') {
+    if (provider === 'anthropic-claude') {
+      const cli = await this.cli.status()
+      if (!cli.installed) {
+        throw new Error(
+          'Claude Code could not be started on this Mac. It ships with Routi Core, so this is worth reporting.',
+        )
+      }
+      if (!cli.loggedIn) await this.cli.login()
+    } else if (provider === 'openai-codex') {
       const cli = await this.codex.status()
       if (!cli.installed) {
         throw new Error(
@@ -209,7 +237,7 @@ export class AuthManager {
 
   async providerSetApiKey(provider: string, key: string): Promise<AuthStatus & { verified: string }> {
     const compatible = COMPATIBLE_PROVIDERS[provider]
-    if (!compatible && !HARNESS_PROVIDERS.has(provider) && provider !== 'openai') {
+    if (!compatible && !HARNESS_PROVIDERS.has(provider) && provider !== 'openai' && provider !== 'anthropic') {
       throw new Error(`No API key slot for provider: ${provider}`)
     }
 
@@ -218,9 +246,11 @@ export class AuthManager {
     // vendor's API takes, so it is checked against that API — the CLI has no cheaper
     // way to say whether a key is any good.
     const checkAgainst = compatible ?? COMPATIBLE_PROVIDERS[VENDOR_API_OF[provider] ?? '']
-    const verified = await (checkAgainst
-      ? new OpenAiCompatibleAdapter(checkAgainst, key).validate()
-      : new OpenAiApiAdapter(key).validate())
+    const verified = await (ANTHROPIC_IDS.has(provider)
+      ? this.validateAnthropicKey(key)
+      : checkAgainst
+        ? new OpenAiCompatibleAdapter(checkAgainst, key).validate()
+        : new OpenAiApiAdapter(key).validate())
 
     await this.credentials.setApiKey(key, provider)
     this.store.setSettings({ [settingModeFor(provider)]: 'api_key' })
@@ -284,9 +314,16 @@ export class AuthManager {
     this.providers.delete(provider)
 
     const compatible = COMPATIBLE_PROVIDERS[provider]
-    if (provider !== 'openai' && !HARNESS_PROVIDERS.has(provider) && !compatible) return
+    if (provider !== 'openai' && provider !== 'anthropic' && !HARNESS_PROVIDERS.has(provider) && !compatible) return
     const mode = this.store.getSettings()[settingModeFor(provider)] as AuthMode | undefined
     const key = await this.credentials.getApiKey(provider)
+
+    if (provider === 'anthropic') {
+      if (mode === 'api_key' && key) {
+        this.providers.set('anthropic', new AnthropicApiAdapter(key))
+      }
+      return
+    }
 
     if (compatible) {
       if (mode === 'api_key' && key) {
@@ -317,87 +354,80 @@ export class AuthManager {
     }
     this.providers.set(
       provider,
-      provider === 'xai-grok'
-        ? new XaiSubscriptionAdapter(opts)
-        : new OpenAiSubscriptionAdapter(opts),
+      provider === 'anthropic-claude'
+        ? new AnthropicSubscriptionAdapter({ cwd: this.sessionCwd, desktops: this.desktops, ...(opts.apiKey ? { apiKey: opts.apiKey } : {}) })
+        : provider === 'xai-grok'
+          ? new XaiSubscriptionAdapter(opts)
+          : new OpenAiSubscriptionAdapter(opts),
     )
   }
 
   /** Whether the CLI behind a harness provider still has a live account login. */
   private async harnessSignedIn(provider: string): Promise<boolean> {
-    const cli = provider === 'xai-grok' ? await this.grok.status() : await this.codex.status()
+    const cli = provider === 'anthropic-claude'
+      ? await this.cli.status()
+      : provider === 'xai-grok'
+        ? await this.grok.status()
+        : await this.codex.status()
     return cli.installed && cli.loggedIn
   }
 
-  /** Opens the browser sign-in on this machine and selects subscription mode. */
-  async loginWithClaude(): Promise<AuthStatus> {
-    const cliStatus = await this.cli.status()
-    if (!cliStatus.installed) {
-      throw new Error(
-        'Claude Code could not be set up on this Mac. It is fetched automatically the first time; check the connection and try again.',
-      )
-    }
-    if (!cliStatus.loggedIn) await this.cli.login()
-
-    this.store.setSettings({ [SETTING_MODE]: 'subscription' })
-    await this.applyMode()
-    return this.status()
-  }
-
-  async setApiKey(key: string): Promise<AuthStatus> {
-    // Validate against the real API *before* storing, so a rejected key never lands
-    // in the Keychain and never becomes the selected mode.
+  /** A key is proven against the real API before it is stored, and never stored if it fails. */
+  private async validateAnthropicKey(key: string): Promise<string> {
     const probe = new AnthropicApiAdapter(key.trim())
     try {
-      await probe.validate()
+      return await probe.validate()
     } finally {
       probe.dispose()
     }
-
-    await this.credentials.setApiKey(key)
-    this.store.setSettings({ [SETTING_MODE]: 'api_key' })
-    await this.applyMode()
-    return this.status()
   }
 
-  async signOut(): Promise<AuthStatus> {
-    const mode = this.store.getSettings()[SETTING_MODE] as AuthMode | undefined
-    if (mode === 'api_key') await this.credentials.clearApiKey()
-    this.store.setSettings({ [SETTING_MODE]: null })
+  /**
+   * Moves a pre-split Anthropic connection onto the pair.
+   *
+   * Anthropic used to be one provider with a mode — `authMode` in settings — under
+   * which a plan meant Claude Code and a key meant the direct API. The plan now lives
+   * on `anthropic-claude`, so a person can hold both at once, and every bot that ran on
+   * the plan follows it there; a key stays on `anthropic`, where it always was.
+   */
+  private migrateAnthropicProvider(): void {
+    const settings = this.store.getSettings()
+    const mode = settings[SETTING_MODE] as AuthMode | undefined
+    if (mode !== 'subscription' && mode !== 'api_key') return
 
-    const existing = this.providers.get('anthropic')
-    existing?.dispose()
-    this.providers.delete('anthropic')
+    if (mode === 'subscription') {
+      this.store.setSettings({ [settingModeFor('anthropic-claude')]: 'subscription', [SETTING_MODE]: null })
+      const moved = this.store.moveBotsToProvider('anthropic', 'anthropic-claude')
+      if (moved > 0) console.log(`moved ${moved} bot(s) onto Claude Code`)
+    } else {
+      this.store.setSettings({ [settingModeFor('anthropic')]: 'api_key', [SETTING_MODE]: null })
+    }
+  }
+
+  /** The onboarding sign-in: Claude Code, by its provider id. Kept for older clients. */
+  async loginWithClaude(): Promise<AuthStatus> {
+    return this.providerLogin('anthropic-claude')
+  }
+
+  /** The onboarding key: the direct API, by its provider id. Kept for older clients. */
+  async setApiKey(key: string): Promise<AuthStatus> {
+    const { verified: _verified, ...status } = await this.providerSetApiKey('anthropic', key)
+    return status
+  }
+
+  /** Disconnects both Anthropic ids — what "sign out of Claude" meant when it was one. */
+  async signOut(): Promise<AuthStatus> {
+    for (const id of ANTHROPIC_IDS) await this.providerSignOut(id)
     return this.status()
   }
 
   /** Installs every configured provider. Called at boot and on change. */
   async applyMode(): Promise<void> {
     await this.migrateCodexProvider()
+    this.migrateAnthropicProvider()
+    await this.applyProvider('anthropic')
     await this.applyProvider('openai')
     for (const id of HARNESS_PROVIDERS) await this.applyProvider(id)
     for (const id of Object.keys(COMPATIBLE_PROVIDERS)) await this.applyProvider(id)
-
-    const mode = this.store.getSettings()[SETTING_MODE] as AuthMode | undefined
-
-    const existing = this.providers.get('anthropic')
-    existing?.dispose()
-    this.providers.delete('anthropic')
-
-    if (mode === 'api_key') {
-      const key = await this.credentials.getApiKey()
-      if (key) this.providers.set('anthropic', new AnthropicApiAdapter(key))
-      return
-    }
-
-    if (mode === 'subscription') {
-      const cliStatus = await this.cli.status()
-      if (cliStatus.installed && cliStatus.loggedIn) {
-        this.providers.set(
-          'anthropic',
-          new AnthropicSubscriptionAdapter({ cwd: this.sessionCwd, desktops: this.desktops }),
-        )
-      }
-    }
   }
 }

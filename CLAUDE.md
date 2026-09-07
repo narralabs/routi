@@ -30,7 +30,7 @@ one needs no protocol change and no app release — `bot.provider` is a plain st
 | `daemon/src/auth/manager.ts` | Which credential each provider uses, and swapping the live adapter when that changes. `applyMode()` runs at boot and after every change; `applyProvider(id)` installs one. Modes are stored per provider as the setting `authMode.<id>`. |
 | `daemon/src/auth/credentials.ts` | API keys in the login Keychain, one account name per provider id. A provider with no entry in `ACCOUNTS` cannot store a key. |
 | `daemon/src/server/mcp-http.ts` | The desktop verbs as an MCP server over HTTP, at `/mcp/:botId/:conversationId`. This is how a harness we do not control gets Routi's tools. |
-| `apple/Routi/Views/Settings/Providers.swift` | The roster: id, display name, brand mark, tint, whether it is wired up. `ProviderConnectPane` is the shared "account or API key" pane; Anthropic has its own because it is also the onboarding credential. |
+| `apple/Routi/Views/Settings/Providers.swift` | The roster: id, display name, one-line summary (who runs the bot, what pays), brand mark, tint, whether it is wired up. `ProviderConnectPane` is the one "account or API key" pane, for every provider. |
 
 ### The three shapes an adapter comes in
 
@@ -48,8 +48,13 @@ one needs no protocol change and no app release — `bot.provider` is a plain st
    only asks whether one is live and shells out to the vendor's own sign-in.
 
 A harness provider is its own provider id beside the vendor's direct API
-(`openai` / `openai-codex`, `xai` / `xai-grok`) so both can be connected at once.
-`HARNESS_PROVIDERS` in `manager.ts` is the list.
+(`anthropic` / `anthropic-claude`, `openai` / `openai-codex`, `xai` / `xai-grok`) so both
+can be connected at once — a plan for the everyday bots, a key for one that needs a named
+model. `HARNESS_PROVIDERS` in `manager.ts` is the list. The app names entries by what runs
+the bot ("Claude Code", "Anthropic API"), never by vendor alone. Anthropic was one id
+with a mode until 0.1.11; `migrateAnthropicProvider()` moves a plan and its bots onto
+`anthropic-claude` at boot, and the old `auth.loginWithClaude` / `auth.setApiKey` /
+`auth.signOut` RPCs remain as aliases onto the pair.
 
 ### Two things every harness adapter has had to solve
 

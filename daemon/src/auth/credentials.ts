@@ -12,6 +12,7 @@ const OLD_SERVICE = 'Krog'
 /** Keychain account name per provider, so two keys can coexist. */
 const ACCOUNTS: Record<string, string> = {
   anthropic: 'anthropic-api-key',
+  'anthropic-claude': 'anthropic-claude-api-key',
   openai: 'openai-api-key',
   'openai-codex': 'openai-codex-api-key',
   deepseek: 'deepseek-api-key',

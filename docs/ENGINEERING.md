@@ -127,6 +127,11 @@ skips dependency build scripts it has not been told to run.
 
 ## Authentication
 
+Every vendor is two providers: its agent, which is the only thing that can spend a
+personal plan (and takes a key too), and its direct API, which Routi drives. The app
+names them by what runs the bot — Claude Code / Anthropic API, Codex / OpenAI API, Grok
+CLI / xAI API — and both can be connected at once, so the bot picker offers each.
+
 Nobody installs a vendor CLI to use a plan. Claude Code arrives as a platform package the
 Agent SDK depends on (`@anthropic-ai/claude-agent-sdk-darwin-arm64` — the whole package
 is the native `claude` binary, pinned to the SDK's version), so it is in `node_modules`

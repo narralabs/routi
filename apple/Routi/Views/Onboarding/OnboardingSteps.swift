@@ -285,8 +285,8 @@ struct CredentialStep: View {
             icon: "person.crop.circle.badge.checkmark",
             title: claude.loggedIn ? "Continue with \(claude.planLabel)" : "Use my Claude account",
             detail: claude.loggedIn
-                ? "Already signed in on this Mac. No extra cost — it uses the plan you have."
-                : "Opens Anthropic in your browser to sign in. No per-token billing.",
+                ? "Already signed in on this Mac through Claude Code. No extra cost — it uses the plan you have."
+                : "Opens Anthropic in your browser to sign in through Claude Code. No per-token billing.",
             badge: claude.loggedIn ? claude.email : nil,
             isRecommended: true,
             action: { signIn(.claude) }
@@ -303,13 +303,13 @@ struct CredentialStep: View {
         OptionCard(
             icon: "key.horizontal",
             title: "Use an Anthropic API key",
-            detail: "Billed per token against your Anthropic account.",
+            detail: "Billed per token against your Anthropic account. Routi runs the bot against the API directly.",
             action: { withAnimation { mode = .key(.anthropicKey); failure = nil } }
         )
         OptionCard(
             icon: "key.horizontal",
             title: "Use an OpenAI API key",
-            detail: "Billed per token against your OpenAI account.",
+            detail: "Billed per token against your OpenAI account. Routi runs the bot against the API directly.",
             action: { withAnimation { mode = .key(.openaiKey); failure = nil } }
         )
 

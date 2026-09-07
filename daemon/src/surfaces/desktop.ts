@@ -1,9 +1,9 @@
-import { execFile, spawn } from 'node:child_process'
+import { execFile, spawn, type ExecFileOptions } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -36,6 +36,34 @@ function dockerBinary(): string {
     '/opt/homebrew/bin/docker',
   ]
   return known.find((path) => existsSync(path)) ?? 'docker'
+}
+
+/**
+ * The environment Docker runs in: its own folder on the PATH.
+ *
+ * Finding `docker` is not enough. The CLI shells out to helpers beside it — notably
+ * `docker-credential-desktop`, which ~/.docker/config.json names as the credential
+ * store — and looks for them on PATH by name. With the binary found but its folder not
+ * on the PATH, the first build failed at the base image with "docker-credential-desktop:
+ * executable file not found in $PATH". The folder the binary was found in, the folder it
+ * really lives in (it is usually a symlink), and the known install places all go first.
+ */
+function dockerEnv(): NodeJS.ProcessEnv {
+  const binary = dockerBinary()
+  const dirs = new Set<string>([dirname(binary)])
+  try {
+    dirs.add(dirname(realpathSync(binary)))
+  } catch {
+    // Not installed at all; the call will fail with ENOENT as before.
+  }
+  dirs.add(join(homedir(), '.docker', 'bin'))
+  dirs.add('/Applications/Docker.app/Contents/Resources/bin')
+  return { ...process.env, PATH: [...dirs, process.env['PATH'] ?? ''].filter(Boolean).join(':') }
+}
+
+/** `docker <args>`, found and equipped as above. Every call goes through here. */
+function docker(args: string[], opts: ExecFileOptions = {}): Promise<{ stdout: string; stderr: string }> {
+  return run(dockerBinary(), args, { ...opts, env: dockerEnv() }) as Promise<{ stdout: string; stderr: string }>
 }
 
 export type DesktopState = 'stopped' | 'starting' | 'running' | 'unavailable'
@@ -106,7 +134,7 @@ class Host {
 
   private async dockerState(): Promise<{ state: HostStatus['docker']; version: string | null }> {
     try {
-      const { stdout } = await run(dockerBinary(), ['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
+      const { stdout } = await docker(['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
       return { state: 'running', version: stdout.trim() || null }
     } catch (err) {
       // No CLI at all is a different answer from a CLI whose engine is not up: one
@@ -136,10 +164,10 @@ class Host {
     if (await this.isRunning()) return null
 
     // Remove any stopped container of the same name; `docker run` refuses otherwise.
-    await run(dockerBinary(), ['rm', '-f', CONTAINER], { timeout: 20_000 }).catch(() => {})
+    await docker(['rm', '-f', CONTAINER], { timeout: 20_000 }).catch(() => {})
 
     try {
-      await run(dockerBinary(), [
+      await docker([
         'run', '-d',
         '--name', CONTAINER,
         // Chromium needs more than the default 64MB of /dev/shm or it crashes on any
@@ -175,7 +203,7 @@ class Host {
 
   private async dockerAvailable(): Promise<boolean> {
     try {
-      await run(dockerBinary(), ['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
+      await docker(['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
       return true
     } catch {
       return false
@@ -206,7 +234,7 @@ class Host {
     console.log(`building the desktop image from ${dockerfileDir} (a few minutes, once)`)
     this.building = true
     try {
-      await run(dockerBinary(), ['build', '-t', IMAGE, dockerfileDir], { timeout: 15 * 60_000, maxBuffer: 64 * 1024 * 1024 })
+      await docker(['build', '-t', IMAGE, dockerfileDir], { timeout: 15 * 60_000, maxBuffer: 64 * 1024 * 1024 })
       console.log('desktop image built')
       return null
     } catch (err) {
@@ -219,7 +247,7 @@ class Host {
 
   private async imageExists(): Promise<boolean> {
     try {
-      const { stdout } = await run(dockerBinary(), ['images', '-q', IMAGE], { timeout: 8_000 })
+      const { stdout } = await docker(['images', '-q', IMAGE], { timeout: 8_000 })
       return stdout.trim().length > 0
     } catch {
       return false
@@ -228,7 +256,7 @@ class Host {
 
   async isRunning(): Promise<boolean> {
     try {
-      const { stdout } = await run(dockerBinary(), [
+      const { stdout } = await docker([
         'ps', '--filter', `name=^/${CONTAINER}$`, '--filter', 'status=running', '-q',
       ], { timeout: 8_000 })
       return stdout.trim().length > 0
@@ -238,20 +266,20 @@ class Host {
   }
 
   async exec(args: string[], timeout = 20_000): Promise<string> {
-    const { stdout } = await run(dockerBinary(), ['exec', CONTAINER, ...args], { timeout })
+    const { stdout } = await docker(['exec', CONTAINER, ...args], { timeout })
     return stdout.trim()
   }
 
   /** As `exec`, with DISPLAY set so the command lands on one bot's screen. */
   async execOn(display: string, args: string[], timeout = 20_000): Promise<string> {
-    const { stdout } = await run(dockerBinary(), ['exec', '-e', `DISPLAY=${display}`, CONTAINER, ...args], {
+    const { stdout } = await docker(['exec', '-e', `DISPLAY=${display}`, CONTAINER, ...args], {
       timeout,
     })
     return stdout.trim()
   }
 
   spawnOn(display: string, command: string) {
-    return spawn(dockerBinary(), ['exec', '-e', `DISPLAY=${display}`, CONTAINER, 'bash', '-lc', command])
+    return spawn(dockerBinary(), ['exec', '-e', `DISPLAY=${display}`, CONTAINER, 'bash', '-lc', command], { env: dockerEnv() })
   }
 }
 

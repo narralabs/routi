@@ -415,9 +415,41 @@ struct AboutPane: View {
 
     var body: some View {
         SettingsPane(title: "About") {
-            SettingsSection {
-                SettingsRow(title: "Routi Bot", detail: "Bots that live on your Mac.", isFirst: true) {
-                    SettingsValue(text: version)
+            HStack(spacing: 16) {
+                Image("Logo")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 72, height: 72)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Routi Bot")
+                        .font(.system(size: 17, weight: .semibold))
+                    Text("Version \(version)")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                    Text("Copyright © 2026 Narra Labs, LLC")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 6)
+
+            SettingsSection("Open source") {
+                SettingsRow(
+                    title: "License",
+                    detail: "Apache-2.0. The code is free to use, change and share; the copyright stays with Narra Labs.",
+                    isFirst: true
+                ) {
+                    Link("routi on GitHub", destination: URL(string: "https://github.com/narralabs/routi")!)
+                        .font(.system(size: 12.5))
+                }
+                SettingsRow(
+                    title: "Provider marks",
+                    detail: "From LobeHub's icon set, MIT. See NOTICE in the repository."
+                ) {
+                    Link("lobe-icons", destination: URL(string: "https://github.com/lobehub/lobe-icons")!)
+                        .font(.system(size: 12.5))
                 }
             }
         }

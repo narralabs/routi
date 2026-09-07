@@ -75,6 +75,8 @@ targets:
         # "Routi Bot" is the product; `Routi` stays the target and scheme name.
         PRODUCT_NAME: Routi Bot
         INFOPLIST_KEY_CFBundleDisplayName: Routi Bot
+        # The standard About box (app menu → About) reads this; so does Finder's Get Info.
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © 2026 Narra Labs, LLC
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_PREVIEWS: YES

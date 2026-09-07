@@ -78,6 +78,14 @@ Add `--dry-run` to either to see what would go without touching anything. Docker
 itself, and the sign-ins that belong to Claude Code, Codex and Grok, are left alone —
 they were yours before Routi.
 
+## Roadmap
+
+- **Plugins.** Give bots Gmail, Google Calendar, Slack, GitHub and the rest, through each
+  vendor's own MCP server and sign-in — one connection, every bot. The Google ones wait
+  on Google's app verification.
+- **iPhone and iPad.** The same app, as a window onto the bots on your Mac.
+- **Per-bot plugins and screens.** Which connections a bot may use, chosen per bot.
+
 ## Developing
 
 ```bash

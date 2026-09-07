@@ -3,7 +3,7 @@ import SwiftUI
 /// The left main sidebar: every bot, following the original Grok Bot layout.
 ///
 /// Deliberately plain: a search field, a row per bot with avatar, name, timestamp and
-/// preview line, then Marketplace and the account row pinned at the bottom. There is
+/// preview line, then the account row pinned at the bottom. There is
 /// no sidebar toggle — the reference has none, and its absence is what keeps the
 /// window chrome still.
 struct BotListView: View {
@@ -241,7 +241,8 @@ private struct WorkingDots: View {
 
 private struct SidebarFooter: View {
     @Environment(AppModel.self) private var model
-    /// Icons only, stacked, when the sidebar is a rail.
+    /// Icons only, stacked, when the sidebar is a rail. No Plugins row yet: a row that does
+    /// nothing is worse than none, and the roadmap in the README says it is coming.
     let isRail: Bool
     /// The rail's own New Bot, since the toolbar has no room for one at that width.
     let onNewBot: () -> Void
@@ -265,14 +266,6 @@ private struct SidebarFooter: View {
                 }
                 .buttonStyle(.plain)
                 .help("New Bot")
-                Button { } label: {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 15))
-                        .frame(width: 32, height: 32)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .help("Marketplace")
                 Button { model.isShowingSettings = true } label: {
                     Text(model.userInitials)
                         .font(.system(size: 10, weight: .semibold))
@@ -299,12 +292,6 @@ private struct SidebarFooter: View {
             #if DEBUG
             BuildStamp()
             #endif
-
-            FooterRow(title: "Marketplace") {
-                Image(systemName: "square.grid.2x2")
-                    .font(.system(size: 15))
-                    .frame(width: 22)
-            } action: {}
 
             // The account row opens Settings — the name is the affordance, as in the
             // reference, rather than the word "Settings".

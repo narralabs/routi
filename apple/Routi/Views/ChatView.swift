@@ -41,7 +41,10 @@ struct ChatView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.messages.isEmpty && !model.isLoadingMessages {
+        // A bot already at work — a greeting, a routine — gets the transcript even with
+        // nothing in it yet, so the typing indicator has somewhere to be. Showing the
+        // front door first and swapping it out a moment later read as a flicker.
+        if model.messages.isEmpty && !model.isLoadingMessages && !model.isBusy {
             emptyThread
         } else {
             transcript
@@ -95,6 +98,10 @@ struct ChatView: View {
      */
     private var transcript: some View {
         ScrollViewReader { proxy in
+            // Measured so a transcript shorter than the view sits at its bottom, where a
+            // chat's newest line belongs. Without this a new bot's first moments — an
+            // empty row and the typing dots — were pinned to the top of an empty pane.
+            GeometryReader { viewport in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(model.messages.enumerated()), id: \.element.id) { index, message in
@@ -134,6 +141,7 @@ struct ChatView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
+                .frame(minHeight: viewport.size.height, alignment: .bottom)
                 #if os(macOS)
                 .background { ScrollViewBridge { found in
                     // Keep the one on screen. A replacement is only wanted when ours
@@ -183,6 +191,7 @@ struct ChatView: View {
                     followEnd(proxy)
                     try? await Task.sleep(for: .milliseconds(200))
                 }
+            }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {

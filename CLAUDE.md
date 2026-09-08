@@ -205,6 +205,11 @@ shell too.
   `grokBinary()` looks there before falling back to PATH.
 - `grok models` is the auth check: `auth.json` keeps stale entries, so file presence
   proves only that somebody once signed in.
+- Grok sometimes ends a prompt right after its tool calls return, without a model
+  call on the results (3 of 225 in this Mac's `~/.routi/grok/logs/unified.jsonl`):
+  the bot announces what it is about to do, the tools run, and it goes quiet. The
+  adapter notices a turn whose last block was a returned tool call and prompts the
+  same session once more ("carry on from their results"), once per turn.
 
 ### Checklist for the next provider
 

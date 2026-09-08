@@ -196,16 +196,31 @@ export class XaiSubscriptionAdapter implements ProviderAdapter {
     const replay = created ? replayTranscript(req.history, req.botId) : null
     const text = replay ? [req.systemPrompt.trim(), '', replay, '', prompt].filter(Boolean).join('\n') : framed
 
-    void agent
-      // No deadline: a turn is over when the agent says so, or when the user stops it.
-      .request('session/prompt', { sessionId, prompt: [{ type: 'text', text }] }, 0)
-      .then((result) => {
-        const usage = (result['_meta'] as Record<string, unknown> | undefined)?.['usage']
-        if (usage) meta['usage'] = usage
-        blocks.closeAll()
-        finished = true
-        push({ type: 'done', stopReason: String(result['stopReason'] ?? 'end_turn'), meta })
-      })
+    // No deadline: a turn is over when the agent says so, or when the user stops it.
+    const ask = (content: string) =>
+      agent.request('session/prompt', { sessionId, prompt: [{ type: 'text', text: content }] }, 0)
+    let nudged = false
+    const settle = (result: Record<string, unknown>): Promise<void> | void => {
+      /**
+       * Grok now and then ends a prompt right after its tool calls return, without
+       * calling the model on their results: the bot says "checking the account",
+       * opens the page, and goes quiet with nothing to show for it (3 of 225 tool
+       * calls in this Mac's Grok log ended that way). The session still holds the
+       * results, so one more prompt on it picks the turn back up; once, so a model
+       * that has genuinely nothing to add is not asked forever.
+       */
+      if (blocks.endedOnTool && !nudged && !signal.aborted) {
+        nudged = true
+        return ask('The tools you called have returned. Carry on from their results, and end with a message to the person.').then(settle)
+      }
+      const usage = (result['_meta'] as Record<string, unknown> | undefined)?.['usage']
+      if (usage) meta['usage'] = usage
+      blocks.closeAll()
+      finished = true
+      push({ type: 'done', stopReason: String(result['stopReason'] ?? 'end_turn'), meta })
+    }
+    void ask(text)
+      .then(settle)
       .catch((err: unknown) => {
         blocks.closeAll()
         finished = true
@@ -349,6 +364,13 @@ class TurnBlocks {
   private index = 0
   private open: { at: number; kind: 'text' | 'thinking'; text: string } | null = null
   private readonly tools = new Map<string, { at: number; name: string; input: unknown }>()
+  /** What the turn produced last: a tool call, or words. */
+  private last: 'tool' | 'words' | null = null
+
+  /** True when the turn's last block was a tool call that has already returned. */
+  get endedOnTool(): boolean {
+    return this.last === 'tool' && this.tools.size === 0
+  }
 
   constructor(private readonly push: (event: ProviderEvent) => void) {}
 
@@ -358,6 +380,7 @@ class TurnBlocks {
     if (!chunk) return
     const open = this.streamOpen('text')
     open.text += chunk
+    this.last = 'words'
     this.push({ type: 'text_delta', index: open.at, text: chunk })
   }
 
@@ -365,6 +388,7 @@ class TurnBlocks {
     if (!chunk) return
     const open = this.streamOpen('thinking')
     open.text += chunk
+    this.last = 'words'
     this.push({ type: 'thinking_delta', index: open.at, text: chunk })
   }
 
@@ -379,6 +403,7 @@ class TurnBlocks {
     const name = shortToolName(target)
     const input = (update['rawInput']?.['tool_input'] ?? update['rawInput']) as unknown
     this.tools.set(id, { at, name, input })
+    this.last = 'tool'
     this.push({
       type: 'block_start',
       index: at,

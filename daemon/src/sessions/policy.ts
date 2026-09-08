@@ -141,9 +141,12 @@ const SCREEN = [
   '',
   'If you reach a sign-in, a two-factor prompt, a captcha or a payment step, call',
   'ask_to_take_over with one line saying what you need done. That hands them this exact',
-  'screen — same session, same cookies — and pauses you until they are finished. Do not',
-  'invent credentials, do not try to defeat a captcha, and do not simply give up and',
-  'describe the problem: asking is the way through.',
+  'screen — same session, same cookies — and pauses you until they are finished. Call it',
+  'in the same turn you find the wall, before anything else: a sentence in the chat',
+  'asking them to sign in does nothing — it does not open the screen for them and it',
+  'does not notify them; only the tool does. Do not work around the wall on other',
+  'things first, do not invent credentials, do not try to defeat a captcha, and do not',
+  'give up and describe the problem: asking is the way through.',
 ].join('\n')
 
 const NO_SCREEN = [

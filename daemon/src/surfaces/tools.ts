@@ -120,6 +120,10 @@ export const TOOL_INSTRUCTIONS = [
   'so. Do not invent credentials and do not try to defeat a captcha. The person you are',
   'talking to can open this same screen and do it themselves, then tell you to carry on —',
   'their session is the one you are already using.',
+  '',
+  'A wall is a page you cannot use without it. A cookie banner, a "sign in for member',
+  'prices" offer, a newsletter or app popup, or a login link in the corner is not one:',
+  'close it or ignore it and carry on with what is behind it.',
 ].join('\n')
 
 // --------------------------------------------------------------- shared core
@@ -266,9 +270,10 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
           description:
             'Hand your screen to the person and wait for them. Use this the moment you ' +
             'hit a sign-in, a two-factor prompt, a captcha or a payment step — anything ' +
-            'only they can do. Say plainly what you need done, in one line, as they will ' +
-            'see it on a button. This pauses you until they say they are finished, so do ' +
-            'not call it for anything you could do yourself.',
+            'only they can do. Not for a dismissible banner or an optional sign-in offer: ' +
+            'close those yourself. Say plainly what you need done, in one line, as they ' +
+            'will see it on a button. This pauses you until they say they are finished, ' +
+            'so do not call it for anything you could do yourself.',
           parameters: object({ reason: { type: 'string' } }, ['reason']),
         },
       ]
@@ -444,7 +449,12 @@ export async function runDesktopTool(
   }
 
   if (ctx.handover && name === 'ask_to_take_over') {
-    const reason = String(args['reason'] ?? '').trim() || 'Take over the screen'
+    // The bot's own words, whatever it called the argument: a model that writes
+    // `message` for `reason` (seen from Codex) still gets its sentence on the button,
+    // not a generic label.
+    const said = [args['reason'], args['message'], ...Object.values(args)]
+      .find((v) => typeof v === 'string' && v.trim())
+    const reason = (typeof said === 'string' ? said.trim() : '') || 'Take over the screen'
     const outcome = await ctx.handover(reason)
     return {
       ok: outcome !== 'timeout',

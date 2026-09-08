@@ -25,18 +25,6 @@ state afterwards. Bots without a screen, and bots set to *This Mac*, don't need 
 Do this on the Mac that stays on. Give it automatic login, so the Keychain is unlocked
 after a reboot, and set it to never sleep. Needs macOS 14 or newer.
 
-## Update
-
-The core updates with the same command that installed it — it fetches the latest release
-and restarts:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/narralabs/routi/main/scripts/install.sh | sh
-```
-
-The app updates by downloading the disk image again. Settings → Routi Core shows which
-version of each you have.
-
 ## From another Mac, or a phone
 
 Install the app anywhere and point it at the host under Settings → Routi Core. A

@@ -149,7 +149,15 @@ gh release upload v0.x.y build/RoutiBot.dmg --clobber
 
 then the checksum from the release into `packaging/homebrew/routi-core.rb` (url and
 sha256 are the two lines that change), copied to `Formula/routi-core.rb` in the
-`narralabs/homebrew-tap` repository. `scripts/install.sh` is the curl route and points at
+`narralabs/homebrew-tap` repository.
+
+The iPhone and iPad app goes to TestFlight with `scripts/testflight.sh`, after the
+release: it archives for iOS under the Narra Labs team and uploads through the Apple ID
+saved in Xcode. Two things it needs and cannot make: that account signed in under Xcode
+› Settings › Accounts with no expired account beside it (the export walks every saved
+account and stops at the first that is rejected), and an app in App Store Connect with
+bundle id `com.narralabs.routi`. The first build of a version needs the export-compliance
+answer in App Store Connect before testers see it. `scripts/install.sh` is the curl route and points at
 the release's `latest` asset, so it needs nothing per release.
 
 The formula runs the repository's pinned pnpm through `corepack` rather than depending

@@ -38,12 +38,16 @@ struct ScreenView: View {
             if let frame, let image = decode(frame) {
                 image.resizable().interpolation(.medium)
             } else {
+                // No frame yet — a desktop just started, or the selection just moved
+                // to another bot's — so a dark pane and a spinner, never a stale picture.
                 ZStack {
                     Color.black
                     ProgressView().controlSize(.small).tint(.white)
                 }
             }
         }
+        // The first frame fades in over the loader rather than snapping.
+        .animation(.easeOut(duration: 0.2), value: frame == nil)
         // Sizing the image to the fitted rect means the gesture's own local
         // coordinates *are* screen coordinates, scaled. The previous version laid a
         // tap over the whole pane and subtracted the letterbox by hand, so any click

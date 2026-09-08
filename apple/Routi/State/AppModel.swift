@@ -736,6 +736,9 @@ final class AppModel {
                 if self.surface.state == .running,
                    let botID = self.surfaceBotID,
                    let result = try? await self.client.rpc("surface.frame", ["botId": botID, "quality": 6]),
+                   // A frame that was in flight when the selection moved on belongs to
+                   // the bot it was asked for, not the one now showing.
+                   botID == self.surfaceBotID,
                    let base64 = result["jpeg"] as? String,
                    let data = Data(base64Encoded: base64) {
                     self.surfaceFrame = data
@@ -953,7 +956,16 @@ final class AppModel {
         if conv == nil { conv = await createConversation(botID: botID) }
         guard let conversation = conv else { return }
 
-        selectedBotID = botID
+        if selectedBotID != botID {
+            // The other bot's desktop must not stand in for this one's, even for the
+            // half second before its first frame: the picture goes, the panel shows
+            // its loader, and the frame loop starts over so the first frame is asked
+            // for now rather than after its sleep.
+            surfaceFrame = nil
+            surfacePointer = nil
+            selectedBotID = botID
+            restartFrames()
+        }
         selectedConversationID = conversation.id
         messages = []
         routines = []

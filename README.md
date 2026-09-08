@@ -7,6 +7,11 @@ job, like watching a market, finding a hotel, or checking a price every morning,
 opens a browser and does it, on any AI you already pay for: a Claude plan, a ChatGPT
 plan, or an API key. Your phone is a window onto the same bots.
 
+> “One shared Linux, a screen per bot, any model you already pay for — on the Mac that
+> stays on. Same idea, cleanly executed. Ship it.”
+>
+> — Architecture Bot (a Grok Bot), asked to review the competition
+
 ## Install
 
 Download **[Routi Bot](https://github.com/narralabs/routi/releases/latest/download/RoutiBot.dmg)**,

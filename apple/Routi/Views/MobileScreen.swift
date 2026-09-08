@@ -170,10 +170,10 @@ struct MobileScreen: View {
                 .overlay(alignment: .topLeading) {
                     if let pointer = pointerToDraw, fitted.width > 0, size.width > 0 {
                         let scale = fitted.width / size.width
-                        RemoteCursor()
+                        RemoteCursor(size: 26)
                             .offset(x: pointer.x * scale, y: pointer.y * scale)
                             .allowsHitTesting(false)
-                            .animation(.linear(duration: 0.08), value: pointer)
+                            .animation(.linear(duration: 0.06), value: pointer)
                     }
                 }
                 .overlay {
@@ -205,8 +205,11 @@ struct MobileScreen: View {
         }
     }
 
+    /// The pointer the finger last put somewhere wins over the frame's, which lags it;
+    /// with neither, the middle, so there is always an arrow to find.
     private var pointerToDraw: CGPoint? {
-        trackpadMode ? (trackpadPointer ?? model.surfacePointer) : model.surfacePointer
+        trackpadPointer ?? model.surfacePointer
+            ?? CGPoint(x: Double(model.surface.width) / 2, y: Double(model.surface.height) / 2)
     }
 
     private func recenter() {
@@ -342,6 +345,7 @@ private struct TouchLayer: UIViewRepresentable {
 
         @objc func tap(_ g: UITapGestureRecognizer) {
             let p = clickPoint(g)
+            parent.onPointerMoved(p)
             parent.onInput(["kind": "click", "x": Int(p.x), "y": Int(p.y)])
         }
 
@@ -406,8 +410,9 @@ private struct TouchLayer: UIViewRepresentable {
             }
         }
 
-        /// One finger moving: a drag, released where it ends. In trackpad mode, the
-        /// pointer moving.
+        /// One finger moving: the pointer follows it, live, and where it lifts is
+        /// where a drag from where it began lets go. In trackpad mode the finger's
+        /// travel moves the pointer instead of placing it.
         @objc func oneFingerPan(_ g: UIPanGestureRecognizer) {
             if pressing { return }
             if parent.trackpadMode {
@@ -419,6 +424,13 @@ private struct TouchLayer: UIViewRepresentable {
             switch g.state {
             case .began:
                 dragStart = desktopPoint(g.location(in: g.view))
+            case .changed:
+                let p = desktopPoint(g.location(in: g.view))
+                parent.onPointerMoved(p)
+                if Date().timeIntervalSince(lastMove) > 0.04 {
+                    lastMove = Date()
+                    parent.onInput(["kind": "move", "x": Int(p.x), "y": Int(p.y)])
+                }
             case .ended:
                 guard let from = dragStart else { return }
                 let to = desktopPoint(g.location(in: g.view))
@@ -475,7 +487,7 @@ struct ScreenHelpSheet: View {
             List {
                 Section("Moving around") {
                     HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
-                    HelpRow("cursorarrow.click", "Click and drag", "Tap to click where you tapped. One finger drags; it lets go where you lift.")
+                    HelpRow("cursorarrow.click", "Click and drag", "Tap to click where you tapped. Drag one finger to move the pointer; what you drag lets go where you lift.")
                     HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold.")
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")
                 }

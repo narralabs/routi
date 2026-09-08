@@ -384,13 +384,14 @@ extension KeySymbol {
 /// A plain arrow with a light outline so it stays visible on dark and light windows
 /// alike, anchored at its tip the way a real cursor is.
 struct RemoteCursor: View {
+    var size: CGFloat = 15
     var body: some View {
         Image(systemName: "cursorarrow.fill")
-            .font(.system(size: 15))
+            .font(.system(size: size))
             .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.7), radius: 1)
-            .shadow(color: .black.opacity(0.4), radius: 3)
+            .shadow(color: .black.opacity(0.9), radius: 1)
+            .shadow(color: .black.opacity(0.5), radius: 3)
             // SF Symbols centre their glyph; a cursor points from its top-left corner.
-            .offset(x: 5, y: 6)
+            .offset(x: size / 3, y: size * 0.4)
     }
 }

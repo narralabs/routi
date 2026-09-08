@@ -183,7 +183,9 @@ private struct ConnectingView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        #if os(macOS)
         .frame(minWidth: 460, minHeight: 320)
+        #endif
         .animation(.snappy(duration: 0.25), value: model.connectionFailed)
         .task { await model.watchForCore() }
         .task {

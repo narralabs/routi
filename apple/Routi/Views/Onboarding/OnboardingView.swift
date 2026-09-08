@@ -60,7 +60,11 @@ struct OnboardingView: View {
                 removal: .move(edge: direction == .trailing ? .leading : .trailing).combined(with: .opacity)
             ))
         }
+        #if os(macOS)
+        // A window minimum. On a phone this was wider than the screen, and the copy ran
+        // off both edges.
         .frame(minWidth: 560, minHeight: 560)
+        #endif
         .animation(.snappy(duration: 0.28), value: step)
     }
 

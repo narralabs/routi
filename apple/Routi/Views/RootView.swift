@@ -149,6 +149,10 @@ struct RootView: View {
                 }
                 .animation(.snappy(duration: 0.25), value: showBotSidebar)
                 .navigationSplitViewColumnWidth(min: 340, ideal: 760)
+            } else if model.isLoadingBots {
+                // The list is on its way; saying "no bots" now would be wrong for a
+                // moment and then replaced, which reads as a flicker.
+                ProgressView().controlSize(.small)
             } else if model.bots.isEmpty {
                 // Nothing is seeded, so the first thing a new install shows is this,
                 // with the one action that matters on it.

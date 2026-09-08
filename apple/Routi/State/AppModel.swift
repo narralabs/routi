@@ -45,6 +45,9 @@ final class AppModel {
     let notifier = Notifier()
     var errorMessage: String?
     var isLoadingMessages = false
+    /// True while a profile's bots are on their way: after a switch, and on the first
+    /// load. An empty list in that moment is not "no bots", and must not say so.
+    var isLoadingBots = true
 
     /// Settings replaces the whole window rather than opening a panel, so its
     /// visibility is app state, not view state — the ⌘, menu command toggles it too.
@@ -395,12 +398,14 @@ final class AppModel {
         guard id != currentProfileID, profiles.contains(where: { $0.id == id }) else { return }
         currentProfileID = id
         UserDefaults.standard.set(id, forKey: "currentProfile")
+        isLoadingBots = true
         clearSelection()
         bots = []
         messages = []
         modelsByProvider = [:]
         await refreshAuth()
         await refreshAll()
+        isLoadingBots = false
         // Open onto the first bot where the list and thread share the screen, as at launch.
         if Self.startsOnThread, let first = bots.first { await select(bot: first.id) }
     }
@@ -827,6 +832,7 @@ final class AppModel {
             // The profile can have changed under a slow reply; a stale list is dropped.
             guard profileId == currentProfileID else { return }
             bots = listed
+            isLoadingBots = false
             let list = try await client.rpc("conversations.list", field: "conversations", as: [Conversation].self)
             conversations = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             errorMessage = nil

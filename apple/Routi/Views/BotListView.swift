@@ -158,7 +158,10 @@ struct BotListView: View {
         .modifier(PhoneSearch(text: $search, searching: $searching))
         #endif
         .overlay {
-            if model.bots.isEmpty {
+            if model.isLoadingBots {
+                // Between profiles, or before the first list lands: nothing yet, not none.
+                ProgressView().controlSize(.small)
+            } else if model.bots.isEmpty {
                 // A profile made a moment ago has nothing connected; its first step is
                 // an account, not a bot.
                 ContentUnavailableView(

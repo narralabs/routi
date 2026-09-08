@@ -5,8 +5,8 @@
 Bots that live on your Mac, each with its own personality, model and screen. Give one a
 job, like watching a market, finding a hotel, or checking a price every morning, and it
 opens a browser and does it, on any AI you already pay for: a Claude plan, a ChatGPT
-plan, or an API key. It is a Mac app; the iPhone and iPad app is a window onto the same
-bots from wherever you are.
+plan, or an API key. Routi is a Mac app, with iPhone and iPad apps for reaching the same
+bots when you are away from it.
 
 > “One shared Linux, a screen per bot, any model you already pay for — on the Mac that
 > stays on. Same idea, cleanly executed. Ship it.”

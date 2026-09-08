@@ -44,48 +44,14 @@ struct ChatView: View {
             .onChange(of: model.selectedConversationID) { draft = "" }
     }
 
-    @ViewBuilder
     private var content: some View {
-        // A bot already at work — a greeting, a routine — gets the transcript even with
-        // nothing in it yet, so the typing indicator has somewhere to be. Showing the
-        // front door first and swapping it out a moment later read as a flicker.
-        if model.messages.isEmpty && !model.isLoadingMessages && !model.isBusy {
-            emptyThread
-        } else {
-            transcript
-        }
-    }
-
-    /// Greeting plus composer, vertically centred — the app's front door.
-    private var emptyThread: some View {
-        VStack(spacing: 26) {
-            Spacer()
-
-            VStack(spacing: 10) {
-                Text("Where should we begin?")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.primary)
-
-                if !bot.systemPrompt.isEmpty {
-                    Text(bot.systemPrompt)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 420)
-                }
-            }
-
-            VStack(spacing: 0) {
-                composer
-                configLine
-            }
-            .frame(maxWidth: 680)
-
-            Spacer()
-            Spacer()
-        }
-        .padding(.horizontal, 28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Always the transcript, empty or not. There used to be a front door here —
+        // "Where should we begin?" over a centred composer — for a thread with nothing
+        // in it, but a thread is only ever empty because the bot's greeting has not
+        // happened yet: it is the bot that opens, never the person. An empty thread now
+        // asks the core to greet (`AppModel.select`), and the typing dots have somewhere
+        // to be while it does.
+        transcript
     }
 
     /**

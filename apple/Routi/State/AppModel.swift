@@ -961,8 +961,20 @@ final class AppModel {
         isLoadingMessages = true
         client.subscribe(conversation.id)
         await loadMessages(conversation.id)
+        await greetIfSilent(conversation.id)
         await loadRoutines()
         await loadMemories()
+    }
+
+    /// A thread with nothing in it is a bot that has not spoken yet, and it is always
+    /// the bot that opens. The greeting normally runs the moment a bot is made, but a
+    /// core restarted mid-greeting, or a provider that failed that once, leaves the
+    /// thread empty; so an empty thread, opened, asks for it again. The core declines
+    /// if anything has been said since or a turn is already running.
+    private func greetIfSilent(_ conversationID: String) async {
+        guard selectedConversationID == conversationID, messages.isEmpty,
+              !busyConversations.contains(conversationID) else { return }
+        _ = try? await client.rpc("conversations.greet", ["conversationId": conversationID])
     }
 
     /// What is running on the selected bot's behalf, and how far along it is.

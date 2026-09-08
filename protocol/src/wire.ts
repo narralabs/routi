@@ -64,6 +64,8 @@ export const RpcMethods = {
 
   'conversations.list': { params: z.object({ botId: z.string().optional() }), result: z.object({ conversations: z.array(Conversation) }) },
   'conversations.create': { params: z.object({ botId: z.string(), title: z.string().optional() }), result: z.object({ conversation: Conversation }) },
+  /** Greets a bot's thread that has nothing in it yet; a no-op for any other. */
+  'conversations.greet': { params: z.object({ conversationId: z.string() }), result: z.object({ started: z.boolean() }) },
 
   'messages.list': {
     params: z.object({ conversationId: z.string(), limit: z.number().int().positive().max(500).default(100), before: z.number().int().optional() }),

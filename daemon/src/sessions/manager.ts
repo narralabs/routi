@@ -215,6 +215,23 @@ export class SessionManager {
   }
 
   /**
+   * Whether a greeting is the right next thing for this thread: a bot's own thread,
+   * nothing said in it yet, nothing running. The app asks this of any empty thread it
+   * opens, because a greeting can be lost — a core restarted mid-turn, a provider
+   * that failed that once — and it is always the bot that opens.
+   */
+  canGreet(conversationId: string): boolean {
+    const conv = this.store.getConversation(conversationId)
+    if (!conv) return false
+    // Rooms are not greeted: a bot introducing itself to four others the moment a
+    // channel exists is four introductions nobody asked for.
+    if (conv.kind === 'channel' || !conv.botId) return false
+    if (!this.store.getBot(conv.botId)) return false
+    if (this.inFlight.has(conversationId)) return false
+    return this.store.listMessages(conversationId, 1).length === 0
+  }
+
+  /**
    * The bot's opening line, sent the moment it is created.
    *
    * The prompt driving it is never persisted as a user message: the transcript should
@@ -224,14 +241,9 @@ export class SessionManager {
    * differently, and no two runs are identical.
    */
   async greet(conversationId: string): Promise<void> {
-    const conv = this.store.getConversation(conversationId)
-    if (!conv) return
-    // Rooms are not greeted: a bot introducing itself to four others the moment a
-    // channel exists is four introductions nobody asked for.
-    if (conv.kind === 'channel' || !conv.botId) return
-    const bot = this.store.getBot(conv.botId)
-    if (!bot) return
-    if (this.inFlight.has(conversationId)) return
+    if (!this.canGreet(conversationId)) return
+    const conv = this.store.getConversation(conversationId)!
+    const bot = this.store.getBot(conv.botId!)!
 
     // The person is greeted by their profile's name, minus any label after it:
     // "William (Narra Labs)" is greeted as William.

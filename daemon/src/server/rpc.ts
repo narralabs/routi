@@ -105,6 +105,15 @@ const handlers: Record<RpcMethod, Handler> = {
     return { conversation: ctx.store.createConversation(botId, title) }
   },
 
+  // The greeting again, for a thread that never got one. Fire and forget like the
+  // first; `started` says whether there was anything to do.
+  'conversations.greet': async (p, ctx) => {
+    const { conversationId } = p as { conversationId: string }
+    const started = ctx.sessions.canGreet(conversationId)
+    if (started) void ctx.sessions.greet(conversationId)
+    return { started }
+  },
+
   'messages.list': async (p, ctx) => {
     const { conversationId, limit, before } = p as { conversationId: string; limit: number; before?: number }
     const messages = ctx.store.listMessages(conversationId, limit, before)

@@ -74,6 +74,11 @@ they were yours before Routi.
   token stays in its Keychain, per profile. Gmail first, after launch. Public use of
   the Google ones waits on Google's app verification; until then, a bring-your-own
   OAuth client.
+- **Sign-in relay.** When a bot reaches a login it cannot do itself, it asks in the
+  thread with a Continue, and you finish the sign-in from wherever you are — your
+  phone, your own browser — with the session or the code relayed to the bot's screen,
+  rather than taking the screen over. Today that moment is a hand-over: the bot stops,
+  you sign in on its desktop, it carries on.
 - **Per-bot connectors and screens.** Which connections a bot may use, chosen per bot,
   the way a screen is today.
 

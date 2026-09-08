@@ -103,8 +103,12 @@ final class AppModel {
     var needsOnboarding: Bool {
         if !hasCompletedSetup && !authKnown { return true }
         guard authKnown else { return false }
-        return !auth.configured || !onboardingDismissed
+        return !coreConfigured || !onboardingDismissed
     }
+
+    /// Whether the core has any connection at all, in its first profile. Setup is about
+    /// the core; a second profile with nothing connected yet is not a reason to run it.
+    private(set) var coreConfigured = false
 
     /// The first few hundred milliseconds of a first launch, while the socket is
     /// deciding between a core that answers and a port that refuses. Either lands
@@ -148,7 +152,10 @@ final class AppModel {
         }
         client.onAuthStatus = { [weak self] status in
             guard let self else { return }
-            self.auth = status
+            // The handshake speaks for the first profile; another profile's status is
+            // fetched by `refreshAuth` once connected.
+            if self.currentProfileID == Profile.defaultID { self.auth = status }
+            self.coreConfigured = status.configured
             self.authKnown = true
             // A daemon that already has a credential shouldn't re-run setup — an app
             // reinstalled on a Mac that was set up before lands straight in the chat.
@@ -328,31 +335,113 @@ final class AppModel {
         Task { await checkCoreUpdate(force: true) }
     }
 
-    /// Shown in the sidebar footer, and used by the daemon to greet the user by name
-    /// when a bot is created.
-    ///
-    /// Stored on the daemon rather than in local defaults: the greeting is written
-    /// server-side, and a name that lived only on this Mac would leave the phone — and
-    /// every bot it created — addressing a stranger.
+    // MARK: - Profiles
+
+    /// Every profile on the core. The one showing is `currentProfileID`, remembered per
+    /// device: the phone can sit on work while the Mac sits on personal.
+    var profiles: [Profile] = []
+    private(set) var currentProfileID: String = UserDefaults.standard.string(forKey: "currentProfile") ?? Profile.defaultID
+    /// The new-profile sheet, reachable from the profile menu wherever it appears.
+    var isShowingNewProfile = false
+
+    var currentProfile: Profile? { profiles.first { $0.id == currentProfileID } }
+
+    /// The name at the foot of the sidebar: the profile's. The core greets the person
+    /// by it too, minus any label in brackets — "William (Narra Labs)" is greeted as
+    /// William. Stored on the core rather than in local defaults, so the phone and
+    /// every bot it creates know the same name.
     var userName: String {
+        if let name = currentProfile?.name, !name.isEmpty { return name }
         if !storedUserName.isEmpty { return storedUserName }
-        return account?.firstName ?? "Account"
+        return account?.firstName ?? "Profile"
     }
 
     private(set) var storedUserName = ""
 
+    /// Renames the profile showing. Kept under its old name because the sidebar and
+    /// onboarding still call it that: the name they ask for is the profile's.
     func setUserName(_ name: String) async {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != storedUserName else { return }
-        storedUserName = trimmed
-        try? await client.rpc("settings.set", ["patch": ["userName": trimmed]])
+        guard !trimmed.isEmpty, trimmed != currentProfile?.name else { return }
+        await renameProfile(currentProfileID, to: trimmed)
     }
 
     var userInitials: String {
-        let parts = userName.split(separator: " ")
+        // The label in brackets is not part of the name: "William (Narra Labs)" is W.
+        let bare = userName.replacingOccurrences(of: #"\s*\(.*\)\s*$"#, with: "", options: .regularExpression)
+        let parts = bare.split(separator: " ")
         guard let first = parts.first else { return "?" }
         if parts.count == 1 { return String(first.prefix(1)).uppercased() }
         return (String(first.prefix(1)) + String(parts[parts.count - 1].prefix(1))).uppercased()
+    }
+
+    func refreshProfiles() async {
+        guard let list = try? await client.rpc("profiles.list", field: "profiles", as: [Profile].self) else { return }
+        profiles = list
+        // A profile deleted from another device, or a core reset, leaves this device
+        // pointing at nothing; it falls back to the first rather than an empty list.
+        if !list.contains(where: { $0.id == currentProfileID }), let first = list.first {
+            currentProfileID = first.id
+            UserDefaults.standard.set(first.id, forKey: "currentProfile")
+        }
+    }
+
+    /// Shows another profile: its bots, its connections. Nothing about the previous one
+    /// is lost — its bots keep running on the core, which knows no "current" profile.
+    func switchProfile(to id: String) async {
+        guard id != currentProfileID, profiles.contains(where: { $0.id == id }) else { return }
+        currentProfileID = id
+        UserDefaults.standard.set(id, forKey: "currentProfile")
+        clearSelection()
+        bots = []
+        messages = []
+        modelsByProvider = [:]
+        await refreshAuth()
+        await refreshAll()
+        // Open onto the first bot where the list and thread share the screen, as at launch.
+        if Self.startsOnThread, let first = bots.first { await select(bot: first.id) }
+    }
+
+    /// Makes a profile and switches to it. It starts with nothing connected: the
+    /// person connects an account for it under Settings, exactly as for the first.
+    func createProfile(named name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            let profile = try await client.rpc("profiles.create", ["name": trimmed], field: "profile", as: Profile.self)
+            profiles.append(profile)
+            await switchProfile(to: profile.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func renameProfile(_ id: String, to name: String) async {
+        do {
+            let profile = try await client.rpc("profiles.rename", ["id": id, "name": name], field: "profile", as: Profile.self)
+            if let index = profiles.firstIndex(where: { $0.id == id }) { profiles[index] = profile }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Removes an empty profile and shows the first one. The core refuses a profile
+    /// with bots, and the first profile altogether; the error is shown as it comes.
+    func deleteProfile(_ id: String) async -> Bool {
+        do {
+            try await client.rpc("profiles.delete", ["id": id])
+            profiles.removeAll { $0.id == id }
+            if id == currentProfileID, let first = profiles.first { await switchProfile(to: first.id) }
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Whether the profile showing can be deleted: not the first, and holding no bots.
+    var canDeleteCurrentProfile: Bool {
+        currentProfileID != Profile.defaultID && bots.isEmpty
     }
 
     var selectedBot: Bot? {
@@ -618,8 +707,11 @@ final class AppModel {
     // MARK: - Auth
 
     func refreshAuth() async {
-        guard let status = try? await client.rpc("auth.status", field: "auth", as: AuthStatus.self) else { return }
+        let profileId = currentProfileID
+        guard let status = try? await client.rpc("auth.status", ["profileId": profileId], field: "auth", as: AuthStatus.self),
+              profileId == currentProfileID else { return }
         auth = status
+        if profileId == Profile.defaultID { coreConfigured = status.configured }
         authKnown = true
     }
 
@@ -641,7 +733,7 @@ final class AppModel {
     }
 
     func loadModels(for provider: String) async {
-        guard let result = try? await client.rpc("models.list", ["provider": provider]) else { return }
+        guard let result = try? await client.rpc("models.list", ["provider": provider, "profileId": currentProfileID]) else { return }
         let raw = result["models"] ?? []
         let list = (try? JSONDecoder().decode(
             [ModelInfo].self, from: JSONSerialization.data(withJSONObject: raw)
@@ -672,9 +764,11 @@ final class AppModel {
     /// holds the bots, which is the whole premise of the split.
     func providerLogin(_ provider: String) async throws {
         let status = try await client.rpc(
-            "auth.providerLogin", ["provider": provider], field: "auth", as: AuthStatus.self, timeout: 360
+            "auth.providerLogin", ["provider": provider, "profileId": currentProfileID],
+            field: "auth", as: AuthStatus.self, timeout: 360
         )
         auth = status
+        if currentProfileID == Profile.defaultID { coreConfigured = status.configured }
         await refreshAll()
     }
 
@@ -686,13 +780,14 @@ final class AppModel {
     @discardableResult
     func providerSetApiKey(_ provider: String, key: String) async throws -> String? {
         let result = try await client.rpc(
-            "auth.providerSetApiKey", ["provider": provider, "key": key], timeout: 90
+            "auth.providerSetApiKey", ["provider": provider, "key": key, "profileId": currentProfileID], timeout: 90
         )
         if let raw = result["auth"],
            let decoded = try? JSONDecoder().decode(
                AuthStatus.self, from: JSONSerialization.data(withJSONObject: raw)
            ) {
             auth = decoded
+            if currentProfileID == Profile.defaultID { coreConfigured = decoded.configured }
         }
         await loadModels(for: provider)
         await refreshAll()
@@ -701,19 +796,10 @@ final class AppModel {
 
     func providerSignOut(_ provider: String) async {
         guard let status = try? await client.rpc(
-            "auth.providerSignOut", ["provider": provider], field: "auth", as: AuthStatus.self
+            "auth.providerSignOut", ["provider": provider, "profileId": currentProfileID], field: "auth", as: AuthStatus.self
         ) else { return }
         auth = status
-    }
-
-    func signOut() async {
-        guard let status = try? await client.rpc("auth.signOut", field: "auth", as: AuthStatus.self) else { return }
-        auth = status
-        onboardingDismissed = false
-        bots = []
-        conversations = [:]
-        messages = []
-        clearSelection()
+        if currentProfileID == Profile.defaultID { coreConfigured = status.configured }
     }
 
     func completeOnboarding() {
@@ -732,7 +818,12 @@ final class AppModel {
 
     func refreshAll() async {
         do {
-            bots = try await client.rpc("bots.list", field: "bots", as: [Bot].self)
+            await refreshProfiles()
+            let profileId = currentProfileID
+            let listed = try await client.rpc("bots.list", ["profileId": profileId], field: "bots", as: [Bot].self)
+            // The profile can have changed under a slow reply; a stale list is dropped.
+            guard profileId == currentProfileID else { return }
+            bots = listed
             let list = try await client.rpc("conversations.list", field: "conversations", as: [Conversation].self)
             conversations = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             errorMessage = nil
@@ -742,12 +833,6 @@ final class AppModel {
             if let settings = try? await client.rpc("settings.get"),
                let values = settings["settings"] as? [String: Any] {
                 storedUserName = (values["userName"] as? String) ?? ""
-                // Self-healing: the greeting is written server-side, so a daemon that
-                // has lost the name would address nobody. The client still knows it
-                // from the Anthropic account, so push it back up.
-                if storedUserName.isEmpty, let derived = account?.firstName, !derived.isEmpty {
-                    await setUserName(derived)
-                }
             }
 
             await loadSharedMemories()
@@ -935,6 +1020,7 @@ final class AppModel {
                 "systemPrompt": systemPrompt,
                 "model": model,
                 "provider": provider,
+                "profileId": currentProfileID,
                 "surfaceMode": surfaceMode.rawValue,
             ]
             if let effort { params["effort"] = effort.rawValue }
@@ -1049,6 +1135,7 @@ final class AppModel {
             guard let raw = event.payload["bot"],
                   let data = try? JSONSerialization.data(withJSONObject: raw),
                   let bot = try? JSONDecoder().decode(Bot.self, from: data) else { return }
+            // Another profile's bot is not on this screen.
             if let index = bots.firstIndex(where: { $0.id == bot.id }) { bots[index] = bot }
 
         case "core.update.progress":

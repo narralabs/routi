@@ -29,6 +29,35 @@ final class PhoneNavigationTests: XCTestCase {
         app.cells.firstMatch.tap()
         XCTAssertTrue(app.buttons["showScreen"].waitForExistence(timeout: 10), "tapping \(name) again should open its chat")
     }
+
+    /// The initials at the top left open the profile menu, and Settings lives in it.
+    /// The menu is where a second profile is switched to; the first profile's name is
+    /// what General shows. Needs a core whose first profile is the one showing.
+    func testProfileMenuHoldsSwitchAndSettings() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
+        app.launch()
+        XCTAssertTrue(app.cells.firstMatch.waitForExistence(timeout: 30), "no bots listed; is the core running?")
+        let menu = app.buttons["profileMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "the profile menu should be in the top bar")
+        menu.tap()
+        XCTAssertTrue(app.buttons["Switch Profile"].waitForExistence(timeout: 5), "the menu should offer Switch Profile")
+        app.buttons["Switch Profile"].tap()
+        XCTAssertTrue(app.buttons["New Profile…"].waitForExistence(timeout: 5), "the submenu should offer a new profile")
+        // Back out of the submenu and the menu, then open Settings from it.
+        app.tap()
+        if app.buttons["Switch Profile"].exists { app.tap() }
+        menu.tap()
+        XCTAssertTrue(app.buttons["Settings…"].waitForExistence(timeout: 5), "the menu should offer Settings")
+        app.buttons["Settings…"].tap()
+        // The phone's Settings opens on its list of panes; General is the first.
+        let general = app.buttons["General"].exists ? app.buttons["General"] : app.staticTexts["General"]
+        XCTAssertTrue(general.waitForExistence(timeout: 10), "Settings should list General")
+        general.tap()
+        let field = app.textFields["profileName"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "General should show the profile's name")
+        XCTAssertFalse((field.value as? String ?? "").isEmpty, "the profile should have a name")
+    }
 }
 
 final class DesktopTouchTests: XCTestCase {

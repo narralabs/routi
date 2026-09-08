@@ -494,14 +494,19 @@ struct FinishingStep: View {
             subtitle: summary
         ) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("What should we call you?")
+                Text("Name your profile")
                     .font(.system(size: 13, weight: .medium))
                 TextField("Your name", text: $displayName)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 14))
                     .focused($nameFocused)
+                    .accessibilityIdentifier("profileName")
+                Text("Your bots greet you by it. A profile keeps its own bots and accounts, so a second one, say for work, can come later from the menu behind your name.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: 300)
+            .frame(maxWidth: 340)
             .onAppear {
                 // Pre-fill from the Anthropic account so most people just continue.
                 if displayName.isEmpty { displayName = model.account?.firstName ?? "" }

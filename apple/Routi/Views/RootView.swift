@@ -93,6 +93,12 @@ struct RootView: View {
         .sheet(isPresented: $showingNewBot) {
             NewBotSheet()
         }
+        .sheet(isPresented: Binding(
+            get: { model.isShowingNewProfile },
+            set: { model.isShowingNewProfile = $0 }
+        )) {
+            NewProfileSheet()
+        }
         #if !os(macOS)
         // Over the chat rather than in place of it: the navigation underneath keeps
         // its state, so closing the desktop lands back exactly where it was opened.

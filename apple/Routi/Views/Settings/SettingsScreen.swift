@@ -220,8 +220,11 @@ struct GeneralPane: View {
 
     var body: some View {
         SettingsPane(title: "General") {
-            SettingsSection("Account") {
-                AccountCard()
+            SettingsSection(
+                "Profile",
+                footnote: "A profile keeps its own bots and its own accounts. Switch or add one from the menu behind your name."
+            ) {
+                ProfileCard()
             }
 
             // What every bot knows about the person. Here rather than in a bot's rail
@@ -282,11 +285,17 @@ struct GeneralPane: View {
     }
 }
 
-/// Avatar, editable name, account email, and sign-out — the card from the reference.
-private struct AccountCard: View {
+/// Avatar, the profile's editable name, and what it holds. There is no account here:
+/// Routi has no accounts of its own, and the Claude or ChatGPT sign-ins live with
+/// their providers, where each can be disconnected on its own.
+private struct ProfileCard: View {
     @Environment(AppModel.self) private var model
     @State private var draftName = ""
-    @State private var showingDisconnect = false
+    /// Which profile the draft belongs to. The rename is committed when the card
+    /// goes away, and by then the profile showing can be a different one: deleting
+    /// this profile switches to the first, which must not inherit the name.
+    @State private var profileID = ""
+    @State private var showingDelete = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -297,38 +306,59 @@ private struct AccountCard: View {
                 .background(.quaternary, in: .circle)
 
             VStack(alignment: .leading, spacing: 3) {
-                TextField("Your name", text: $draftName)
+                TextField("Profile name", text: $draftName)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14, weight: .medium))
-                    .onSubmit { Task { await model.setUserName(draftName) } }
-                if let email = model.auth.subscription.email {
-                    Text(email)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
+                    .onSubmit { commit() }
+                    .accessibilityIdentifier("profileName")
+                Text(holdings)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 12)
 
-            Button("Sign Out") { showingDisconnect = true }
-                .disabled(!model.auth.configured)
+            if model.currentProfileID != Profile.defaultID {
+                Button("Delete Profile") { showingDelete = true }
+                    .disabled(!model.canDeleteCurrentProfile)
+                    .help(model.canDeleteCurrentProfile ? "" : "Delete its bots first.")
+            }
         }
         .padding(14)
-        .onAppear { draftName = model.userName }
+        .onAppear {
+            draftName = model.userName
+            profileID = model.currentProfileID
+        }
         // Commit on focus loss as well as Return; a name typed and abandoned should
         // still stick, the way every other settings field behaves.
-        .onDisappear { Task { await model.setUserName(draftName) } }
-        .confirmationDialog("Sign out of Claude?", isPresented: $showingDisconnect) {
-            Button("Sign Out", role: .destructive) {
+        .onDisappear { commit() }
+        .confirmationDialog("Delete \(model.userName)?", isPresented: $showingDelete) {
+            Button("Delete Profile", role: .destructive) {
                 Task {
-                    await model.signOut()
-                    model.isShowingSettings = false
+                    if await model.deleteProfile(model.currentProfileID) {
+                        model.isShowingSettings = false
+                    }
                 }
             }
         } message: {
-            Text("You'll go back through setup to reconnect.")
+            Text("Its accounts are disconnected. Bots are never deleted this way.")
         }
+    }
+
+    private func commit() {
+        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let profile = model.profiles.first(where: { $0.id == profileID }),
+              profile.name != trimmed else { return }
+        Task { await model.renameProfile(profileID, to: trimmed) }
+    }
+
+    private var holdings: String {
+        let bots = model.bots.count
+        let accounts = model.auth.providers.values.filter(\.configured).count
+        let botPart = bots == 1 ? "1 bot" : "\(bots) bots"
+        let accountPart = accounts == 0 ? "nothing connected" : accounts == 1 ? "1 account" : "\(accounts) accounts"
+        return "\(botPart), \(accountPart)"
     }
 }
 

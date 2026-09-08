@@ -15,6 +15,7 @@
 		22565DA9110228003E0B6A11 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5AE73982ED2E7411675921 /* Entities.swift */; };
 		23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E864489D80BFEA22D10DE997 /* OnboardingView.swift */; };
 		2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */; };
+		2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F6D67DADD4D1871970741B /* ProfileMenu.swift */; };
 		36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DFC65D324CCCB7788FAC01 /* ChatView.swift */; };
 		39AE62A74C81E7C6A1A0B843 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */; };
 		3C30816F38EAD85EBFEFA0CE /* NewBotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD073724E27CFF96D741B5D /* NewBotSheet.swift */; };
@@ -82,6 +83,7 @@
 		A829C4CB13084CF2DEEE912D /* NoteEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditor.swift; sourceTree = "<group>"; };
 		AE9EE469AEAC6433B4672D15 /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		B2D720880BAD6D2F0296D4A8 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		B3F6D67DADD4D1871970741B /* ProfileMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileMenu.swift; sourceTree = "<group>"; };
 		B7400158C8ADF31FCEE7EA29 /* Surface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Surface.swift; sourceTree = "<group>"; };
 		DB45665E5E45F01F8945DBB6 /* MessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRow.swift; sourceTree = "<group>"; };
 		DEA46F4858311831473C9EF7 /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
@@ -210,6 +212,7 @@
 				EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */,
 				DB45665E5E45F01F8945DBB6 /* MessageRow.swift */,
 				A829C4CB13084CF2DEEE912D /* NoteEditor.swift */,
+				B3F6D67DADD4D1871970741B /* ProfileMenu.swift */,
 				A0128A80F54B6560A538AC1C /* ScreenView.swift */,
 				5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */,
 			);
@@ -380,6 +383,7 @@
 				161C6ED5CC704F12603B50FB /* Notifier.swift in Sources */,
 				7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */,
 				23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */,
+				2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */,
 				F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */,
 				D70141640505B1F4BAA53171 /* RootView.swift in Sources */,
 				C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */,

@@ -27,12 +27,24 @@ enum SurfaceMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// An organisational context: its own bots and its own provider connections, on the
+/// same core. "William (Personal)" and "William (Narra Labs)" are two profiles, and a
+/// bot lives in exactly one.
+struct Profile: Codable, Identifiable, Hashable {
+    static let defaultID = "default"
+
+    var id: String
+    var name: String
+    var createdAt: Double
+}
+
 struct Bot: Codable, Identifiable, Hashable {
     var id: String
     var name: String
     var avatarColor: String
     var systemPrompt: String
     var provider: String
+    var profileId: String
     var model: String
     var effort: String?
     var surfaceMode: SurfaceMode
@@ -40,7 +52,7 @@ struct Bot: Codable, Identifiable, Hashable {
     var archivedAt: Double?
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, avatarColor, systemPrompt, provider, model, effort, surfaceMode, updatedAt, archivedAt
+        case id, name, avatarColor, systemPrompt, provider, profileId, model, effort, surfaceMode, updatedAt, archivedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -50,6 +62,7 @@ struct Bot: Codable, Identifiable, Hashable {
         avatarColor = try c.decodeIfPresent(String.self, forKey: .avatarColor) ?? "#8E8E93"
         systemPrompt = try c.decodeIfPresent(String.self, forKey: .systemPrompt) ?? ""
         provider = try c.decodeIfPresent(String.self, forKey: .provider) ?? "anthropic"
+        profileId = try c.decodeIfPresent(String.self, forKey: .profileId) ?? Profile.defaultID
         model = try c.decodeIfPresent(String.self, forKey: .model) ?? "default"
         effort = try c.decodeIfPresent(String.self, forKey: .effort)
         surfaceMode = (try? c.decode(SurfaceMode.self, forKey: .surfaceMode)) ?? .none

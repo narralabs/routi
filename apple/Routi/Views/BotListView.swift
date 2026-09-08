@@ -70,7 +70,7 @@ struct BotListView: View {
             // Mac keeps its account row at the foot of the sidebar; a phone has no room
             // for a second bar, and the top one is where a person looks for these.
             ToolbarItem(placement: .topBarLeading) {
-                Button { model.isShowingSettings = true } label: {
+                ProfileMenu {
                     Text(model.userInitials)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -81,9 +81,6 @@ struct BotListView: View {
                                 .overlay { Circle().stroke(.background, lineWidth: 1.5) }
                         }
                 }
-                // Plain, or the toolbar tints the initial and its disc the accent colour.
-                .buttonStyle(.plain)
-                .accessibilityLabel("Account and settings")
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button("Search", systemImage: "magnifyingglass") { searching = true }
@@ -162,10 +159,14 @@ struct BotListView: View {
         #endif
         .overlay {
             if model.bots.isEmpty {
+                // A profile made a moment ago has nothing connected; its first step is
+                // an account, not a bot.
                 ContentUnavailableView(
                     "No Bots",
                     systemImage: "sparkles",
-                    description: Text("Create one with + to get started.")
+                    description: Text(model.auth.configured
+                        ? "Create one with + to get started."
+                        : "Connect an account for \(model.userName) under Settings, then create one with +.")
                 )
             } else if filtered.isEmpty {
                 ContentUnavailableView.search(text: search)
@@ -345,7 +346,7 @@ private struct SidebarFooter: View {
                 }
                 .buttonStyle(.plain)
                 .help("New Bot")
-                Button { model.isShowingSettings = true } label: {
+                ProfileMenu {
                     Text(model.userInitials)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -355,8 +356,8 @@ private struct SidebarFooter: View {
                             Circle().fill(statusColor).frame(width: 7, height: 7)
                                 .overlay { Circle().stroke(.background, lineWidth: 1.5) }
                         }
+                        .contentShape(.circle)
                 }
-                .buttonStyle(.plain)
                 .help(model.userName)
             }
             .frame(maxWidth: .infinity)
@@ -386,16 +387,16 @@ private struct SidebarFooter: View {
                 }
             }
 
-            // The account row opens Settings — the name is the affordance, as in the
-            // reference, rather than the word "Settings".
-            FooterRow(title: model.userName, statusColor: statusColor) {
-                Text(model.userInitials)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-                    .background(.quaternary, in: .circle)
-            } action: {
-                model.isShowingSettings = true
+            // The profile row: the name opens the profile menu, which is where Settings
+            // lives too, rather than the word "Settings" taking a row of its own.
+            ProfileMenu {
+                FooterRowLabel(title: model.userName, statusColor: statusColor) {
+                    Text(model.userInitials)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .background(.quaternary, in: .circle)
+                }
             }
         }
         .padding(.horizontal, 8)
@@ -410,27 +411,38 @@ private struct FooterRow<Leading: View>: View {
     @ViewBuilder let leading: Leading
     let action: () -> Void
 
+    var body: some View {
+        Button(action: action) {
+            FooterRowLabel(title: title, statusColor: statusColor) { leading }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The look of a footer row, shared by the button rows and the profile menu.
+private struct FooterRowLabel<Leading: View>: View {
+    let title: String
+    var statusColor: Color?
+    @ViewBuilder let leading: Leading
+
     @State private var isHovering = false
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                leading
-                Text(title).font(.system(size: 13)).lineLimit(1)
-                Spacer(minLength: 0)
-                if let statusColor {
-                    Circle().fill(statusColor).frame(width: 6, height: 6)
-                }
+        HStack(spacing: 10) {
+            leading
+            Text(title).font(.system(size: 13)).lineLimit(1)
+            Spacer(minLength: 0)
+            if let statusColor {
+                Circle().fill(statusColor).frame(width: 6, height: 6)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 7)
-            .background(
-                isHovering ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
-                in: .rect(cornerRadius: 7, style: .continuous)
-            )
-            .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(
+            isHovering ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear),
+            in: .rect(cornerRadius: 7, style: .continuous)
+        )
+        .contentShape(.rect)
         .onHover { isHovering = $0 }
     }
 }

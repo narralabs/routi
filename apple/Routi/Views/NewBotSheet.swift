@@ -276,6 +276,8 @@ struct SheetScaffold<Content: View>: View {
     let title: String
     let confirmLabel: String
     let canConfirm: Bool
+    /// The Mac sheet's height. The bot form needs the room; a one-field sheet does not.
+    var height: CGFloat = 660
     @ViewBuilder let content: Content
     let onConfirm: () -> Void
     let onCancel: () -> Void
@@ -308,7 +310,7 @@ struct SheetScaffold<Content: View>: View {
             }
             .padding(14)
         }
-        .frame(width: 540, height: 660)
+        .frame(width: 540, height: height)
         #else
         NavigationStack {
             content

@@ -19,7 +19,6 @@ struct ScreenWindow: View {
             ScreenView(
                 frame: model.surfaceFrame,
                 size: CGSize(width: model.surface.width, height: model.surface.height),
-                pointer: model.surfacePointer,
                 isInteractive: true,
                 onInput: { input in Task { await model.sendSurfaceInput(input) } },
                 onPaste: { Task { await model.pasteIntoSurface() } },

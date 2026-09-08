@@ -55,8 +55,7 @@ struct DetailRail: View {
             case .running:
                 ScreenView(
                     frame: model.surfaceFrame,
-                    size: CGSize(width: model.surface.width, height: model.surface.height),
-                    pointer: model.surfacePointer
+                    size: CGSize(width: model.surface.width, height: model.surface.height)
                 )
                 .aspectRatio(model.surface.aspectRatio, contentMode: .fit)
                 .clipShape(.rect(cornerRadius: 10, style: .continuous))

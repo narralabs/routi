@@ -11,8 +11,6 @@ import AppKit
 struct ScreenView: View {
     let frame: Data?
     let size: CGSize
-    /// The desktop's pointer, in desktop pixels.
-    var pointer: CGPoint?
     var isInteractive = false
     var onInput: ([String: Any]) -> Void = { _ in }
     var onPaste: () -> Void = {}
@@ -62,22 +60,12 @@ struct ScreenView: View {
             if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
         #endif
-        // The desktop's cursor, drawn rather than captured — on the thumbnail only.
-        //
-        // X screenshots contain no pointer — the server composites it above the root
-        // window — so the frame can never show one. Drawing it from the position that
-        // arrives with each frame is what lets the thumbnail show a bot at work. In the
-        // full-window view the Mac's own pointer is the pointer, and a second arrow a
-        // frame behind it only ever read as a laggy cursor; it is not drawn there.
-        .overlay(alignment: .topLeading) {
-            if let pointer, fitted.width > 0, size.width > 0, !isInteractive {
-                let scale = fitted.width / size.width
-                RemoteCursor()
-                    .offset(x: pointer.x * scale, y: pointer.y * scale)
-                    .allowsHitTesting(false)
-                    .animation(.linear(duration: 0.1), value: pointer)
-            }
-        }
+        // No drawn cursor here. X screenshots contain no pointer — the server
+        // composites it above the root window — and on the Mac the person's own
+        // pointer is the pointer: in the window a second arrow a frame behind it read
+        // as a laggy cursor, and on the thumbnail it was one more thing moving in the
+        // corner of the eye. The phone draws one (`MobileScreen`), because there the
+        // finger moves a pointer it cannot otherwise see.
         // Input rides on top of the picture, sized to it, so a point in the layer's
         // own coordinates is a point on the screen — scaled, with nothing to subtract.
         .overlay {

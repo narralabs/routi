@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         imagemagick \
         fonts-liberation \
         fonts-noto-color-emoji \
+        adwaita-icon-theme \
         ca-certificates \
         procps \
         socat \

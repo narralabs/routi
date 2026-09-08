@@ -30,8 +30,14 @@ case "${1:-}" in
   open)     offset=$((${DISPLAY#:} - 99))
             inner=$((19222 + offset))
             outer=$((9222 + offset))
+            # --class matches the dock launcher's StartupWMClass, so the window the bot
+            # opens lands on the Chrome icon rather than beside it. Maximised, because
+            # a bot reads the screen as a whole and a window short of the edge leaves
+            # a band of nothing in every screenshot; the dock reserves its own strip.
             chromium --no-first-run --no-default-browser-check \
               --user-data-dir="$HOME/.chromium-$DISPLAY" \
+              --class=routi-chrome \
+              --start-maximized \
               --disable-features=TranslateUI \
               --remote-debugging-port="$inner" \
               "$2" >/dev/null 2>&1 &

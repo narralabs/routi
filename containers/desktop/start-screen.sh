@@ -43,6 +43,10 @@ mkdir -p \
 cp -f /usr/share/applications/routi-chrome.desktop \
   "$HOME/.local/share/applications/routi-chrome.desktop"
 
+# Thunar names an icon only XFCE's own theme carries; the standard name is in Adwaita.
+sed 's/^Icon=.*/Icon=system-file-manager/' /usr/share/applications/thunar.desktop \
+  >"$HOME/.local/share/applications/routi-files.desktop"
+
 cat >"$HOME/.config/mimeapps.list" <<'EOFMIME'
 [Default Applications]
 x-scheme-handler/http=routi-chrome.desktop
@@ -53,7 +57,7 @@ printf '%s\n' '[PlankDockItemPreferences]' \
   "Launcher=file://${HOME}/.local/share/applications/routi-chrome.desktop" \
   >"$HOME/.config/plank/dock1/launchers/chrome.dockitem"
 printf '%s\n' '[PlankDockItemPreferences]' \
-  'Launcher=file:///usr/share/applications/thunar.desktop' \
+  "Launcher=file://${HOME}/.local/share/applications/routi-files.desktop" \
   >"$HOME/.config/plank/dock1/launchers/thunar.dockitem"
 printf '%s\n' '[PlankDockItemPreferences]' \
   'Launcher=file:///usr/share/applications/xfce4-terminal.desktop' \

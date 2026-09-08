@@ -17,6 +17,7 @@ fi
 exec chromium \
   --user-data-dir="$profile" \
   --class=routi-chrome \
+  --start-maximized \
   --no-first-run \
   --no-default-browser-check \
   --disable-dev-shm-usage \

@@ -38,7 +38,12 @@ settings:|' project.yml
 }
 
 if [ "${1:-}" = "--ios" ]; then
-  TEAM=$(security find-identity -v -p codesigning | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p' | head -1)
+  # The team is the one that signs releases — the Developer ID identity's — not
+  # whichever development certificate happens to be listed first; a personal team's
+  # certificate got picked and pulled in an Apple ID whose session had expired.
+  # ROUTI_TEAM overrides.
+  TEAM="${ROUTI_TEAM:-$(security find-identity -v -p codesigning | grep 'Developer ID Application' | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p' | head -1)}"
+  [ -n "$TEAM" ] || TEAM=$(security find-identity -v -p codesigning | sed -n 's/.*(\([A-Z0-9]\{10\}\)).*/\1/p' | head -1)
   if [ -z "$TEAM" ]; then
     echo "No codesigning identity found." >&2
     echo "Open Xcode > Settings > Accounts, add your Apple ID, then re-run." >&2

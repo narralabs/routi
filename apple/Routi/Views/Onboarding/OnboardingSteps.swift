@@ -115,7 +115,8 @@ struct EndpointStep: View {
         OnboardingScaffold(
             icon: "network",
             title: "Connect to Routi Core",
-            subtitle: "Routi Core runs on a Mac that stays on. Enter that Mac's address. With Tailscale on the Mac and on this device, its Tailscale address works from anywhere, at home or away."
+            subtitle: "Routi Core runs on a Mac that stays on. Enter that Mac's address. With Tailscale on the Mac and on this device, its Tailscale address works from anywhere, at home or away.",
+            onBack: onBack
         ) {
             VStack(spacing: 14) {
                 #if os(macOS)
@@ -177,15 +178,18 @@ struct EndpointStep: View {
             }
             .frame(maxWidth: 420)
         } actions: {
+            // One primary, full width, on a phone; Back is the chevron at the top.
             HStack(spacing: 12) {
+                #if os(macOS)
                 Button("Back", action: onBack)
                     .controlSize(.large)
+                #endif
 
                 Button(action: connect) {
                     if isConnecting {
-                        ProgressView().controlSize(.small).frame(maxWidth: 200)
+                        ProgressView().controlSize(.small).frame(maxWidth: 260)
                     } else {
-                        Text("Connect").frame(maxWidth: 200)
+                        Text("Connect").frame(maxWidth: 260)
                     }
                 }
                 .controlSize(.large)
@@ -244,7 +248,7 @@ struct CredentialStep: View {
     @State private var isWorking = false
 
     var body: some View {
-        OnboardingScaffold(icon: "brain", title: "Connect an AI", subtitle: subtitle) {
+        OnboardingScaffold(icon: "brain", title: "Connect an AI", subtitle: subtitle, onBack: phoneBack) {
             VStack(spacing: 12) {
                 switch mode {
                 case .choosing: choices
@@ -358,20 +362,34 @@ struct CredentialStep: View {
         .padding(.vertical, 20)
     }
 
+    /// Where Back goes on a phone: a step back, or out of the key form.
+    private var phoneBack: () -> Void {
+        switch mode {
+        case .key: return { withAnimation { mode = .choosing; failure = nil } }
+        default: return onBack
+        }
+    }
+
     @ViewBuilder
     private var actions: some View {
         switch mode {
         case .choosing:
+            #if os(macOS)
             Button("Back", action: onBack).controlSize(.large)
+            #else
+            EmptyView()
+            #endif
         case .key:
             HStack(spacing: 12) {
+                #if os(macOS)
                 Button("Back") { withAnimation { mode = .choosing; failure = nil } }
                     .controlSize(.large)
+                #endif
                 Button(action: submitKey) {
                     if isWorking {
-                        ProgressView().controlSize(.small).frame(maxWidth: 200)
+                        ProgressView().controlSize(.small).frame(maxWidth: 260)
                     } else {
-                        Text("Connect").frame(maxWidth: 200)
+                        Text("Connect").frame(maxWidth: 260)
                     }
                 }
                 .controlSize(.large)

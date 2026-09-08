@@ -144,11 +144,31 @@ struct OnboardingScaffold<Content: View, Actions: View>: View {
     var logo: String? = nil
     let title: String
     let subtitle: String
+    /// On a phone, a chevron at the top-left, where a step back belongs; the Mac's
+    /// steps keep Back beside their primary button, in the row a window has room for.
+    var onBack: (() -> Void)? = nil
     @ViewBuilder let content: Content
     @ViewBuilder let actions: Actions
 
     var body: some View {
         VStack(spacing: 0) {
+            #if !os(macOS)
+            HStack {
+                if let onBack {
+                    Button(action: onBack) {
+                        Label("Back", systemImage: "chevron.left")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 17))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            #endif
+
             Spacer(minLength: 24)
 
             VStack(spacing: 14) {

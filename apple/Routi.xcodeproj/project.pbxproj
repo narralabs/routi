@@ -14,6 +14,7 @@
 		2046900E789F1433535727F0 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75ECC9B53C46B40DF50283ED /* Composer.swift */; };
 		22565DA9110228003E0B6A11 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5AE73982ED2E7411675921 /* Entities.swift */; };
 		23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E864489D80BFEA22D10DE997 /* OnboardingView.swift */; };
+		2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */; };
 		36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DFC65D324CCCB7788FAC01 /* ChatView.swift */; };
 		39AE62A74C81E7C6A1A0B843 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */; };
 		3C30816F38EAD85EBFEFA0CE /* NewBotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD073724E27CFF96D741B5D /* NewBotSheet.swift */; };
@@ -43,7 +44,18 @@
 		F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEA46F4858311831473C9EF7 /* Providers.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		3120C7EE351557FB3AFA47D9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 35538A6876F222107FE2DB06 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 56A6E8349922C39DB4FE5BDE;
+			remoteInfo = Routi;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopTouchTests.swift; sourceTree = "<group>"; };
 		04C419477237E8F8F539AB6D /* ScreenWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenWindow.swift; sourceTree = "<group>"; };
 		099C9C1462D777FC014D22E1 /* Routi.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Routi.entitlements; sourceTree = "<group>"; };
 		0BDD1652BD89D0FF8E9E5053 /* DesktopHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopHostView.swift; sourceTree = "<group>"; };
@@ -80,6 +92,7 @@
 		EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
 		F4DFC65D324CCCB7788FAC01 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		F674CA7B76558EF0A3FA15A7 /* RoutiUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = RoutiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -127,6 +140,7 @@
 			isa = PBXGroup;
 			children = (
 				97647FF55564F4B40332D6CA /* Routi.app */,
+				F674CA7B76558EF0A3FA15A7 /* RoutiUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -135,6 +149,7 @@
 			isa = PBXGroup;
 			children = (
 				2A4718C548C40F1CAAD6EB0D /* Routi */,
+				E3A5557C2BEA2D63961175F4 /* RoutiUITests */,
 				8E63362B6040397E9B8280AE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -201,6 +216,14 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
+		E3A5557C2BEA2D63961175F4 /* RoutiUITests */ = {
+			isa = PBXGroup;
+			children = (
+				01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */,
+			);
+			path = RoutiUITests;
+			sourceTree = "<group>";
+		};
 		E7C53597C76C9CFF1D60B6AB /* Client */ = {
 			isa = PBXGroup;
 			children = (
@@ -212,6 +235,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		21B047F081972FB4C3B4E74F /* RoutiUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D3E23A6142B3B55263E6924E /* Build configuration list for PBXNativeTarget "RoutiUITests" */;
+			buildPhases = (
+				217EC417CE3D83CAA18DD66F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				173D5FC082B0BDB8AA37F4A3 /* PBXTargetDependency */,
+			);
+			name = RoutiUITests;
+			packageProductDependencies = (
+			);
+			productName = RoutiUITests;
+			productReference = F674CA7B76558EF0A3FA15A7 /* RoutiUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		56A6E8349922C39DB4FE5BDE /* Routi */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0AE43F2ED79A028A2E2ABA02 /* Build configuration list for PBXNativeTarget "Routi" */;
@@ -240,6 +281,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					21B047F081972FB4C3B4E74F = {
+						ProvisioningStyle = Automatic;
+						TestTargetID = 56A6E8349922C39DB4FE5BDE;
+					};
 					56A6E8349922C39DB4FE5BDE = {
 						ProvisioningStyle = Manual;
 					};
@@ -259,6 +304,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				21B047F081972FB4C3B4E74F /* RoutiUITests */,
 				56A6E8349922C39DB4FE5BDE /* Routi */,
 			);
 		};
@@ -299,6 +345,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		217EC417CE3D83CAA18DD66F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D84C510B4B830C0400DC0757 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -340,6 +394,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		173D5FC082B0BDB8AA37F4A3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 56A6E8349922C39DB4FE5BDE /* Routi */;
+			targetProxy = 3120C7EE351557FB3AFA47D9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		113C6E5CE499C37D0FF36EB1 /* Debug */ = {
@@ -403,7 +465,6 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -468,7 +529,6 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = minimal;
@@ -508,6 +568,42 @@
 				TARGETED_DEVICE_FAMILY = "";
 			};
 			name = Release;
+		};
+		70AAEA9B05A4228FDF9DB25A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Routi;
+			};
+			name = Release;
+		};
+		B1B2461117A466CB6D67F03C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Routi;
+			};
+			name = Debug;
 		};
 		F279E163A420017DB7D461D1 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -550,6 +646,15 @@
 			buildConfigurations = (
 				F279E163A420017DB7D461D1 /* Debug */,
 				30A4B0F42EFE3DB480484480 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D3E23A6142B3B55263E6924E /* Build configuration list for PBXNativeTarget "RoutiUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1B2461117A466CB6D67F03C /* Debug */,
+				70AAEA9B05A4228FDF9DB25A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

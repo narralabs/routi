@@ -22,6 +22,10 @@ struct MobileScreen: View {
     @State private var trackpadPointer: CGPoint?
     @State private var zoom: CGFloat = 1
     @State private var pan: CGSize = .zero
+    #if DEBUG
+    /// What the desktop was last sent, for the UI tests to read back.
+    @State private var inputLog: [String] = []
+    #endif
 
     private var bot: Bot? { model.selectedBot }
 
@@ -36,6 +40,15 @@ struct MobileScreen: View {
             bottomBar
         }
         .background(Color.black.ignoresSafeArea())
+        #if DEBUG
+        .overlay(alignment: .bottom) {
+            Text(inputLog.suffix(8).joined(separator: " | "))
+                .font(.system(size: 4))
+                .foregroundStyle(.white.opacity(0.02))
+                .accessibilityIdentifier("inputLog")
+                .allowsHitTesting(false)
+        }
+        #endif
         .preferredColorScheme(.dark)
         .statusBarHidden(false)
         .onAppear { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
@@ -188,7 +201,18 @@ struct MobileScreen: View {
                             zoom: zoom,
                             pointer: { trackpadPointer ?? model.surfacePointer ?? CGPoint(x: size.width / 2, y: size.height / 2) },
                             onPointerMoved: { trackpadPointer = $0 },
-                            onInput: { input in Task { await model.sendSurfaceInput(input) } },
+                            onInput: { input in
+                                #if DEBUG
+                                inputLog.append(Self.describe(input))
+                                #endif
+                                Task { await model.sendSurfaceInput(input) }
+                            },
+                            sendMove: { p in
+                                #if DEBUG
+                                inputLog.append("move")
+                                #endif
+                                await model.sendSurfaceInput(["kind": "move", "x": Int(p.x), "y": Int(p.y)])
+                            },
                             onZoom: { delta, anchor in
                                 let next = min(max(zoom * delta, 1), 4)
                                 zoom = next
@@ -210,6 +234,19 @@ struct MobileScreen: View {
 
     /// The pointer the finger last put somewhere wins over the frame's, which lags it;
     /// with neither, the middle, so there is always an arrow to find.
+    #if DEBUG
+    /// "click(1)@640,400", "drag", "scroll", "key" — enough for a test to tell them apart.
+    static func describe(_ input: [String: Any]) -> String {
+        let kind = input["kind"] as? String ?? "?"
+        switch kind {
+        case "click": return "click(\(input["button"] as? Int ?? 1))@\(input["x"] ?? 0),\(input["y"] ?? 0)"
+        case "doubleClick": return "doubleClick@\(input["x"] ?? 0),\(input["y"] ?? 0)"
+        case "drag": return "drag@\(input["fromX"] ?? 0),\(input["fromY"] ?? 0)->\(input["toX"] ?? 0),\(input["toY"] ?? 0)"
+        default: return kind
+        }
+    }
+    #endif
+
     private var pointerToDraw: CGPoint? {
         trackpadPointer ?? model.surfacePointer
             ?? CGPoint(x: Double(model.surface.width) / 2, y: Double(model.surface.height) / 2)
@@ -286,8 +323,16 @@ private struct TouchLayer: UIViewRepresentable {
     let pointer: () -> CGPoint
     let onPointerMoved: (CGPoint) -> Void
     let onInput: ([String: Any]) -> Void
+    /// Pointer moves, awaited: the layer sends one at a time and keeps only the latest
+    /// while one is away, so a drag never queues a backlog behind a slow round trip.
+    let sendMove: (CGPoint) async -> Void
     let onZoom: (CGFloat, CGPoint) -> Void
     let onPan: (CGSize) -> Void
+
+    /// How far above the fingertip the pointer's hotspot sits while a finger drags.
+    /// The finger hides what is under it; the arrow rides just above, where it can be
+    /// seen, and the drag acts on what the arrow is on. A tap is exact.
+    static let dragLift: CGFloat = 36
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -295,6 +340,9 @@ private struct TouchLayer: UIViewRepresentable {
         let view = UIView()
         view.isMultipleTouchEnabled = true
         view.backgroundColor = .clear
+        view.isAccessibilityElement = true
+        view.accessibilityIdentifier = "desktop"
+        view.accessibilityLabel = "Desktop"
         let c = context.coordinator
 
         let tap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tap(_:)))
@@ -305,7 +353,10 @@ private struct TouchLayer: UIViewRepresentable {
         twoFingerTap.numberOfTouchesRequired = 2
         let press = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.press(_:)))
         press.minimumPressDuration = 0.45
-        press.allowableMovement = 3_000
+        // A hold is a finger that stays put. With unlimited movement allowed, a slow
+        // drag counted as a hold and let go as a right-click.
+        press.allowableMovement = 12
+        c.press = press
         let drag = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.oneFingerPan(_:)))
         drag.minimumNumberOfTouches = 1
         drag.maximumNumberOfTouches = 1
@@ -322,16 +373,42 @@ private struct TouchLayer: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIView, context: Context) {
         context.coordinator.parent = self
+        // In trackpad mode a hold that then moves is the drag, so movement is allowed.
+        context.coordinator.press?.allowableMovement = trackpadMode ? 3_000 : 12
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var parent: TouchLayer
+        weak var press: UILongPressGestureRecognizer?
         private var dragStart: CGPoint?
         private var pressing = false
         private var scrollRemainder: CGFloat = 0
         private var lastMove = Date.distantPast
+        /// The move to send next, and whether one is away. Latest wins.
+        private var pendingMove: CGPoint?
+        private var moveInFlight = false
 
         init(_ parent: TouchLayer) { self.parent = parent }
+
+        private func queueMove(_ p: CGPoint) {
+            pendingMove = p
+            guard !moveInFlight else { return }
+            moveInFlight = true
+            Task { @MainActor [weak self] in
+                while let self, let next = self.pendingMove {
+                    self.pendingMove = nil
+                    await self.parent.sendMove(next)
+                }
+                self?.moveInFlight = false
+            }
+        }
+
+        /// The fingertip, lifted so the arrow is visible above it.
+        private func liftedPoint(_ g: UIGestureRecognizer) -> CGPoint {
+            var p = g.location(in: g.view)
+            p.y = max(p.y - TouchLayer.dragLift, 0)
+            return desktopPoint(p)
+        }
 
         /// A point on the layer, as desktop pixels.
         private func desktopPoint(_ p: CGPoint) -> CGPoint {
@@ -362,31 +439,54 @@ private struct TouchLayer: UIViewRepresentable {
             parent.onInput(["kind": "click", "x": Int(p.x), "y": Int(p.y), "button": 3])
         }
 
-        /// Press and hold: a right-click. In trackpad mode a hold that then moves is a
-        /// drag from the pointer, released where the finger lifts.
+        /// Press and hold, decided on release: a hold that never moved is a right-click
+        /// where the finger was; a hold that moved is a drag, let go where it lifts. It
+        /// used to right-click the moment the hold began, so a finger that rested for
+        /// half a second before dragging got a context menu instead of a drag.
+        private var pressOrigin: CGPoint = .zero
+        private var holdMoved = false
+
         @objc func press(_ g: UILongPressGestureRecognizer) {
             switch g.state {
             case .began:
                 pressing = true
-                if parent.trackpadMode {
-                    dragStart = parent.pointer()
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                } else {
-                    let p = desktopPoint(g.location(in: g.view))
-                    parent.onInput(["kind": "click", "x": Int(p.x), "y": Int(p.y), "button": 3])
-                }
+                holdMoved = false
+                pressOrigin = g.location(in: g.view)
+                lastPressLocation = pressOrigin
+                dragStart = parent.trackpadMode ? parent.pointer() : nil
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             case .changed:
-                guard parent.trackpadMode, dragStart != nil else { return }
-                movePointer(by: g)
+                let here = g.location(in: g.view)
+                if !holdMoved, hypot(here.x - pressOrigin.x, here.y - pressOrigin.y) > 12 {
+                    holdMoved = true
+                    if !parent.trackpadMode {
+                        var origin = pressOrigin
+                        origin.y = max(origin.y - TouchLayer.dragLift, 0)
+                        dragStart = desktopPoint(origin)
+                    }
+                }
+                guard holdMoved else { return }
+                if parent.trackpadMode {
+                    movePointer(by: g)
+                } else {
+                    let p = liftedPoint(g)
+                    parent.onPointerMoved(p)
+                    queueMove(p)
+                }
             case .ended, .cancelled:
-                if parent.trackpadMode, let from = dragStart {
-                    let to = parent.pointer()
+                if holdMoved, let from = dragStart {
+                    let to = parent.trackpadMode ? parent.pointer() : liftedPoint(g)
                     if hypot(to.x - from.x, to.y - from.y) > 4 {
                         parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
                     }
+                } else if g.state == .ended {
+                    let p = parent.trackpadMode ? parent.pointer() : desktopPoint(pressOrigin)
+                    parent.onPointerMoved(p)
+                    parent.onInput(["kind": "click", "x": Int(p.x), "y": Int(p.y), "button": 3])
                 }
                 dragStart = nil
                 pressing = false
+                holdMoved = false
                 lastPressLocation = nil
             default: break
             }
@@ -407,10 +507,7 @@ private struct TouchLayer: UIViewRepresentable {
             p.x = min(max(p.x + dx * scale, 0), parent.desktopSize.width - 1)
             p.y = min(max(p.y + dy * scale, 0), parent.desktopSize.height - 1)
             parent.onPointerMoved(p)
-            if Date().timeIntervalSince(lastMove) > 0.04 {
-                lastMove = Date()
-                parent.onInput(["kind": "move", "x": Int(p.x), "y": Int(p.y)])
-            }
+            queueMove(p)
         }
 
         /// One finger moving: the pointer follows it, live, and where it lifts is
@@ -426,17 +523,20 @@ private struct TouchLayer: UIViewRepresentable {
             }
             switch g.state {
             case .began:
-                dragStart = desktopPoint(g.location(in: g.view))
+                // A finger on the move is not a hold; the hold must not fire on release.
+                press?.isEnabled = false
+                press?.isEnabled = true
+                let from = liftedPoint(g)
+                dragStart = from
+                parent.onPointerMoved(from)
+                queueMove(from)
             case .changed:
-                let p = desktopPoint(g.location(in: g.view))
+                let p = liftedPoint(g)
                 parent.onPointerMoved(p)
-                if Date().timeIntervalSince(lastMove) > 0.04 {
-                    lastMove = Date()
-                    parent.onInput(["kind": "move", "x": Int(p.x), "y": Int(p.y)])
-                }
+                queueMove(p)
             case .ended:
                 guard let from = dragStart else { return }
-                let to = desktopPoint(g.location(in: g.view))
+                let to = liftedPoint(g)
                 if hypot(to.x - from.x, to.y - from.y) > 4 {
                     parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
                 }
@@ -491,7 +591,7 @@ struct ScreenHelpSheet: View {
                 Section("Moving around") {
                     HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
                     HelpRow("cursorarrow.click", "Click and drag", "Tap to click where you tapped. Drag one finger to move the pointer; what you drag lets go where you lift.")
-                    HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold.")
+                    HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving. A hold that moves drags instead, for a careful drag.")
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")
                 }
                 Section("Typing and the clipboard") {

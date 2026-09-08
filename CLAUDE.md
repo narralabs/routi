@@ -14,7 +14,12 @@ and released. This file is the map of the parts that are expensive to rediscover
 - `containers/desktop/` — the shared Linux desktop the bots drive.
 
 Verify with `pnpm --filter routid typecheck`, `pnpm --filter routid probe`, and
-`cd apple && xcodebuild -scheme Routi -destination 'platform=macOS' build`.
+`cd apple && xcodebuild -scheme Routi -destination 'platform=macOS' build`. Anything
+that touches the phone's desktop is proven by its UI tests, with a core running on
+7171 and an iPhone simulator: `cd apple && ./bootstrap.sh --ios && xcodebuild test
+-scheme Routi -destination 'id=<simulator>' -only-testing:RoutiUITests
+CODE_SIGNING_ALLOWED=NO`. A screenshot shows a view exists; only the tests show it
+works.
 
 ## How providers work
 

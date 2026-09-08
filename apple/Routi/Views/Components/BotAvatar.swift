@@ -129,8 +129,17 @@ struct BotAvatar: View {
             .contentShape(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous))
             // Simultaneous, so a poke in a list row still selects the row.
             .simultaneousGesture(TapGesture().onEnded { poke() })
-            .onChange(of: motion, initial: true) { _, m in restartMotion(m) }
-            .onChange(of: reduceMotion) { _, _ in restartMotion(motion) }
+            // The loop is started from a task, never from the body or an `onChange`:
+            // `withAnimation` inside a view update joins that update's transaction,
+            // and a repeat-forever animation started while the chat was being swapped
+            // in from the desktop was applied to the swap itself, which then never
+            // finished — the chat sat at the wrong size over the desktop, or breathed
+            // with the bot (measured, and the reason the scroll bridge reports once).
+            .task(id: "\(String(describing: motion))-\(reduceMotion)") {
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                restartMotion(motion)
+            }
             .task(id: reduceMotion) {
                 // Cheap: one sleeping task per avatar, awake for 140ms every few
                 // seconds. Nothing runs between blinks.

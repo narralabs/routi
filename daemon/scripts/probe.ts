@@ -1,7 +1,7 @@
 /**
  * End-to-end protocol probe.
  *
- * Drives routid over the real WebSocket exactly as the Flutter client will, so the
+ * Drives routid over the real WebSocket exactly as the app does, so the
  * protocol and the streaming path can be verified without any UI. Also asserts the
  * durability property that matters most: a conversation survives a daemon restart.
  *

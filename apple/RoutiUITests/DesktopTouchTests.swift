@@ -67,6 +67,41 @@ final class DesktopTouchTests: XCTestCase {
         XCTAssertEqual(click.y, 400, accuracy: 6, "and not up or down; log: \(log)")
     }
 
+    /// After a finger lifts, the arrow must stay put: no pointer position may be drawn
+    /// after the last move that the finger did not make. Run with pointer logging on.
+    func testPointerStaysWhereTheFingerLeftIt() {
+        app.terminate()
+        app.launchArguments.append("-logPointer")
+        app.launch()
+        XCTAssertTrue(desktop.waitForExistence(timeout: 60))
+        sleep(3)
+        point(0.3, 0.5).press(forDuration: 0.05, thenDragTo: point(0.7, 0.6))
+        sleep(1)
+        let atRelease = log.components(separatedBy: " | ").last(where: { $0.hasPrefix("ptr@") })
+        sleep(2)
+        let later = log.components(separatedBy: " | ").last(where: { $0.hasPrefix("ptr@") })
+        XCTAssertEqual(atRelease, later, "the pointer moved after the finger lifted; log tail: \(log.suffix(400))")
+        XCTAssertFalse(log.contains("drag@"), "a plain drag of the finger sent a mouse drag; log: \(log.suffix(300))")
+        XCTAssertFalse(log.contains("click"), "a plain drag of the finger clicked; log: \(log.suffix(300))")
+    }
+
+    /// A long, slow finger movement — longer than the hold threshold — is still only
+    /// the pointer moving, not a hold, a drag or a click.
+    func testLongSlowMoveIsOnlyAMove() {
+        app.terminate()
+        app.launchArguments.append("-logPointer")
+        app.launch()
+        XCTAssertTrue(desktop.waitForExistence(timeout: 60))
+        sleep(3)
+        let start = point(0.2, 0.5)
+        start.press(forDuration: 0.05, thenDragTo: point(0.4, 0.5))
+        point(0.4, 0.5).press(forDuration: 0.05, thenDragTo: point(0.6, 0.55))
+        point(0.6, 0.55).press(forDuration: 0.05, thenDragTo: point(0.8, 0.6))
+        sleep(2)
+        XCTAssertFalse(log.contains("drag@"), "log: \(log.suffix(300))")
+        XCTAssertFalse(log.contains("click"), "log: \(log.suffix(300))")
+    }
+
     /// The black margin above the picture is touch too: a drag there moves the pointer.
     func testDragInTheBlackMarginMovesThePointer() {
         point(0.5, 0.08).press(forDuration: 0.05, thenDragTo: point(0.5, 0.2))
@@ -77,11 +112,22 @@ final class DesktopTouchTests: XCTestCase {
         XCTAssertGreaterThan(click.y, 420, "the pointer should have moved down; log: \(log)")
     }
 
-    func testHoldThenMoveDrags() {
-        // Rests past the hold threshold, then moves: that is the drag.
-        point(0.3, 0.6).press(forDuration: 0.6, thenDragTo: point(0.7, 0.6))
-        XCTAssertTrue(waitForLog(containing: "drag@"), "log: \(log)")
-        XCTAssertFalse(log.contains("click(3)"), "a hold that moved must not right-click; log: \(log)")
+    /// A finger that pauses past the hold threshold and then keeps moving is still only
+    /// pointing: no drag, no right-click. This is the pause a hand makes to aim.
+    func testPauseThenMoveOnlyMovesThePointer() {
+        point(0.3, 0.6).press(forDuration: 0.7, thenDragTo: point(0.7, 0.6))
+        XCTAssertTrue(waitForLog(containing: "move"), "log: \(log)")
+        sleep(1)
+        XCTAssertFalse(log.contains("drag@"), "a pause then a move must not drag; log: \(log.suffix(300))")
+        XCTAssertFalse(log.contains("click"), "a pause then a move must not click; log: \(log.suffix(300))")
+    }
+
+    /// Tap, then press and hold, then move: that is the drag, from the pointer.
+    func testTapThenHoldThenMoveDrags() {
+        let start = point(0.5, 0.5)
+        start.tap()
+        start.press(forDuration: 0.4, thenDragTo: point(0.7, 0.6))
+        XCTAssertTrue(waitForLog(containing: "drag@"), "tap-then-hold-then-move should drag; log: \(log.suffix(300))")
     }
 
     func testHoldRightClicks() {

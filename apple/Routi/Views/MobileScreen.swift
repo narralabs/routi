@@ -49,7 +49,7 @@ struct MobileScreen: View {
         .background(Color.black.ignoresSafeArea())
         #if DEBUG
         .overlay(alignment: .bottom) {
-            Text(inputLog.suffix(8).joined(separator: " | "))
+            Text(inputLog.suffix(40).joined(separator: " | "))
                 .font(.system(size: 4))
                 .foregroundStyle(.white.opacity(0.02))
                 .accessibilityIdentifier("inputLog")
@@ -202,7 +202,14 @@ struct MobileScreen: View {
                         zoom: zoom,
                         pan: pan,
                         pointer: { trackpadPointer ?? model.surfacePointer ?? CGPoint(x: size.width / 2, y: size.height / 2) },
-                        onPointerMoved: { trackpadPointer = $0 },
+                        onPointerMoved: { p in
+                            #if DEBUG
+                            if ProcessInfo.processInfo.arguments.contains("-logPointer") {
+                                inputLog.append("ptr@\(Int(p.x)),\(Int(p.y))")
+                            }
+                            #endif
+                            trackpadPointer = p
+                        },
                         onInput: { input in
                             #if DEBUG
                             inputLog.append(Self.describe(input))
@@ -252,7 +259,6 @@ struct MobileScreen: View {
                         RemoteCursor(size: 26)
                             .offset(x: pointer.x * scale, y: pointer.y * scale)
                             .allowsHitTesting(false)
-                            .animation(.linear(duration: 0.06), value: pointer)
                     }
                 }
     }
@@ -386,6 +392,14 @@ private struct TouchLayer: UIViewRepresentable {
         // drag counted as a hold and let go as a right-click.
         press.allowableMovement = 12
         c.press = press
+        // Tap, then press and hold, then move: the trackpad drag, as on a Mac. It is
+        // its own gesture so a finger that merely pauses while pointing never starts
+        // one — that pause used to become a mouse drag on release, and the desktop's
+        // pointer leapt back to where the pause began.
+        let tapHold = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.tapHold(_:)))
+        tapHold.numberOfTapsRequired = 1
+        tapHold.minimumPressDuration = 0.12
+        tapHold.allowableMovement = 3_000
         let drag = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.oneFingerPan(_:)))
         drag.minimumNumberOfTouches = 1
         drag.maximumNumberOfTouches = 1
@@ -393,7 +407,7 @@ private struct TouchLayer: UIViewRepresentable {
         scroll.minimumNumberOfTouches = 2
         scroll.maximumNumberOfTouches = 2
         let pinch = UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:)))
-        for g in [tap, twoFingerTap, press, drag, scroll, pinch] {
+        for g in [tap, twoFingerTap, press, tapHold, drag, scroll, pinch] {
             g.delegate = c
             view.addGestureRecognizer(g)
         }
@@ -402,7 +416,8 @@ private struct TouchLayer: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIView, context: Context) {
         context.coordinator.parent = self
-        // In trackpad mode a hold that then moves is the drag, so movement is allowed.
+        // In trackpad mode a hold may keep moving the pointer afterwards, so movement
+        // is allowed; in tap-where-you-touch a moving finger is not a hold at all.
         context.coordinator.press?.allowableMovement = trackpadMode ? 3_000 : 12
     }
 
@@ -507,11 +522,15 @@ private struct TouchLayer: UIViewRepresentable {
                     queueMove(p)
                 }
             case .ended, .cancelled:
-                if holdMoved, let from = dragStart {
-                    let to = parent.trackpadMode ? parent.pointer() : liftedPoint(g)
+                if holdMoved, !parent.trackpadMode, let from = dragStart {
+                    // Tap-where-you-touch has no other drag; in trackpad mode a hold that
+                    // moved only moved the pointer, and the drag is tap-then-hold.
+                    let to = liftedPoint(g)
                     if hypot(to.x - from.x, to.y - from.y) > 4 {
                         parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
                     }
+                } else if holdMoved {
+                    // Moved: nothing to send, the pointer already followed.
                 } else if g.state == .ended {
                     let p = parent.trackpadMode ? parent.pointer() : desktopPoint(pressOrigin)
                     parent.onPointerMoved(p)
@@ -521,6 +540,38 @@ private struct TouchLayer: UIViewRepresentable {
                 pressing = false
                 holdMoved = false
                 lastPressLocation = nil
+            default: break
+            }
+        }
+
+        /// Tap, then hold, then move: the button goes down at the pointer, the pointer
+        /// follows the finger, and the button comes up where it lifts. A tick marks
+        /// the hold taking, so the person knows they are dragging and not pointing.
+        private var tapHoldStart: CGPoint?
+        private var tapHoldLast: CGPoint?
+
+        @objc func tapHold(_ g: UILongPressGestureRecognizer) {
+            guard parent.trackpadMode else { return }
+            switch g.state {
+            case .began:
+                pressing = true
+                tapHoldStart = parent.pointer()
+                tapHoldLast = g.location(in: g.view)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            case .changed:
+                let here = g.location(in: g.view)
+                if let last = tapHoldLast { nudgePointer(dx: here.x - last.x, dy: here.y - last.y) }
+                tapHoldLast = here
+            case .ended, .cancelled:
+                if let from = tapHoldStart {
+                    let to = parent.pointer()
+                    if hypot(to.x - from.x, to.y - from.y) > 2 {
+                        parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
+                    }
+                }
+                tapHoldStart = nil
+                tapHoldLast = nil
+                pressing = false
             default: break
             }
         }
@@ -535,7 +586,9 @@ private struct TouchLayer: UIViewRepresentable {
 
         /// Trackpad: the finger's travel, scaled to the desktop, moves the pointer.
         private func nudgePointer(dx: CGFloat, dy: CGFloat) {
-            let scale = parent.desktopSize.width / max(parent.fittedSize.width, 1) * 1.4 / parent.zoom
+            // One to one with the picture: the pointer crosses the desktop as the finger
+            // crosses the phone. No acceleration; a steady hand wants a steady arrow.
+            let scale = parent.desktopSize.width / max(parent.fittedSize.width, 1) / parent.zoom
             var p = parent.pointer()
             p.x = min(max(p.x + dx * scale, 0), parent.desktopSize.width - 1)
             p.y = min(max(p.y + dy * scale, 0), parent.desktopSize.height - 1)
@@ -621,8 +674,8 @@ struct ScreenHelpSheet: View {
                 Section("Moving around") {
                     HelpRow("cursorarrow.motionlines", "Point", "The pointer starts in the middle. Drag one finger anywhere on the screen, black edges included, and it moves with your finger, like a trackpad.")
                     HelpRow("cursorarrow.click", "Click", "Tap anywhere to click where the pointer is. Two quick taps double-click.")
-                    HelpRow("hand.draw", "Drag", "Press and hold until you feel a tick, then move. It lets go where you lift.")
-                    HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving.")
+                    HelpRow("hand.draw", "Drag", "Tap, then press and hold until you feel a tick, then move. It lets go where you lift.")
+                    HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving. A hold that moves just keeps pointing.")
                     HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")
                 }

@@ -533,6 +533,13 @@ struct AboutPane: View {
     private var version: String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0"
         let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        #if DEBUG
+        // Which source this build came from, since a phone has no sidebar stamp.
+        if let commit = Bundle.main.infoDictionary?["RoutiBuildCommit"] as? String,
+           let time = Bundle.main.infoDictionary?["RoutiBuildTime"] as? String {
+            return "\(v) (\(b)) · build \(time) · \(commit)"
+        }
+        #endif
         return "\(v) (\(b))"
     }
 

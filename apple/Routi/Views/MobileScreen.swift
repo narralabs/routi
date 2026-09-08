@@ -336,10 +336,12 @@ private struct TouchLayer: UIViewRepresentable {
     let onZoom: (CGFloat, CGPoint) -> Void
     let onPan: (CGSize) -> Void
 
-    /// How far above the fingertip the pointer's hotspot sits while a finger drags.
-    /// The finger hides what is under it; the arrow rides just above, where it can be
-    /// seen, and the drag acts on what the arrow is on. A tap is exact.
-    static let dragLift: CGFloat = 36
+    /// The pointer's hotspot sits exactly under the fingertip. It rode 36 points above
+    /// for a while, to stay visible past the finger, and that made the arrow and the
+    /// finger disagree about where the pointer was: a tap on the spot the finger had
+    /// lifted from landed under the arrow, and read as the tap moving the pointer.
+    /// Lift the finger to see the arrow; tap that spot to click it.
+    static let dragLift: CGFloat = 0
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -594,7 +596,7 @@ struct ScreenHelpSheet: View {
             List {
                 Section("Moving around") {
                     HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
-                    HelpRow("cursorarrow.click", "Point and click", "Tap to click exactly where you tap. Drag one finger to move the pointer; the arrow rides just above your fingertip so you can see it. To hit something small, drag until the arrow is on it, then tap the arrow.")
+                    HelpRow("cursorarrow.click", "Point and click", "Tap to click exactly where you tap. Drag one finger to move the pointer; its tip is under your fingertip. Lift to see where it landed, and tap that spot to click it. Pinch in for anything small.")
                     HelpRow("hand.draw", "Drag", "Press and hold until you feel a tick, then move. It lets go where you lift.")
                     HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving. A hold that moves drags instead, for a careful drag.")
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")

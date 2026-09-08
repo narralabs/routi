@@ -3,13 +3,28 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const IMAGE = 'routi-desktop:latest'
 const CONTAINER = 'routi-desktop'
+/** The image label carrying the hash of the sources it was built from. */
+const STAMP_LABEL = 'routi.desktop'
+
+/** A short hash over every file in the desktop's sources, by name and content. */
+function sourceStamp(dir: string): string {
+  const hash = createHash('sha256')
+  for (const name of readdirSync(dir).sort()) {
+    hash.update(name)
+    hash.update('\0')
+    hash.update(readFileSync(join(dir, name)))
+    hash.update('\0')
+  }
+  return hash.digest('hex').slice(0, 16)
+}
 
 /**
  * Where Docker's command line is, on a Mac that may never have put it on PATH.
@@ -205,6 +220,14 @@ class Host {
     if (!(await this.imageExists())) {
       const built = await this.buildImage()
       if (built !== null) return built
+    } else if (await this.imageIsStale()) {
+      // The core updated and brought a different desktop with it. The image is
+      // rebuilt first, so a failed build leaves the old machine running; only a
+      // successful one replaces the machine, whose screens are then remade on demand.
+      console.log('the desktop image is from an older core; rebuilding it')
+      const built = await this.buildImage()
+      if (built !== null) return built
+      await docker(['rm', '-f', CONTAINER], { timeout: 20_000 }).catch(() => {})
     }
     if (await this.isRunning()) return null
 
@@ -266,13 +289,7 @@ class Host {
    * at once wait on the same build.
    */
   private async buildImage(): Promise<string | null> {
-    let dir = dirname(fileURLToPath(import.meta.url))
-    let dockerfileDir: string | null = null
-    for (let up = 0; up < 6; up++) {
-      const candidate = join(dir, 'containers', 'desktop')
-      if (existsSync(join(candidate, 'Dockerfile'))) { dockerfileDir = candidate; break }
-      dir = dirname(dir)
-    }
+    const dockerfileDir = this.dockerfileDir()
     if (!dockerfileDir) {
       return 'The desktop image is missing and its Dockerfile is not with this core. Build it with: docker build -t routi-desktop containers/desktop'
     }
@@ -288,7 +305,11 @@ class Host {
        */
       const tail: string[] = []
       const code = await new Promise<number>((resolve, reject) => {
-        const child = spawn(dockerBinary(), ['build', '--progress=plain', '-t', IMAGE, dockerfileDir!], {
+        const child = spawn(dockerBinary(), [
+          'build', '--progress=plain', '-t', IMAGE,
+          '--label', `${STAMP_LABEL}=${sourceStamp(dockerfileDir)}`,
+          dockerfileDir,
+        ], {
           env: dockerEnv(),
           stdio: ['ignore', 'pipe', 'pipe'],
         })
@@ -328,6 +349,38 @@ class Host {
       return `Building the desktop image failed: ${err instanceof Error ? err.message : String(err)}`
     } finally {
       this.build = null
+    }
+  }
+
+  /** Where the desktop's sources shipped with this core, or null when they did not. */
+  private dockerfileDir(): string | null {
+    let dir = dirname(fileURLToPath(import.meta.url))
+    for (let up = 0; up < 6; up++) {
+      const candidate = join(dir, 'containers', 'desktop')
+      if (existsSync(join(candidate, 'Dockerfile'))) return candidate
+      dir = dirname(dir)
+    }
+    return null
+  }
+
+  /**
+   * Whether the image on this Mac was built from other sources than this core's.
+   *
+   * The image used to be built once and kept forever, so a core update that changed
+   * the desktop changed nothing for anyone who already had one. Each build is labelled
+   * with a hash of its sources; a different hash is a different desktop. An image with
+   * no label predates the label and counts as stale once, which is right: it was.
+   */
+  private async imageIsStale(): Promise<boolean> {
+    const dir = this.dockerfileDir()
+    if (!dir) return false
+    try {
+      const { stdout } = await docker(
+        ['inspect', '-f', `{{index .Config.Labels "${STAMP_LABEL}"}}`, IMAGE], { timeout: 8_000 },
+      )
+      return stdout.trim() !== sourceStamp(dir)
+    } catch {
+      return false
     }
   }
 

@@ -223,6 +223,17 @@ container per bot would discard that on every bot you create. The daemon starts 
 demand and leaves it running across its own restarts, since losing browser sessions to a
 restart would defeat the point.
 
+A screen is Xvfb, xfwm4, picom and a bottom Plank dock with Chrome, the file manager
+and a terminal on it — no panel, no session, a dark canvas. It was a full XFCE session
+until PR #1, whose author was Grok Bot's own agent; the bar and its clock were noise in
+every screenshot a bot read. The bot's browser starts maximised with the window class
+the dock launcher is matched on, so it fills the screen above the dock and sits on the
+Chrome icon. The image is built by the core from `containers/desktop` the first time
+a screen is needed, and labelled with a hash of those files; a core update that
+changes them finds the label wrong and rebuilds before recreating the machine, so an
+installed core follows the desktop it ships with rather than keeping the first one it
+ever built. Screens on the old machine are lost in that swap and remade on demand.
+
 **Bots drive it themselves.** A bot with a screen gets the desktop as tools — `read_page`
 and `click_ref` for the page's accessibility tree, `screenshot` and `click` for pixels,
 `type_text`, `press_key`, `scroll`, and `ask_to_take_over` for the moments only a person

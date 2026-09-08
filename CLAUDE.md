@@ -11,7 +11,11 @@ and released. This file is the map of the parts that are expensive to rediscover
   hand-written Swift mirror; the two change in the same commit.
 - `apple/` — SwiftUI, one target for Mac/iPad/iPhone. Knows no provider names beyond a
   display roster.
-- `containers/desktop/` — the shared Linux desktop the bots drive.
+- `containers/desktop/` — the shared Linux desktop the bots drive: one machine, an X
+  display per bot, each a bare xfwm4 + Plank dock (no XFCE panel since PR #1). The core
+  builds the image and labels it with a hash of these files (`sourceStamp` in
+  `surfaces/desktop.ts`); change anything here and every core rebuilds on its next
+  screen request, losing the running screens once.
 
 Verify with `pnpm --filter routid typecheck`, `pnpm --filter routid probe`, and
 `cd apple && xcodebuild -scheme Routi -destination 'platform=macOS' build`. Anything

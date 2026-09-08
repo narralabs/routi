@@ -87,6 +87,12 @@ they were yours before Routi.
   you sign in on its desktop, it carries on.
 - **Per-bot connectors and screens.** Which connections a bot may use, chosen per bot,
   the way a screen is today.
+- **Folders.** Bots grouped by topic in the sidebar — travel, trading, the company —
+  so a list of twenty stays readable.
+- **Bots in a group chat.** Several bots and you in one thread, each seeing the
+  others' messages, for work that takes more than one specialist. A maybe: the core
+  can already hold such a room, but whether bots talking to each other is worth the
+  cost and the confusion is not settled.
 
 ## Why it is Mac only
 

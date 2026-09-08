@@ -366,9 +366,12 @@ final class AppModel {
         await renameProfile(currentProfileID, to: trimmed)
     }
 
-    var userInitials: String {
-        // The label in brackets is not part of the name: "William (Narra Labs)" is W.
-        let bare = userName.replacingOccurrences(of: #"\s*\(.*\)\s*$"#, with: "", options: .regularExpression)
+    var userInitials: String { Self.initials(of: userName) }
+
+    /// One or two letters for a profile's disc. The label in brackets is not part of
+    /// the name: "William (Narra Labs)" is W, "Narra Labs" is NL.
+    static func initials(of name: String) -> String {
+        let bare = name.replacingOccurrences(of: #"\s*\(.*\)\s*$"#, with: "", options: .regularExpression)
         let parts = bare.split(separator: " ")
         guard let first = parts.first else { return "?" }
         if parts.count == 1 { return String(first.prefix(1)).uppercased() }

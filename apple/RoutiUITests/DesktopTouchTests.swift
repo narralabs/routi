@@ -41,14 +41,8 @@ final class PhoneNavigationTests: XCTestCase {
         let menu = app.buttons["profileMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10), "the profile menu should be in the top bar")
         menu.tap()
-        XCTAssertTrue(app.buttons["Switch Profile"].waitForExistence(timeout: 5), "the menu should offer Switch Profile")
-        app.buttons["Switch Profile"].tap()
-        XCTAssertTrue(app.buttons["New Profile…"].waitForExistence(timeout: 5), "the submenu should offer a new profile")
-        // Back out of the submenu and the menu, then open Settings from it.
-        app.tap()
-        if app.buttons["Switch Profile"].exists { app.tap() }
-        menu.tap()
-        XCTAssertTrue(app.buttons["Settings…"].waitForExistence(timeout: 5), "the menu should offer Settings")
+        XCTAssertTrue(app.buttons["New Profile…"].waitForExistence(timeout: 5), "the menu should offer a new profile")
+        XCTAssertTrue(app.buttons["Settings…"].exists, "the menu should offer Settings")
         app.buttons["Settings…"].tap()
         // The phone's Settings opens on its list of panes; General is the first.
         let general = app.buttons["General"].exists ? app.buttons["General"] : app.staticTexts["General"]
@@ -56,7 +50,17 @@ final class PhoneNavigationTests: XCTestCase {
         general.tap()
         let field = app.textFields["profileName"]
         XCTAssertTrue(field.waitForExistence(timeout: 10), "General should show the profile's name")
-        XCTAssertFalse((field.value as? String ?? "").isEmpty, "the profile should have a name")
+        let name = field.value as? String ?? ""
+        XCTAssertFalse(name.isEmpty, "the profile should have a name")
+        // The profile showing is itself a row of the menu, to switch back to from another.
+        // Done lives on the list of panes, one level up from General; the back
+        // button carries that list's title.
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5), "the list of panes should carry Done")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        menu.tap()
+        XCTAssertTrue(app.buttons[name].waitForExistence(timeout: 5), "the menu should list \(name) among the profiles")
     }
 }
 

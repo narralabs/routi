@@ -8,6 +8,12 @@ opens a browser and does it, on any AI you already pay for: a Claude plan, a Cha
 plan, or an API key. Routi is a Mac app, with iPhone and iPad apps for reaching the same
 bots when you are away from it.
 
+
+
+https://github.com/user-attachments/assets/8f2b8290-895b-4c7a-afff-fae710ad6a10
+
+
+
 > “One shared Linux, a screen per bot, any model you already pay for — on the Mac that
 > stays on. Same idea, cleanly executed. Ship it.”
 >

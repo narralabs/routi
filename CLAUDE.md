@@ -96,10 +96,15 @@ before the desktop is touched, so saving one never starts a container.
 ### The desktop on a phone
 
 `apple/Routi/Views/MobileScreen.swift` is the whole thing: a UIKit gesture layer over
-the fitted frame (tap, double tap, one-finger drag, two-finger scroll, two-finger tap
-and press-and-hold for right-click, pinch to zoom), a trackpad mode that moves the
-desktop's pointer relatively, a keyboard bar with the keys a phone lacks, and the
-clipboard both ways. A drag is the `drag` input kind, run as one xdotool chain in
+the fitted frame, a trackpad mode that moves the desktop's pointer relatively, a
+keyboard bar with the keys a phone lacks, and the clipboard both ways. The touch model,
+arrived at by testing on a hand rather than a spec: one finger moves the pointer only,
+with the arrow lifted 36pt above the fingertip; a tap clicks where it lands, except
+near where the finger last lifted, where it clicks what the arrow is on; press-and-hold
+is decided on release (still = right-click, moved = drag); two fingers scroll, a
+two-finger tap right-clicks, pinch zooms. No double-tap recognizer: it delayed every
+tap. Frames are decoded once on arrival, never in the body. `RoutiUITests` is the
+proof; run it for any change here. A drag is the `drag` input kind, run as one xdotool chain in
 `desktop.ts` so the container image did not change. The Mac keeps `ScreenWindow`.
 Debug builds open straight onto it with `-showScreen`.
 

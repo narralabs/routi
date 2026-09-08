@@ -22,6 +22,10 @@ struct MobileScreen: View {
     @State private var trackpadPointer: CGPoint?
     @State private var zoom: CGFloat = 1
     @State private var pan: CGSize = .zero
+    /// The latest frame, decoded once when it arrives. Decoding in the body meant a
+    /// 1280×800 JPEG was decoded on every render — sixty times a second while a finger
+    /// moved the pointer — which was the stutter.
+    @State private var frameImage: UIImage?
     #if DEBUG
     /// What the desktop was last sent, for the UI tests to read back.
     @State private var inputLog: [String] = []
@@ -53,6 +57,9 @@ struct MobileScreen: View {
         .statusBarHidden(false)
         .onAppear { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
         .onDisappear { model.endFrames(frameViewer) }
+        .onChange(of: model.surfaceFrame, initial: true) { _, data in
+            frameImage = data.flatMap(UIImage.init(data:))
+        }
         // Keyed on the bot: the view can appear a beat before the selection lands, and
         // asking once then would leave it on "Starting the desktop…" for good.
         .task(id: model.selectedBotID) {
@@ -169,7 +176,7 @@ struct MobileScreen: View {
             ZStack {
                 Color.black
                 Group {
-                    if let frame = model.surfaceFrame, let image = UIImage(data: frame) {
+                    if let image = frameImage {
                         Image(uiImage: image).resizable().interpolation(.medium)
                     } else {
                         ZStack {
@@ -345,10 +352,10 @@ private struct TouchLayer: UIViewRepresentable {
         view.accessibilityLabel = "Desktop"
         let c = context.coordinator
 
+        // No double-tap recognizer: waiting to rule one out held every single tap for a
+        // third of a second. Two quick taps are two quick clicks, which the desktop's
+        // own toolkit reads as a double-click, as it would from a mouse.
         let tap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tap(_:)))
-        let doubleTap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.doubleTap(_:)))
-        doubleTap.numberOfTapsRequired = 2
-        tap.require(toFail: doubleTap)
         let twoFingerTap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.twoFingerTap(_:)))
         twoFingerTap.numberOfTouchesRequired = 2
         let press = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.press(_:)))
@@ -364,7 +371,7 @@ private struct TouchLayer: UIViewRepresentable {
         scroll.minimumNumberOfTouches = 2
         scroll.maximumNumberOfTouches = 2
         let pinch = UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:)))
-        for g in [tap, doubleTap, twoFingerTap, press, drag, scroll, pinch] {
+        for g in [tap, twoFingerTap, press, drag, scroll, pinch] {
             g.delegate = c
             view.addGestureRecognizer(g)
         }
@@ -428,7 +435,9 @@ private struct TouchLayer: UIViewRepresentable {
         private func clickPoint(_ g: UIGestureRecognizer) -> CGPoint {
             if parent.trackpadMode { return parent.pointer() }
             let here = g.location(in: g.view)
-            if let end = lastDragEnd, hypot(here.x - end.finger.x, here.y - end.finger.y) < 44 / parent.zoom {
+            // Within a fingertip of where the finger lifted, in screen points whatever
+            // the zoom: a hand does not come back to the same pixel.
+            if let end = lastDragEnd, hypot(here.x - end.finger.x, here.y - end.finger.y) * parent.zoom < 60 {
                 return end.pointer
             }
             lastDragEnd = nil
@@ -444,13 +453,6 @@ private struct TouchLayer: UIViewRepresentable {
             parent.onPointerMoved(p)
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             parent.onInput(["kind": "click", "x": Int(p.x), "y": Int(p.y)])
-        }
-
-        @objc func doubleTap(_ g: UITapGestureRecognizer) {
-            let p = clickPoint(g)
-            parent.onPointerMoved(p)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            parent.onInput(["kind": "doubleClick", "x": Int(p.x), "y": Int(p.y)])
         }
 
         @objc func twoFingerTap(_ g: UITapGestureRecognizer) {
@@ -530,9 +532,12 @@ private struct TouchLayer: UIViewRepresentable {
             queueMove(p)
         }
 
-        /// One finger moving: the pointer follows it, live, and where it lifts is
-        /// where a drag from where it began lets go. In trackpad mode the finger's
-        /// travel moves the pointer instead of placing it.
+        /// One finger moving moves the pointer, and only the pointer: no button is
+        /// held. It used to be a drag as well, so aiming at something dragged whatever
+        /// was under the finger's starting point on the way — a window, a selection —
+        /// and the tap that followed found the desktop changed. Dragging is press and
+        /// hold, then move. In trackpad mode the finger's travel moves the pointer
+        /// instead of placing it.
         @objc func oneFingerPan(_ g: UIPanGestureRecognizer) {
             if pressing { return }
             if parent.trackpadMode {
@@ -546,24 +551,18 @@ private struct TouchLayer: UIViewRepresentable {
                 // A finger on the move is not a hold; the hold must not fire on release.
                 press?.isEnabled = false
                 press?.isEnabled = true
-                let from = liftedPoint(g)
-                dragStart = from
-                parent.onPointerMoved(from)
-                queueMove(from)
+                let p = liftedPoint(g)
+                parent.onPointerMoved(p)
+                queueMove(p)
             case .changed:
                 let p = liftedPoint(g)
                 parent.onPointerMoved(p)
                 queueMove(p)
             case .ended:
-                guard let from = dragStart else { return }
-                let to = liftedPoint(g)
-                if hypot(to.x - from.x, to.y - from.y) > 4 {
-                    parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
-                }
-                endedDrag(finger: g.location(in: g.view), pointer: to)
-                dragStart = nil
-            case .cancelled, .failed:
-                dragStart = nil
+                let p = liftedPoint(g)
+                parent.onPointerMoved(p)
+                queueMove(p)
+                endedDrag(finger: g.location(in: g.view), pointer: p)
             default: break
             }
         }
@@ -611,7 +610,8 @@ struct ScreenHelpSheet: View {
             List {
                 Section("Moving around") {
                     HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
-                    HelpRow("cursorarrow.click", "Click and drag", "Tap to click where you tapped. Drag one finger to move the pointer; what you drag lets go where you lift. To hit something small, drag until the arrow is on it, lift, and tap in the same place.")
+                    HelpRow("cursorarrow.click", "Point and click", "One finger moves the pointer; the arrow rides just above your fingertip. Tap to click where you tap. To hit something small, move until the arrow is on it, lift, and tap in the same place.")
+                    HelpRow("hand.draw", "Drag", "Press and hold until you feel a tick, then move. It lets go where you lift.")
                     HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving. A hold that moves drags instead, for a careful drag.")
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")
                 }

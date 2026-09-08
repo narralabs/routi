@@ -42,31 +42,36 @@ final class DesktopTouchTests: XCTestCase {
         XCTAssertTrue(waitForLog(containing: "click(1)@"), "a tap should send a left click; log: \(log)")
     }
 
-    func testDragIsADragAndNotARightClick() {
+    func testOneFingerMovesThePointerAndNothingElse() {
         point(0.3, 0.5).press(forDuration: 0.05, thenDragTo: point(0.7, 0.5))
-        XCTAssertTrue(waitForLog(containing: "drag@"), "a drag should send a drag; log: \(log)")
-        XCTAssertFalse(log.contains("click(3)"), "a drag must not right-click on release; log: \(log)")
-        XCTAssertTrue(log.contains("move"), "the pointer should move live during a drag; log: \(log)")
+        XCTAssertTrue(waitForLog(containing: "move"), "the pointer should move live; log: \(log)")
+        sleep(1)
+        XCTAssertFalse(log.contains("drag@"), "a finger moving must not drag; log: \(log)")
+        XCTAssertFalse(log.contains("click"), "a finger moving must not click; log: \(log)")
     }
 
-    func testSlowDragIsStillADrag() {
-        // Longer than the hold threshold, moving all the while.
+    func testHoldThenMoveDrags() {
+        // Rests past the hold threshold, then moves: that is the drag.
         point(0.3, 0.6).press(forDuration: 0.6, thenDragTo: point(0.7, 0.6))
         XCTAssertTrue(waitForLog(containing: "drag@"), "log: \(log)")
-        XCTAssertFalse(log.contains("click(3)"), "a slow drag must not right-click; log: \(log)")
+        XCTAssertFalse(log.contains("click(3)"), "a hold that moved must not right-click; log: \(log)")
     }
 
-    /// Drag to aim, lift, tap in the same place: the click lands where the arrow was
-    /// left, not 36 points under the finger. A tap elsewhere clicks where it lands.
-    func testTapAfterDragClicksWhereTheArrowIs() {
+    /// Move to aim, lift, tap near the same place: the click lands where the arrow was
+    /// left, not under the finger. A tap elsewhere clicks where it lands. The second
+    /// tap is deliberately off by a finger's width, since a hand never returns to the
+    /// same pixel.
+    func testTapAfterAimingClicksWhereTheArrowIs() {
         point(0.3, 0.5).press(forDuration: 0.05, thenDragTo: point(0.6, 0.5))
-        XCTAssertTrue(waitForLog(containing: "drag@"), "log: \(log)")
-        let dragged = log
-        guard let arrow = dragged.components(separatedBy: "->").last?.split(separator: " ").first else {
-            return XCTFail("no drag end in log: \(dragged)")
-        }
-        point(0.6, 0.5).tap()
-        XCTAssertTrue(waitForLog(containing: "click(1)@\(arrow)"), "the tap should click at the arrow \(arrow); log: \(log)")
+        XCTAssertTrue(waitForLog(containing: "move"), "log: \(log)")
+        sleep(1)
+        let arrowX = 0.6 * 1280.0
+        point(0.6 + 12.0 / desktop.frame.width, 0.5 + 8.0 / desktop.frame.height).tap()
+        XCTAssertTrue(waitForLog(containing: "click(1)@"), "log: \(log)")
+        let click = log.components(separatedBy: " | ").last ?? ""
+        let xs = click.replacingOccurrences(of: "click(1)@", with: "").split(separator: ",").first.flatMap { Double($0) } ?? -1
+        XCTAssertEqual(xs, arrowX, accuracy: 3, "the tap should click at the arrow's x, not the fingertip's; log: \(log)")
+        let arrow = click.replacingOccurrences(of: "click(1)@", with: "")
 
         point(0.15, 0.2).tap()
         let deadline = Date().addingTimeInterval(8)
@@ -85,9 +90,11 @@ final class DesktopTouchTests: XCTestCase {
         XCTAssertTrue(waitForLog(containing: "click(3)@"), "a two-finger tap should right-click; log: \(log)")
     }
 
-    func testDoubleTapDoubleClicks() {
+    func testDoubleTapIsTwoQuickClicks() {
         point(0.5, 0.5).doubleTap()
-        XCTAssertTrue(waitForLog(containing: "doubleClick@"), "log: \(log)")
+        let deadline = Date().addingTimeInterval(8)
+        while Date() < deadline, log.components(separatedBy: "click(1)@").count < 3 { usleep(100_000) }
+        XCTAssertEqual(log.components(separatedBy: "click(1)@").count, 3, "two taps, two clicks; log: \(log)")
     }
 
     func testPinchZoomsWithoutSendingInput() {

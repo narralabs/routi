@@ -115,7 +115,7 @@ struct EndpointStep: View {
         OnboardingScaffold(
             icon: "network",
             title: "Connect to Routi Core",
-            subtitle: "Routi Core runs on a Mac that stays on. Enter that Mac's address. With Tailscale on the Mac and on this device, its Tailscale address works from anywhere, at home or away.",
+            subtitle: "Enter your Mac's Tailscale address to reach Routi Core from this device, wherever you are. We recommend Tailscale over your Mac's local IP, which only works on your home Wi-Fi.",
             onBack: onBack
         ) {
             VStack(spacing: 14) {
@@ -158,10 +158,10 @@ struct EndpointStep: View {
 
                 // Where to find the address, and what Tailscale is, for a first-timer.
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("On the Mac, Settings › Routi Core shows the address to use here.")
+                    Text("You'll find it on your Mac under Settings › Routi Core.")
                     HStack(spacing: 4) {
-                        Text("Don't have Tailscale?")
-                        Link("Get it free", destination: URL(string: "https://tailscale.com/download")!)
+                        Text("New to Tailscale?")
+                        Link("It's free", destination: URL(string: "https://tailscale.com/download")!)
                     }
                 }
                 .font(.system(size: 12))

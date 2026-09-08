@@ -23,7 +23,13 @@ struct NewBotSheet: View {
     private var surfaceMode: SurfaceMode { canHaveScreen ? .container : .none }
 
     var body: some View {
-        SheetScaffold(title: "New Bot", confirmLabel: "Create", canConfirm: !name.isEmpty && !isSubmitting) {
+        // No provider, no bot: a bot is a description on a model, and with nothing
+        // connected in this profile there is no model for it to run on.
+        SheetScaffold(
+            title: "New Bot",
+            confirmLabel: "Create",
+            canConfirm: !name.isEmpty && !isSubmitting && model.availableProviders.contains(selectedProvider)
+        ) {
             VStack(alignment: .leading, spacing: 18) {
                 FormField("Name") {
                     TextField("", text: $name, prompt: Text("Research Bot"))
@@ -44,25 +50,29 @@ struct NewBotSheet: View {
                     .lineLimit(3...8)
                 }
 
+                let hasProvider = !model.availableProviders.isEmpty
                 FormField(
                     "Provider",
-                    footnote: "Fixed once the bot is created. Connect more under Settings → Providers."
+                    footnote: hasProvider ? "Fixed once the bot is created. Connect more under Settings → Providers." : nil
                 ) {
                     ProviderRows(connected: model.availableProviders, selection: $selectedProvider)
                 }
 
-                FormField(
-                    "Model",
-                    footnote: "Model and effort can be changed any time, from the line under the message box."
-                ) {
-                    Picker("", selection: $selectedModel) {
-                        ForEach(providerModels) { info in
-                            Text(info.presentedName(in: providerModels)).tag(info.id)
+                // No model to pick from until something is connected.
+                if hasProvider {
+                    FormField(
+                        "Model",
+                        footnote: "Model and effort can be changed any time, from the line under the message box."
+                    ) {
+                        Picker("", selection: $selectedModel) {
+                            ForEach(providerModels) { info in
+                                Text(info.presentedName(in: providerModels)).tag(info.id)
+                            }
                         }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .disabled(providerModels.isEmpty)
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .disabled(providerModels.isEmpty)
                 }
 
             }
@@ -171,6 +181,8 @@ struct BotSettingsSheet: View {
 /// name, and the one line that says who runs the bot and what pays for it, which is
 /// the actual decision when more than one is connected.
 private struct ProviderRows: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     /// Connected provider ids, in roster order.
     let connected: [String]
     @Binding var selection: String
@@ -182,11 +194,20 @@ private struct ProviderRows: View {
                 ProviderRow(provider: provider, isSelected: id == selection) { selection = id }
             }
             if connected.isEmpty {
-                Text("No provider is connected yet.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 6)
+                // The way out is Settings, and the sheet gets out of its way.
+                HStack(spacing: 10) {
+                    Text("Nothing is connected in \(model.userName) yet. Sign in to Claude, ChatGPT or Grok, or add an API key, and come back.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button("Open Settings") {
+                        dismiss()
+                        model.showSettings(pane: "anthropic-claude")
+                    }
+                    .accessibilityIdentifier("openProviderSettings")
+                }
+                .padding(.vertical, 6)
             }
         }
     }

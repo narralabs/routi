@@ -48,6 +48,12 @@ const handlers: Record<RpcMethod, Handler> = {
       provider?: string; profileId: string
     }
     if (!ctx.store.getProfile(params.profileId)) throw new RpcError('not_found', `No such profile: ${params.profileId}`)
+    // A bot on a provider this profile has not connected would greet with an error
+    // and never answer; it is refused here, where the app can say what to connect.
+    const provider = params.provider ?? 'anthropic'
+    if (!ctx.providers.get(providerKey(params.profileId, provider))) {
+      throw new RpcError('not_configured', `Nothing is connected for ${provider} in this profile yet.`)
+    }
     const created = ctx.store.createBot(params)
     // A bot with a screen gets it now rather than on first use. Pulling a container up
     // takes tens of seconds, and a bot is expected to start working the moment it is

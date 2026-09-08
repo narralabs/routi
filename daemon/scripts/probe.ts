@@ -315,17 +315,16 @@ async function main(): Promise<void> {
   check('the first profile is still signed in', defaultAuth.auth.configured)
   const workBots = await client.rpc<{ bots: unknown[] }>('bots.list', { profileId: work.profile.id })
   check('a new profile has no bots', workBots.bots.length === 0, `${workBots.bots.length}`)
-  const workBot = await client.rpc<{ bot: { id: string; profileId: string } }>('bots.create', {
+  // With nothing connected there is nothing for a bot to run on, so none is made:
+  // the first profile's Claude Code login does not reach the second.
+  const refusedBot = await client.rpc('bots.create', {
     name: 'Work Bot', systemPrompt: 'Terse.', model: 'default', provider: 'anthropic-claude', profileId: work.profile.id,
-  })
-  check('a bot is filed under its profile', workBot.bot.profileId === work.profile.id)
-  const defaultBots = await client.rpc<{ bots: unknown[] }>('bots.list', { profileId: 'default' })
-  check("the first profile does not list the other's bot", defaultBots.bots.length === 1, `${defaultBots.bots.length}`)
+  }).then(() => false, (e: Error) => /not_configured|connected/i.test(String(e.message)))
+  check('a profile with nothing connected cannot make a bot', refusedBot)
+  const defaultBots = await client.rpc<{ bots: { profileId: string }[] }>('bots.list', { profileId: 'default' })
+  check('the first profile lists only its own bot', defaultBots.bots.length === 1 && defaultBots.bots[0]!.profileId === 'default')
   const renamed = await client.rpc<{ profile: { name: string } }>('profiles.rename', { id: work.profile.id, name: 'Probe (Narra)' })
   check('profiles.rename', renamed.profile.name === 'Probe (Narra)')
-  const refused = await client.rpc('profiles.delete', { id: work.profile.id }).then(() => false, () => true)
-  check('a profile with bots cannot be deleted', refused)
-  await client.rpc('bots.delete', { id: workBot.bot.id })
   await client.rpc('profiles.delete', { id: work.profile.id })
   const left = await client.rpc<{ profiles: unknown[] }>('profiles.list')
   check('an empty profile can be deleted', left.profiles.length === 1)

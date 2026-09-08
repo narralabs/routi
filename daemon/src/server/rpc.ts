@@ -17,6 +17,8 @@ export interface RpcContext {
   desktops: DesktopPool
   handovers: Handovers
   updater: Updater
+  /** Where this core answers beyond loopback, for Settings to show a phone's owner. */
+  addresses: () => { hostname: string; tailscale: string | null; listening: boolean }
 }
 
 export class RpcError extends Error {
@@ -334,6 +336,8 @@ const handlers: Record<RpcMethod, Handler> = {
   'core.update.check': async (p, ctx) => ({ update: await ctx.updater.check((p as { force: boolean }).force) }),
 
   'core.update.start': async (_p, ctx) => ctx.updater.start(),
+
+  'core.addresses': async (_p, ctx) => ({ addresses: ctx.addresses() }),
 
   'settings.get': async (_p, ctx) => ({ settings: ctx.store.getSettings() }),
 

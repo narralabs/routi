@@ -91,6 +91,20 @@ cd apple && xcodebuild -scheme Routi -destination 'platform=macOS' build
 blocked on the UI. With a daemon running, `pnpm --filter routid poke "..."` sends a
 message to it so the app's render path can be watched without driving the UI.
 
+## Reaching the core from a phone or iPad
+
+The core listens on loopback, and on this Mac's Tailscale address when it has one —
+checked every half minute, since Tailscale usually comes up after the core at login.
+That is the whole remote story on purpose: a Tailscale address is the same at home and
+away, and only devices signed into the same tailnet can reach it, so the core needs no
+login of its own yet. It is not offered on the LAN, where anyone on the Wi-Fi could
+drive the bots. The tools endpoint under `/mcp` answers only loopback even on the
+tailnet, because the harnesses that use it run on this Mac. Settings › Routi Core shows
+the address to type into the phone; the phone's first run asks for it and points at
+Tailscale. The app's Info.plist allows cleartext connections, since `ws://` to a 100.x
+address is refused by App Transport Security otherwise — the encryption is WireGuard's,
+underneath.
+
 ## Updating an installed core from the app
 
 Settings › Routi Core shows "Update Routi Core" when a newer release exists, and the

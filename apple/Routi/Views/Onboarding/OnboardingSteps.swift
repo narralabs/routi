@@ -114,16 +114,28 @@ struct EndpointStep: View {
     var body: some View {
         OnboardingScaffold(
             icon: "network",
-            title: "Connect to Routi",
-            subtitle: "Enter the address of the Mac running Routi. A Tailscale name works here too."
+            title: "Connect to Routi Core",
+            subtitle: "Routi Core runs on a Mac that stays on. Enter that Mac's address. With Tailscale on the Mac and on this device, its Tailscale address works from anywhere — at home or away."
         ) {
             VStack(spacing: 14) {
                 Form {
-                    TextField("Host", text: $host, prompt: Text("mac-mini.tail1234.ts.net"))
+                    TextField("Host", text: $host, prompt: Text("100.101.102.103 or mac-mini.tailnet.ts.net"))
                     TextField("Port", value: $port, format: .number.grouping(.never))
                 }
                 .formStyle(.grouped)
                 .frame(height: 100)
+
+                // Where to find the address, and what Tailscale is, for a first-timer.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("On the Mac, Settings › Routi Core shows the address to use here.")
+                    HStack(spacing: 4) {
+                        Text("Don't have Tailscale?")
+                        Link("Get it free", destination: URL(string: "https://tailscale.com/download")!)
+                    }
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let failure {
                     Label(failure, systemImage: "exclamationmark.triangle.fill")

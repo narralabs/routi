@@ -466,6 +466,32 @@ struct ConnectionPane: View {
                 SettingsRow(title: "Protocol") {
                     SettingsValue(text: "v\(RoutiClient.protocolVersion)")
                 }
+            }
+
+            // How a phone or iPad reaches this core. Tailscale is the recommended way:
+            // the same address works at home and away, and only that person's own
+            // devices can use it. The core listens there the moment Tailscale is up.
+            SettingsSection(
+                "Phone and iPad",
+                footnote: "Routi Core answers on this Mac and, when Tailscale is running, on its Tailscale address — reachable only from your own devices, wherever they are."
+            ) {
+                if let addresses = model.coreAddresses, let tailscale = addresses.tailscale {
+                    SettingsRow(
+                        title: "Address",
+                        detail: "Enter this in the Routi app on your phone or iPad when it asks where Routi Core is.",
+                        isFirst: true
+                    ) {
+                        SettingsValue(text: "\(tailscale):\(port)", monospaced: true)
+                    }
+                } else {
+                    SettingsRow(
+                        title: "Tailscale",
+                        detail: "Install Tailscale on \(model.coreAddresses?.hostname ?? "the Mac running Routi Core") and on your phone, sign both into the same account, and the address to use appears here.",
+                        isFirst: true
+                    ) {
+                        Link("Get Tailscale", destination: URL(string: "https://tailscale.com/download")!)
+                    }
+                }
                 SettingsRow(title: "Data") {
                     SettingsValue(text: "~/.routi on the host Mac", monospaced: true)
                 }
@@ -475,7 +501,10 @@ struct ConnectionPane: View {
             draftHost = host
             draftPort = port
         }
-        .task { await model.checkCoreUpdate() }
+        .task {
+            await model.checkCoreUpdate()
+            await model.loadCoreAddresses()
+        }
     }
 
     private var showsCoreUpdate: Bool {

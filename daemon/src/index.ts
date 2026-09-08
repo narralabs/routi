@@ -11,6 +11,7 @@ import { Scheduler } from './sessions/scheduler.js'
 import { Handovers } from './surfaces/handover.js'
 import { DesktopPool } from './surfaces/pool.js'
 import { Updater } from './update.js'
+import { machineName, tailscaleAddress } from './server/tailscale.js'
 
 const DATA_DIR = process.env['ROUTI_DATA_DIR'] ?? join(homedir(), '.routi')
 
@@ -74,13 +75,38 @@ async function main(): Promise<void> {
     desktops,
     handovers,
   )
-  server = new RoutiServer({ store, sessions, providers, auth, desktops, handovers, updater })
+  server = new RoutiServer({
+    store, sessions, providers, auth, desktops, handovers, updater,
+    addresses: () => {
+      const tailscale = tailscaleAddress()
+      return { hostname: machineName(), tailscale, listening: tailscale !== null && server.alsoListeningOn.includes(tailscale) }
+    },
+  })
 
   // Routines are saved by bots during ordinary turns; this only fires what is due.
   const scheduler = new Scheduler(store, sessions)
   scheduler.start()
 
   await server.listen(PORT, HOST)
+
+  /**
+   * Also on the tailnet, so a phone can reach this core from anywhere.
+   *
+   * Loopback is where the core lives. The one other place it answers is this Mac's
+   * Tailscale address, which only devices signed into the same tailnet can reach, and
+   * which is the same address at home and away. Checked on a timer rather than once,
+   * because Tailscale often comes up after the core does at login. An explicit
+   * ROUTI_HOST is left alone: whoever set it chose.
+   */
+  if (!process.env['ROUTI_HOST']) {
+    const bindTailscale = async () => {
+      const address = tailscaleAddress()
+      if (!address || server.alsoListeningOn.includes(address)) return
+      if (await server.listenAlso(PORT, address)) console.log(`also listening on ws://${address}:${PORT}  (Tailscale)`)
+    }
+    await bindTailscale()
+    setInterval(() => void bindTailscale(), 30_000).unref()
+  }
 
   const status = await auth.status()
   console.log(`routid listening on ws://${HOST}:${PORT}  (data: ${DATA_DIR})`)

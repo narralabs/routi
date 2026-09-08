@@ -58,6 +58,7 @@
 		5BD073724E27CFF96D741B5D /* NewBotSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBotSheet.swift; sourceTree = "<group>"; };
 		5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
 		75ECC9B53C46B40DF50283ED /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
+		7D95DDD971A18799D215D6EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		84706E803B8FFFC6DFA36B93 /* Routi-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Routi-iOS.entitlements"; sourceTree = "<group>"; };
 		85E91F8038F61343E3273FD7 /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
 		87CC49000AD0941F4B4E281A /* InstallCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallCommand.swift; sourceTree = "<group>"; };
@@ -85,6 +86,7 @@
 		2A4718C548C40F1CAAD6EB0D /* Routi */ = {
 			isa = PBXGroup;
 			children = (
+				7D95DDD971A18799D215D6EC /* Info.plist */,
 				84706E803B8FFFC6DFA36B93 /* Routi-iOS.entitlements */,
 				099C9C1462D777FC014D22E1 /* Routi.entitlements */,
 				184722C04D7C490D94182666 /* RoutiApp.swift */,
@@ -483,6 +485,7 @@
 				"ENABLE_APP_SANDBOX[sdk=iphonesimulator*]" = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Routi/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Routi Bot";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Narra Labs, LLC";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -515,6 +518,7 @@
 				"ENABLE_APP_SANDBOX[sdk=iphonesimulator*]" = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Routi/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Routi Bot";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Narra Labs, LLC";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

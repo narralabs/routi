@@ -242,6 +242,18 @@ export const RpcMethods = {
     params: z.object({}),
     result: z.object({ ok: z.boolean(), why: z.string().optional() }),
   },
+  /** Where this core can be reached from another device: the Mac's name, and its Tailscale address when it has one. */
+  'core.addresses': {
+    params: z.object({}),
+    result: z.object({
+      addresses: z.object({
+        hostname: z.string(),
+        tailscale: z.string().nullable(),
+        /** Whether the core is answering on that Tailscale address right now. */
+        listening: z.boolean(),
+      }),
+    }),
+  },
 
   'settings.get': { params: z.object({}), result: z.object({ settings: z.record(z.string(), z.unknown()) }) },
   'settings.set': { params: z.object({ patch: z.record(z.string(), z.unknown()) }), result: z.object({ settings: z.record(z.string(), z.unknown()) }) },

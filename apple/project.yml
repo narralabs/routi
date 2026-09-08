@@ -51,6 +51,15 @@ targets:
     # Stamps each build with the time and commit it came from. Debug builds show it
     # in the sidebar, which settles "am I looking at the new one?" without guessing
     # from file timestamps.
+    # Generated into Routi/Info.plist; the INFOPLIST_KEY_ settings below are merged in.
+    info:
+      path: Routi/Info.plist
+      properties:
+        # The app talks to the core over plain ws://. From a phone that is a Tailscale
+        # address, encrypted underneath by WireGuard — which App Transport Security
+        # cannot know, and it refuses cleartext to anything but loopback and .local.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     postBuildScripts:
       - name: Stamp build identity
         basedOnDependencyAnalysis: false

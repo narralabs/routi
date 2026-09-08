@@ -192,6 +192,21 @@ final class AppModel {
         #endif
     }
 
+    // MARK: - Addresses
+
+    /// Where this core can be reached from another device, as the core sees it.
+    struct CoreAddresses: Codable, Hashable {
+        var hostname: String
+        var tailscale: String?
+        var listening: Bool
+    }
+
+    var coreAddresses: CoreAddresses?
+
+    func loadCoreAddresses() async {
+        coreAddresses = try? await client.rpc("core.addresses", field: "addresses", as: CoreAddresses.self)
+    }
+
     // MARK: - Updates
 
     /// What the core says about newer releases. Nil until asked; asked on every connect.

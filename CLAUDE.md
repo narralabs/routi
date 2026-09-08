@@ -88,6 +88,13 @@ nine desktop verbs are in it. Notes and routines are answered in `runDesktopTool
 before the desktop is touched, so saving one never starts a container.
 `pnpm --filter routid spike:memory` proves all three layers against the real CLI.
 
+### Where the core listens
+
+Loopback, plus the Tailscale address when present (`daemon/src/server/tailscale.ts`,
+bound by `RoutiServer.listenAlso` from `index.ts` on a 30s check). Never the LAN: there
+is no client auth yet. `/mcp` is loopback-only on every listener. `core.addresses` is
+what Settings shows a phone's owner.
+
 ### Updating the core from the app
 
 `daemon/src/update.ts` + `scripts/update-core.sh`. The core fetches, verifies and unpacks

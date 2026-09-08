@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { McpHttp } from './mcp-http.js'
 import { ClientMessage, PROTOCOL_VERSION, type ServerEvent, type ServerMessage } from '@routi/protocol'
@@ -18,6 +18,9 @@ export class RoutiServer {
   private readonly http: Server
   private readonly wss: WebSocketServer
   private readonly clients = new Set<Client>()
+  /** Further listeners on other addresses — the Tailscale one — sharing the handler. */
+  private readonly extra = new Map<string, Server>()
+  private readonly handle: (req: IncomingMessage, res: ServerResponse) => void
 
   constructor(private readonly ctx: RpcContext) {
     const mcp = new McpHttp(
@@ -26,9 +29,15 @@ export class RoutiServer {
       (botId) => ctx.sessions.routinesChanged(botId),
     )
 
-    this.http = createServer((req, res) => {
-      // Tools over HTTP, for harnesses that sandbox the processes they launch.
+    this.handle = (req, res) => {
+      // Tools over HTTP, for harnesses that sandbox the processes they launch. Those
+      // harnesses run on this Mac, so the tools answer only this Mac: a phone on the
+      // tailnet may talk to its bots, not drive their screens directly.
       if (McpHttp.matches(req.url)) {
+        if (!isLoopback(req.socket.remoteAddress)) {
+          res.writeHead(403).end()
+          return
+        }
         void mcp.handle(req, res)
         return
       }
@@ -38,19 +47,55 @@ export class RoutiServer {
         return
       }
       res.writeHead(404).end()
-    })
-    this.wss = new WebSocketServer({ server: this.http })
+    }
+    this.http = createServer(this.handle)
+    // Not tied to one HTTP server: every listener hands its upgrades to the same socket
+    // server, so a client is a client whichever address it arrived on.
+    this.wss = new WebSocketServer({ noServer: true })
     this.wss.on('connection', (ws) => this.onConnection(ws))
+    this.adopt(this.http)
+  }
+
+  private adopt(server: Server): void {
+    server.on('upgrade', (req, socket, head) => {
+      this.wss.handleUpgrade(req, socket, head, (ws) => this.wss.emit('connection', ws, req))
+    })
   }
 
   listen(port: number, host: string): Promise<void> {
     return new Promise((resolve) => this.http.listen(port, host, resolve))
   }
 
+  /**
+   * Also answers on another address — the Tailscale one, when it appears.
+   *
+   * Loopback is where the core lives; the tailnet is how a phone reaches it from
+   * anywhere, and only devices signed into the same tailnet can. Resolves false if
+   * the address cannot be bound, which is not fatal: this Mac still has the core.
+   */
+  listenAlso(port: number, host: string): Promise<boolean> {
+    if (this.extra.has(host)) return Promise.resolve(true)
+    return new Promise((resolve) => {
+      const server = createServer(this.handle)
+      this.adopt(server)
+      server.once('error', () => resolve(false))
+      server.listen(port, host, () => {
+        this.extra.set(host, server)
+        resolve(true)
+      })
+    })
+  }
+
+  /** The addresses beyond loopback this core answers on. */
+  get alsoListeningOn(): string[] {
+    return [...this.extra.keys()]
+  }
+
   async close(): Promise<void> {
     for (const c of this.clients) c.ws.close()
     await new Promise<void>((r) => this.wss.close(() => r()))
     await new Promise<void>((r) => this.http.close(() => r()))
+    for (const server of this.extra.values()) await new Promise<void>((r) => server.close(() => r()))
   }
 
   /**
@@ -132,6 +177,9 @@ export class RoutiServer {
     }
   }
 }
+
+const isLoopback = (address: string | undefined): boolean =>
+  address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1'
 
 function conversationIdOf(event: ServerEvent): string | null {
   /**

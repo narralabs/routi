@@ -81,7 +81,7 @@ struct MobileScreen: View {
                 .accessibilityIdentifier("closeScreen")
             if let bot {
                 HStack(spacing: 8) {
-                    BotAvatar(color: bot.color, seed: bot.id, size: 24)
+                    BotAvatar(color: bot.color, seed: bot.id, size: 24, mood: model.mood(for: bot.id))
                     Text(bot.name).font(.system(size: 15, weight: .semibold)).lineLimit(1)
                 }
                 .padding(.horizontal, 12)

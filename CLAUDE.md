@@ -146,6 +146,20 @@ proof; run it for any change here. A drag is the `drag` input kind, run as one x
 `desktop.ts` so the container image did not change. The Mac keeps `ScreenWindow`.
 Debug builds open straight onto it with `-showScreen`.
 
+### The face
+
+`apple/Routi/Views/Components/BotAvatar.swift` draws the bot's face from a few
+animatable numbers (eye openness, gaze, brow, mouth curve, an "o", a red wash), so every
+expression is one short animation of the same shapes. Its `mood` comes from
+`AppModel.mood(for:)`: `trouble` while the thread has an undismissed error, `working`
+while the newest broadcast block is a running `tool_use` (`workingConversations`, fed
+by `message.block` for every thread, not only the one on screen), `thinking` for the
+rest of busy, `asleep` after `dozeAfter` (15 min) of quiet, else `idle`. A one-minute
+`clock` in the model is what re-reads "quiet". The poke is an easter egg in the view
+alone: a tap squashes it, four taps in a row make it cross, seven turn it red, and it
+calms by itself. The tap is a `simultaneousGesture` so a click on the face in the
+sidebar still selects the row (measured on the Mac).
+
 ### Where the core listens
 
 Loopback, plus the Tailscale address when present (`daemon/src/server/tailscale.ts`,

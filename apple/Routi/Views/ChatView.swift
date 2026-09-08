@@ -360,7 +360,7 @@ struct ChatView: View {
         // flat on the window; the buttons draw their own hover state instead.
         ToolbarItem(placement: .navigation) {
             HStack(spacing: 8) {
-                BotAvatar(color: bot.color, seed: bot.id, size: 20)
+                BotAvatar(color: bot.color, seed: bot.id, size: 20, mood: model.mood(for: bot.id))
                 Text(bot.name).font(.system(size: 13, weight: .semibold))
             }
         }
@@ -393,7 +393,7 @@ struct ChatView: View {
         // The bot in the bar: its face and its name, where a chat app keeps them.
         ToolbarItem(placement: .principal) {
             HStack(spacing: 8) {
-                BotAvatar(color: bot.color, seed: bot.id, size: 24)
+                BotAvatar(color: bot.color, seed: bot.id, size: 24, mood: model.mood(for: bot.id))
                 Text(bot.name)
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)

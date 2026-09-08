@@ -107,7 +107,7 @@ struct BotListView: View {
         VStack(spacing: 0) {
         List(selection: selection) {
             ForEach(model.bots) { bot in
-                BotAvatar(color: bot.color, seed: bot.id, size: 36, isBusy: model.isBusy(botID: bot.id))
+                BotAvatar(color: bot.color, seed: bot.id, size: 36, mood: model.mood(for: bot.id))
                     .overlay(alignment: .topTrailing) {
                         if model.handover(for: bot.id) != nil {
                             Circle().fill(.orange).frame(width: 9, height: 9)
@@ -232,7 +232,7 @@ private struct BotRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            BotAvatar(color: bot.color, seed: bot.id, size: 36, isBusy: isBusy)
+            BotAvatar(color: bot.color, seed: bot.id, size: 36, mood: model.mood(for: bot.id))
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {

@@ -27,6 +27,12 @@ final class AppModel {
 
     // Transient
     var busyConversations: Set<String> = []
+    /// Busy conversations whose latest block is a tool call still running — the bot
+    /// is doing something, not thinking about it. The face shows the difference.
+    var workingConversations: Set<String> = []
+    /// Ticks once a minute so anything derived from "how long ago" — a bot dozing off
+    /// in the sidebar — is re-read without anyone touching the window.
+    var clock = Date()
     /// Which routine is running a busy conversation, by conversation id — so "busy"
     /// can be shown as what it is rather than as an unexplained "Thinking…".
     var busyRoutineNames: [String: String] = [:]
@@ -523,6 +529,22 @@ final class AppModel {
         return busyConversations.contains(conv.id)
     }
 
+    /// Quiet this long, and a bot is asleep.
+    static let dozeAfter: TimeInterval = 15 * 60
+
+    /// What the bot's face should be doing, from what its latest thread is up to.
+    func mood(for botID: String) -> BotMood {
+        guard let conv = conversation(for: botID) else { return .idle }
+        if conversationErrors[conv.id] != nil { return .trouble }
+        if busyConversations.contains(conv.id) {
+            return workingConversations.contains(conv.id) ? .working : .thinking
+        }
+        if let last = conv.lastMessageAt, clock.timeIntervalSince1970 - last / 1000 > Self.dozeAfter {
+            return .asleep
+        }
+        return .idle
+    }
+
     /// Most recently active conversation for a bot — what the sidebar previews.
     func conversation(for botID: String) -> Conversation? {
         conversations.values
@@ -539,6 +561,12 @@ final class AppModel {
             }
         }
         client.connect()
+        Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                clock = Date()
+            }
+        }
     }
 
     func updateEndpoint(host: String, port: Int) {
@@ -1138,6 +1166,8 @@ final class AppModel {
             }
 
         case "message.delta":
+            // Text or thought is flowing again: whatever tool ran has returned.
+            if let id = event.payload["conversationId"] as? String { workingConversations.remove(id) }
             guard event.payload["conversationId"] as? String == selectedConversationID,
                   let messageID = event.payload["messageId"] as? String,
                   let index = event.payload["blockIndex"] as? Int,
@@ -1155,13 +1185,20 @@ final class AppModel {
             }
 
         case "message.block":
-            guard event.payload["conversationId"] as? String == selectedConversationID,
+            guard let conversationID = event.payload["conversationId"] as? String,
                   let messageID = event.payload["messageId"] as? String,
                   let index = event.payload["blockIndex"] as? Int,
                   let raw = event.payload["block"],
                   let data = try? JSONSerialization.data(withJSONObject: raw),
                   let block = try? JSONDecoder().decode(Block.self, from: data)
             else { return }
+            // Broadcast for every thread, so the sidebar knows which bots are mid-tool.
+            if case .toolUse(let tool) = block, tool.status == .running {
+                workingConversations.insert(conversationID)
+            } else {
+                workingConversations.remove(conversationID)
+            }
+            guard conversationID == selectedConversationID else { return }
             mutateBlocks(messageID) { blocks in
                 Self.pad(&blocks, to: index)
                 blocks[index] = block
@@ -1175,6 +1212,7 @@ final class AppModel {
                 if let name = event.payload["routineName"] as? String { busyRoutineNames[id] = name }
             } else {
                 busyConversations.remove(id)
+                workingConversations.remove(id)
                 // A run just finished: its last-run and next-run times moved.
                 if busyRoutineNames.removeValue(forKey: id) != nil, id == selectedConversationID {
                     Task { await loadRoutines() }

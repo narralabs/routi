@@ -419,18 +419,37 @@ private struct TouchLayer: UIViewRepresentable {
             )
         }
 
+        /// Where the last drag let the pointer go: the finger's place and the arrow's.
+        /// A drag lifts the arrow above the finger to keep it visible, so a tap that
+        /// lands back where the finger lifted means "click what the arrow is on", not
+        /// "click 36 points under it". Drag to aim, tap to confirm.
+        private var lastDragEnd: (finger: CGPoint, pointer: CGPoint)?
+
         private func clickPoint(_ g: UIGestureRecognizer) -> CGPoint {
-            parent.trackpadMode ? parent.pointer() : desktopPoint(g.location(in: g.view))
+            if parent.trackpadMode { return parent.pointer() }
+            let here = g.location(in: g.view)
+            if let end = lastDragEnd, hypot(here.x - end.finger.x, here.y - end.finger.y) < 44 / parent.zoom {
+                return end.pointer
+            }
+            lastDragEnd = nil
+            return desktopPoint(here)
+        }
+
+        private func endedDrag(finger: CGPoint, pointer: CGPoint) {
+            lastDragEnd = (finger, pointer)
         }
 
         @objc func tap(_ g: UITapGestureRecognizer) {
             let p = clickPoint(g)
             parent.onPointerMoved(p)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
             parent.onInput(["kind": "click", "x": Int(p.x), "y": Int(p.y)])
         }
 
         @objc func doubleTap(_ g: UITapGestureRecognizer) {
             let p = clickPoint(g)
+            parent.onPointerMoved(p)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
             parent.onInput(["kind": "doubleClick", "x": Int(p.x), "y": Int(p.y)])
         }
 
@@ -479,6 +498,7 @@ private struct TouchLayer: UIViewRepresentable {
                     if hypot(to.x - from.x, to.y - from.y) > 4 {
                         parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
                     }
+                    if !parent.trackpadMode { endedDrag(finger: g.location(in: g.view), pointer: to) }
                 } else if g.state == .ended {
                     let p = parent.trackpadMode ? parent.pointer() : desktopPoint(pressOrigin)
                     parent.onPointerMoved(p)
@@ -540,6 +560,7 @@ private struct TouchLayer: UIViewRepresentable {
                 if hypot(to.x - from.x, to.y - from.y) > 4 {
                     parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
                 }
+                endedDrag(finger: g.location(in: g.view), pointer: to)
                 dragStart = nil
             case .cancelled, .failed:
                 dragStart = nil
@@ -590,7 +611,7 @@ struct ScreenHelpSheet: View {
             List {
                 Section("Moving around") {
                     HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
-                    HelpRow("cursorarrow.click", "Click and drag", "Tap to click where you tapped. Drag one finger to move the pointer; what you drag lets go where you lift.")
+                    HelpRow("cursorarrow.click", "Click and drag", "Tap to click where you tapped. Drag one finger to move the pointer; what you drag lets go where you lift. To hit something small, drag until the arrow is on it, lift, and tap in the same place.")
                     HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving. A hold that moves drags instead, for a careful drag.")
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")
                 }

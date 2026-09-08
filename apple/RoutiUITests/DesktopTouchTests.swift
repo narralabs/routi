@@ -56,6 +56,25 @@ final class DesktopTouchTests: XCTestCase {
         XCTAssertFalse(log.contains("click(3)"), "a slow drag must not right-click; log: \(log)")
     }
 
+    /// Drag to aim, lift, tap in the same place: the click lands where the arrow was
+    /// left, not 36 points under the finger. A tap elsewhere clicks where it lands.
+    func testTapAfterDragClicksWhereTheArrowIs() {
+        point(0.3, 0.5).press(forDuration: 0.05, thenDragTo: point(0.6, 0.5))
+        XCTAssertTrue(waitForLog(containing: "drag@"), "log: \(log)")
+        let dragged = log
+        guard let arrow = dragged.components(separatedBy: "->").last?.split(separator: " ").first else {
+            return XCTFail("no drag end in log: \(dragged)")
+        }
+        point(0.6, 0.5).tap()
+        XCTAssertTrue(waitForLog(containing: "click(1)@\(arrow)"), "the tap should click at the arrow \(arrow); log: \(log)")
+
+        point(0.15, 0.2).tap()
+        let deadline = Date().addingTimeInterval(8)
+        while Date() < deadline, log.components(separatedBy: "click(1)@").count < 3 { usleep(150_000) }
+        let last = log.components(separatedBy: " | ").last ?? ""
+        XCTAssertTrue(last.hasPrefix("click(1)@") && !last.hasSuffix(arrow), "a tap elsewhere clicks there, not at the arrow; log: \(log)")
+    }
+
     func testHoldRightClicks() {
         point(0.5, 0.5).press(forDuration: 0.9)
         XCTAssertTrue(waitForLog(containing: "click(3)@"), "a hold should right-click; log: \(log)")

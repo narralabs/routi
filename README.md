@@ -68,11 +68,14 @@ they were yours before Routi.
 
 ## Roadmap
 
-- **Plugins.** Give bots Gmail, Google Calendar, Slack, GitHub and the rest, through each
-  vendor's own MCP server and sign-in — one connection, every bot. The Google ones wait
-  on Google's app verification.
-- **iPhone and iPad.** The same app, as a window onto the bots on your Mac.
-- **Per-bot plugins and screens.** Which connections a bot may use, chosen per bot.
+- **Connectors.** Sign in to Gmail once and every bot you allow can search, read, draft
+  and send, as tools rather than through the browser; Google Calendar, Drive, Slack and
+  GitHub follow the same way. The sign-in happens on the Mac running the core and the
+  token stays in its Keychain, per profile. Gmail first, after launch. Public use of
+  the Google ones waits on Google's app verification; until then, a bring-your-own
+  OAuth client.
+- **Per-bot connectors and screens.** Which connections a bot may use, chosen per bot,
+  the way a screen is today.
 
 ## Developing
 

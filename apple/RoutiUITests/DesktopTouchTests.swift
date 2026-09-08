@@ -102,6 +102,20 @@ final class DesktopTouchTests: XCTestCase {
         XCTAssertFalse(log.contains("click"), "log: \(log.suffix(300))")
     }
 
+    /// The keyboard types straight onto the desktop, in order, Return as Return.
+    func testKeyboardTypesOntoTheDesktop() {
+        app.buttons["keyboard"].tap()
+        sleep(1)
+        app.typeText("hi\n")
+        XCTAssertTrue(waitForLog(containing: "key(Return)"), "Return should reach the desktop; log: \(log.suffix(300))")
+        let entries = log.components(separatedBy: " | ")
+        let typed = entries.filter { $0.hasPrefix("type(") }.map { $0.dropFirst(5).dropLast() }.joined()
+        XCTAssertEqual(typed, "hi", "the letters should reach the desktop; log: \(log.suffix(300))")
+        let iType = entries.lastIndex(where: { $0.hasPrefix("type(") }) ?? -1
+        let iReturn = entries.lastIndex(of: "key(Return)") ?? -1
+        XCTAssertLessThan(iType, iReturn, "the letters must go before Return; log: \(log.suffix(300))")
+    }
+
     /// The black margin above the picture is touch too: a drag there moves the pointer.
     func testDragInTheBlackMarginMovesThePointer() {
         point(0.5, 0.08).press(forDuration: 0.05, thenDragTo: point(0.5, 0.2))

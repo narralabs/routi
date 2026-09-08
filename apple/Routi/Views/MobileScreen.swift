@@ -19,8 +19,6 @@ struct MobileScreen: View {
     @State private var trackpadMode = true
     @State private var showingHelp = false
     @State private var showingKeyboard = false
-    @State private var typed = ""
-    @FocusState private var keyboardFocused: Bool
     /// The pointer as trackpad mode believes it, in desktop pixels.
     @State private var trackpadPointer: CGPoint?
     @State private var zoom: CGFloat = 1
@@ -43,7 +41,6 @@ struct MobileScreen: View {
                 HandoverBanner(handover: handover)
             }
             screen
-            if showingKeyboard { keyboardBar }
             bottomBar
         }
         .background(Color.black.ignoresSafeArea())
@@ -119,61 +116,23 @@ struct MobileScreen: View {
                 RoundButtonLabel(systemName: "clipboard")
             }
             Spacer()
+            // No field: the keyboard types straight onto the desktop, key by key, and
+            // Return is Return there. The keys a phone lacks ride above the keyboard.
+            KeyInput(isActive: $showingKeyboard, onInput: { input in
+                #if DEBUG
+                inputLog.append(Self.describe(input))
+                #endif
+                Task { await model.sendSurfaceInput(input) }
+            })
+            .frame(width: 1, height: 1)
             RoundButton(systemName: showingKeyboard ? "keyboard.chevron.compact.down" : "keyboard") {
-                withAnimation(.snappy(duration: 0.2)) { showingKeyboard.toggle() }
-                keyboardFocused = showingKeyboard
+                showingKeyboard.toggle()
             }
+            .accessibilityIdentifier("keyboard")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .foregroundStyle(.white)
-    }
-
-    /// Text goes as typing; the keys a phone keyboard lacks go as themselves.
-    private var keyboardBar: some View {
-        VStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(SpecialKey.all) { key in
-                        Button(key.label) { Task { await model.sendSurfaceInput(["kind": "key", "keys": [key.keysym]]) } }
-                            .buttonStyle(.bordered)
-                            .tint(.white)
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                }
-                .padding(.horizontal, 14)
-            }
-            HStack(spacing: 8) {
-                TextField("Type on the desktop", text: $typed, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...4)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(.white.opacity(0.12), in: .rect(cornerRadius: 12, style: .continuous))
-                    .foregroundStyle(.white)
-                    .focused($keyboardFocused)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .onSubmit { sendTyped(thenReturn: true) }
-                Button { sendTyped(thenReturn: false) } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 28))
-                }
-                .disabled(typed.isEmpty)
-            }
-            .padding(.horizontal, 14)
-        }
-        .padding(.top, 8)
-        .foregroundStyle(.white)
-    }
-
-    private func sendTyped(thenReturn: Bool) {
-        let text = typed
-        typed = ""
-        guard !text.isEmpty || thenReturn else { return }
-        Task {
-            if !text.isEmpty { await model.sendSurfaceInput(["kind": "type", "text": text]) }
-            if thenReturn { await model.sendSurfaceInput(["kind": "key", "keys": ["Return"]]) }
-        }
     }
 
     // MARK: - The picture
@@ -273,6 +232,8 @@ struct MobileScreen: View {
         case "click": return "click(\(input["button"] as? Int ?? 1))@\(input["x"] ?? 0),\(input["y"] ?? 0)"
         case "doubleClick": return "doubleClick@\(input["x"] ?? 0),\(input["y"] ?? 0)"
         case "drag": return "drag@\(input["fromX"] ?? 0),\(input["fromY"] ?? 0)->\(input["toX"] ?? 0),\(input["toY"] ?? 0)"
+        case "type": return "type(\(input["text"] ?? ""))"
+        case "key": return "key(\((input["keys"] as? [String])?.joined(separator: "+") ?? ""))"
         default: return kind
         }
     }
@@ -335,6 +296,125 @@ private struct RoundButtonLabel: View {
             .frame(width: 44, height: 44)
             .background(.white.opacity(0.1), in: .circle)
             .contentShape(.circle)
+    }
+}
+
+// MARK: - Keyboard
+
+/// An invisible first responder: the keyboard's keystrokes, sent to the desktop as
+/// they happen. Text goes through `type`, which handles any character; Return and
+/// backspace go through `key`, since typing the word "Return" is not the same thing.
+/// Sent in order, one call at a time, with a run of characters merged into one.
+private struct KeyInput: UIViewRepresentable {
+    @Binding var isActive: Bool
+    let onInput: ([String: Any]) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> KeyView {
+        let view = KeyView()
+        view.coordinator = context.coordinator
+        view.inputAccessoryView = context.coordinator.accessory()
+        return view
+    }
+
+    func updateUIView(_ view: KeyView, context: Context) {
+        context.coordinator.parent = self
+        if isActive, !view.isFirstResponder { view.becomeFirstResponder() }
+        if !isActive, view.isFirstResponder { view.resignFirstResponder() }
+    }
+
+    final class Coordinator: NSObject {
+        var parent: KeyInput
+        private var queue: [[String: Any]] = []
+        private var flushing = false
+        init(_ parent: KeyInput) { self.parent = parent }
+
+        func text(_ s: String) {
+            if s == "\n" { key("Return"); return }
+            if var last = queue.last, last["kind"] as? String == "type" {
+                last["text"] = (last["text"] as? String ?? "") + s
+                queue[queue.count - 1] = last
+            } else {
+                queue.append(["kind": "type", "text": s])
+            }
+            flush()
+        }
+
+        func key(_ keysym: String) {
+            queue.append(["kind": "key", "keys": [keysym]])
+            flush()
+        }
+
+        private func flush() {
+            guard !flushing, !queue.isEmpty else { return }
+            flushing = true
+            let next = queue.removeFirst()
+            parent.onInput(next)
+            // Order over speed: the next keystroke goes after this one has been handed
+            // off, so "hi" then Return cannot arrive as Return then "hi".
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+                self?.flushing = false
+                self?.flush()
+            }
+        }
+
+        func dismissed() {
+            DispatchQueue.main.async { self.parent.isActive = false }
+        }
+
+        /// The keys a phone keyboard lacks, above it.
+        func accessory() -> UIView {
+            let bar = UIScrollView(frame: CGRect(x: 0, y: 0, width: 0, height: 44))
+            bar.backgroundColor = UIColor(white: 0.12, alpha: 1)
+            bar.showsHorizontalScrollIndicator = false
+            let stack = UIStackView()
+            stack.axis = .horizontal
+            stack.spacing = 8
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            for k in SpecialKey.all {
+                var config = UIButton.Configuration.filled()
+                config.title = k.label
+                config.baseBackgroundColor = UIColor(white: 0.25, alpha: 1)
+                config.baseForegroundColor = .white
+                config.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12)
+                let button = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in self?.key(k.keysym) })
+                button.titleLabel?.font = .systemFont(ofSize: 13, weight: .medium)
+                stack.addArrangedSubview(button)
+            }
+            bar.addSubview(stack)
+            NSLayoutConstraint.activate([
+                stack.leadingAnchor.constraint(equalTo: bar.contentLayoutGuide.leadingAnchor, constant: 12),
+                stack.trailingAnchor.constraint(equalTo: bar.contentLayoutGuide.trailingAnchor, constant: -12),
+                stack.centerYAnchor.constraint(equalTo: bar.frameLayoutGuide.centerYAnchor),
+                stack.heightAnchor.constraint(equalTo: bar.frameLayoutGuide.heightAnchor, constant: -12),
+            ])
+            return bar
+        }
+    }
+
+    final class KeyView: UIView, UIKeyInput {
+        weak var coordinator: Coordinator?
+        private var accessory: UIView?
+        override var canBecomeFirstResponder: Bool { true }
+        override var inputAccessoryView: UIView? {
+            get { accessory }
+            set { accessory = newValue }
+        }
+        var hasText: Bool { true }
+        var autocorrectionType: UITextAutocorrectionType = .no
+        var autocapitalizationType: UITextAutocapitalizationType = .none
+        var spellCheckingType: UITextSpellCheckingType = .no
+        var smartQuotesType: UITextSmartQuotesType = .no
+        var smartDashesType: UITextSmartDashesType = .no
+        var smartInsertDeleteType: UITextSmartInsertDeleteType = .no
+        func insertText(_ text: String) { coordinator?.text(text) }
+        func deleteBackward() { coordinator?.key("BackSpace") }
+        override func resignFirstResponder() -> Bool {
+            let did = super.resignFirstResponder()
+            if did { coordinator?.dismissed() }
+            return did
+        }
     }
 }
 
@@ -690,7 +770,7 @@ struct ScreenHelpSheet: View {
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")
                 }
                 Section("Typing and the clipboard") {
-                    HelpRow("keyboard", "Type", "Tap the keyboard button in the bottom bar. Return sends the line; the row above it has the keys a phone lacks.")
+                    HelpRow("keyboard", "Type", "Tap the keyboard button in the bottom bar and type; every key goes straight to the desktop. The row above the keyboard has the keys a phone lacks.")
                     HelpRow("clipboard", "Copy and paste", "The clipboard button in the bottom bar copies to this phone or pastes from it.")
                 }
                 Section("The other way") {

@@ -42,13 +42,14 @@ struct ScreenWindow: View {
 
             Spacer()
 
-            Text("Click and type to drive it · Esc to leave")
+            Text("Click and type to drive it")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
 
-            // Closing sits in the top right, the same corner the panel closes from.
+            // Closing sits in the top right, the same corner the panel closes from, and
+            // only there: every key, Escape included, belongs to the desktop, which
+            // has dialogs and menus of its own for it to dismiss.
             CloseButton { model.isShowingScreen = false }
-                .keyboardShortcut(.escape, modifiers: [])
         }
         .padding(.leading, 16)
         .padding(.trailing, 10)

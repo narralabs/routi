@@ -335,18 +335,14 @@ struct DesktopInputLayer: NSViewRepresentable {
 extension KeySymbol {
     /// Named keys by virtual key code, for the AppKit path.
     private static let namedByKeyCode: [UInt16: String] = [
-        36: "Return", 76: "KP_Enter", 48: "Tab", 51: "BackSpace", 117: "Delete",
+        36: "Return", 76: "KP_Enter", 48: "Tab", 51: "BackSpace", 117: "Delete", 53: "Escape",
         126: "Up", 125: "Down", 123: "Left", 124: "Right",
         115: "Home", 119: "End", 116: "Page_Up", 121: "Page_Down", 49: "space",
     ]
 
     static func input(for event: NSEvent) -> [String: Any]? {
-        // Escape is reserved for leaving the full-window view, which is what the
-        // header promises. Forwarding it would take away the documented way out and
-        // leave the pointer trapped in a desktop with no exit; a bot can still send
-        // Escape through `press_key` when a page needs it.
-        if event.keyCode == 53 { return nil }
-
+        // Escape goes to the desktop like every other key: it is how a page's dialog
+        // or a browser menu is dismissed. Leaving the view is the close button's job.
         let flags = event.modifierFlags
         var prefix: [String] = []
         if flags.contains(.control) { prefix.append("ctrl") }

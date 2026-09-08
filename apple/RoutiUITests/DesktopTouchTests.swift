@@ -113,13 +113,25 @@ final class DesktopTouchTests: XCTestCase {
     }
 
     /// A finger that pauses past the hold threshold and then keeps moving is still only
-    /// pointing: no drag, no right-click. This is the pause a hand makes to aim.
-    func testPauseThenMoveOnlyMovesThePointer() {
+    /// pointing: no drag, no right-click, and the pointer ends where the travel says —
+    /// once. It used to end twice as far, since the pan under the hold replayed the
+    /// hold's movement on release.
+    func testPauseThenMoveOnlyMovesThePointerAndOnlyOnce() {
+        app.terminate()
+        app.launchArguments.append("-logPointer")
+        app.launch()
+        XCTAssertTrue(desktop.waitForExistence(timeout: 60))
+        sleep(3)
         point(0.3, 0.6).press(forDuration: 0.7, thenDragTo: point(0.7, 0.6))
-        XCTAssertTrue(waitForLog(containing: "move"), "log: \(log)")
-        sleep(1)
+        sleep(2)
         XCTAssertFalse(log.contains("drag@"), "a pause then a move must not drag; log: \(log.suffix(300))")
         XCTAssertFalse(log.contains("click"), "a pause then a move must not click; log: \(log.suffix(300))")
+        guard let last = log.components(separatedBy: " | ").last(where: { $0.hasPrefix("ptr@") }),
+              let x = last.replacingOccurrences(of: "ptr@", with: "").split(separator: ",").first.flatMap({ Double($0) })
+        else { return XCTFail("no pointer positions logged: \(log.suffix(300))") }
+        // 0.4 of the pane's width of finger travel, one to one with the picture, from the
+        // middle: 640 + 0.4 × 1280 = 1152. Replayed twice it would be pinned at 1279.
+        XCTAssertEqual(x, 1152, accuracy: 60, "the pointer should have moved exactly as far as the finger; log tail: \(log.suffix(200))")
     }
 
     /// Tap, then press and hold, then move: that is the drag, from the pointer.

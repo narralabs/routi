@@ -603,8 +603,18 @@ private struct TouchLayer: UIViewRepresentable {
         /// hold, then move. In trackpad mode the finger's travel moves the pointer
         /// instead of placing it.
         @objc func oneFingerPan(_ g: UIPanGestureRecognizer) {
-            if pressing { return }
+            if pressing {
+                // A hold owns the movement. The pan keeps running underneath, and its
+                // travel has to be thrown away as it happens: left to accumulate, its
+                // final event applied the whole of the hold's movement a second time
+                // on release, and the pointer leapt away from where the finger lifted.
+                g.setTranslation(.zero, in: g.view)
+                return
+            }
             if parent.trackpadMode {
+                // The final event's delta is the tail of the last one; applying it
+                // once more is the nudge nobody made.
+                guard g.state == .changed else { g.setTranslation(.zero, in: g.view); return }
                 let t = g.translation(in: g.view)
                 g.setTranslation(.zero, in: g.view)
                 nudgePointer(dx: t.x, dy: t.y)

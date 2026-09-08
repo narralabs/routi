@@ -188,6 +188,10 @@ final class AppModel {
         #if os(macOS)
         return true
         #else
+        #if DEBUG
+        // A phone launched straight onto the desktop needs a bot selected first.
+        if ProcessInfo.processInfo.arguments.contains("-showScreen") { return true }
+        #endif
         return UIDevice.current.userInterfaceIdiom == .pad
         #endif
     }

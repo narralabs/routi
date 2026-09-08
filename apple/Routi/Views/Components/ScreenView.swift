@@ -386,12 +386,30 @@ extension KeySymbol {
 struct RemoteCursor: View {
     var size: CGFloat = 15
     var body: some View {
-        Image(systemName: "cursorarrow.fill")
-            .font(.system(size: size))
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.9), radius: 1)
-            .shadow(color: .black.opacity(0.5), radius: 3)
-            // SF Symbols centre their glyph; a cursor points from its top-left corner.
-            .offset(x: size / 3, y: size * 0.4)
+        // Drawn, not a symbol: the cursor symbols are Mac-only, and on iOS an absent
+        // symbol renders as nothing at all — which read as "there is no pointer".
+        // The tip is the shape's origin, so no offset is needed.
+        ArrowCursor()
+            .fill(.white)
+            .stroke(.black, lineWidth: 1)
+            .frame(width: size * 0.65, height: size)
+            .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+    }
+}
+
+/// The classic arrow, tip at the top-left, in a unit box.
+struct ArrowCursor: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.move(to: CGPoint(x: 0, y: 0))
+        p.addLine(to: CGPoint(x: 0, y: h * 0.82))
+        p.addLine(to: CGPoint(x: w * 0.28, y: h * 0.64))
+        p.addLine(to: CGPoint(x: w * 0.5, y: h))
+        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.92))
+        p.addLine(to: CGPoint(x: w * 0.46, y: h * 0.58))
+        p.addLine(to: CGPoint(x: w * 0.8, y: h * 0.58))
+        p.closeSubpath()
+        return p
     }
 }

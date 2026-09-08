@@ -5,7 +5,8 @@
 Bots that live on your Mac, each with its own personality, model and screen. Give one a
 job, like watching a market, finding a hotel, or checking a price every morning, and it
 opens a browser and does it, on any AI you already pay for: a Claude plan, a ChatGPT
-plan, or an API key. Your phone is a window onto the same bots.
+plan, or an API key. It is a Mac app; the iPhone and iPad app is a window onto the same
+bots from wherever you are.
 
 > “One shared Linux, a screen per bot, any model you already pay for — on the Mac that
 > stays on. Same idea, cleanly executed. Ship it.”
@@ -86,6 +87,20 @@ they were yours before Routi.
   you sign in on its desktop, it carries on.
 - **Per-bot connectors and screens.** Which connections a bot may use, chosen per bot,
   the way a screen is today.
+
+## Why it is Mac only
+
+> If you build something for everyone, it works for no one.
+
+Routi is for a Mac that stays on: the Mac mini in the corner, the laptop you replaced,
+any spare Mac you would like to turn into a small server that runs your bots all day.
+The core runs there, the app opens onto it from your other Macs and from the phone.
+
+There is no plan to support Windows or Linux, and no roadmap entry for it. Staying on
+one platform is what lets the app be a real Mac app rather than a web page in a
+frame: small binaries, native windows and notifications, the Keychain for every
+credential, and an installer that is a drag and a double-click. Every hour that would
+go to a second platform goes to the experience on this one.
 
 ## Developing
 

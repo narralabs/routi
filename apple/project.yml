@@ -39,7 +39,37 @@ settings:
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
       GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 $(inherited)"
 
+schemes:
+  Routi:
+    build:
+      targets:
+        Routi: all
+        RoutiUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [RoutiUITests]
+    archive:
+      config: Release
+
 targets:
+  # Drives the app on an iPhone simulator with real taps, drags and holds, against a
+  # running core, and reads back what input the desktop was sent. The one place the
+  # phone's touch handling is proven rather than described.
+  RoutiUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [RoutiUITests]
+    dependencies:
+      - target: Routi
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.narralabs.routi.uitests
+        TEST_TARGET_NAME: Routi
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: YES
+
   Routi:
     # NavigationSplitView adapts the same views to Mac, iPad, and iPhone; the handful
     # of genuine differences sit behind `#if os(macOS)`. Adding iOS to

@@ -297,6 +297,41 @@ async function main(): Promise<void> {
   check('bot resumes its thread after restart', recalled.e === 'message.completed' && /analog synthesizer/i.test(recalledText),
     JSON.stringify(recalledText.trim().slice(0, 60)))
 
+  // --- profiles -------------------------------------------------------------
+  // A second profile is a second set of connections: it starts signed out of Claude
+  // Code even though the Mac's own login is live, sees none of the first profile's
+  // bots, and takes bots of its own that the first profile never lists.
+  const profiles = await client.rpc<{ profiles: { id: string; name: string }[] }>('profiles.list')
+  check('the first profile exists after boot', profiles.profiles.length === 1 && profiles.profiles[0]!.id === 'default',
+    profiles.profiles.map((p) => p.name).join(', '))
+  const work = await client.rpc<{ profile: { id: string; name: string } }>('profiles.create', { name: 'Probe (Work)' })
+  check('profiles.create returns a profile', !!work.profile.id && work.profile.name === 'Probe (Work)')
+  const workAuth = await client.rpc<{ auth: { configured: boolean; subscription: { loggedIn: boolean } } }>(
+    'auth.status', { profileId: work.profile.id },
+  )
+  check('a new profile starts signed out of Claude Code', !workAuth.auth.configured && !workAuth.auth.subscription.loggedIn,
+    `configured=${workAuth.auth.configured} loggedIn=${workAuth.auth.subscription.loggedIn}`)
+  const defaultAuth = await client.rpc<{ auth: { configured: boolean } }>('auth.status', {})
+  check('the first profile is still signed in', defaultAuth.auth.configured)
+  const workBots = await client.rpc<{ bots: unknown[] }>('bots.list', { profileId: work.profile.id })
+  check('a new profile has no bots', workBots.bots.length === 0, `${workBots.bots.length}`)
+  const workBot = await client.rpc<{ bot: { id: string; profileId: string } }>('bots.create', {
+    name: 'Work Bot', systemPrompt: 'Terse.', model: 'default', provider: 'anthropic-claude', profileId: work.profile.id,
+  })
+  check('a bot is filed under its profile', workBot.bot.profileId === work.profile.id)
+  const defaultBots = await client.rpc<{ bots: unknown[] }>('bots.list', { profileId: 'default' })
+  check("the first profile does not list the other's bot", defaultBots.bots.length === 1, `${defaultBots.bots.length}`)
+  const renamed = await client.rpc<{ profile: { name: string } }>('profiles.rename', { id: work.profile.id, name: 'Probe (Narra)' })
+  check('profiles.rename', renamed.profile.name === 'Probe (Narra)')
+  const refused = await client.rpc('profiles.delete', { id: work.profile.id }).then(() => false, () => true)
+  check('a profile with bots cannot be deleted', refused)
+  await client.rpc('bots.delete', { id: workBot.bot.id })
+  await client.rpc('profiles.delete', { id: work.profile.id })
+  const left = await client.rpc<{ profiles: unknown[] }>('profiles.list')
+  check('an empty profile can be deleted', left.profiles.length === 1)
+  const keepFirst = await client.rpc('profiles.delete', { id: 'default' }).then(() => false, () => true)
+  check('the first profile cannot be deleted', keepFirst)
+
   await client.rpc('memory.delete', { id: added.memory.id })
   const gone = await client.rpc<{ memories: unknown[] }>('memory.list', { botId })
   check('memory.delete removes the note', gone.memories.length === 0)

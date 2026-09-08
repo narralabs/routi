@@ -1,13 +1,15 @@
+import { mkdirSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import type { AuthMode } from '@routi/protocol'
-import type { Store } from '../db/store.js'
+import { DEFAULT_PROFILE, type Store } from '../db/store.js'
 import { AnthropicApiAdapter } from '../providers/anthropic-api.js'
 import { AnthropicSubscriptionAdapter } from '../providers/anthropic-subscription.js'
-import type { ProviderAdapter } from '../providers/types.js'
+import { providerKey, type ProviderAdapter } from '../providers/types.js'
 import type { DesktopPool } from '../surfaces/pool.js'
 import { OpenAiApiAdapter } from '../providers/openai-api.js'
 import { COMPATIBLE_PROVIDERS, OpenAiCompatibleAdapter } from '../providers/openai-compatible.js'
 import { OpenAiSubscriptionAdapter } from '../providers/openai-subscription.js'
-import { XaiSubscriptionAdapter } from '../providers/xai-subscription.js'
+import { XaiSubscriptionAdapter, isolatedGrokHome } from '../providers/xai-subscription.js'
 import { ClaudeCli } from './claude-cli.js'
 import { CodexCli } from './codex-cli.js'
 import { GrokCli } from './grok-cli.js'
@@ -37,8 +39,13 @@ export interface ProviderAuth {
 }
 
 const SETTING_MODE = 'authMode'
-/** Per-provider mode, for providers configured after onboarding. */
-const settingModeFor = (provider: string) => `authMode.${provider}`
+/**
+ * Per-provider mode. The default profile keeps the keys from before profiles existed,
+ * so an upgraded core sees its connections where it left them; every other profile's
+ * modes carry the profile id.
+ */
+const settingModeFor = (provider: string, profileId = DEFAULT_PROFILE) =>
+  profileId === DEFAULT_PROFILE ? `authMode.${provider}` : `authMode.${profileId}.${provider}`
 /** Which harness runs the turn, where a provider offers a choice. */
 const settingHarnessFor = (provider: string) => `authHarness.${provider}`
 
@@ -58,16 +65,38 @@ const VENDOR_API_OF: Record<string, string> = { 'xai-grok': 'xai', 'anthropic-cl
 const ANTHROPIC_IDS = new Set(['anthropic', 'anthropic-claude'])
 
 /**
+ * A profile's own copies of the vendor CLIs, and the directory its logins live in.
+ *
+ * The default profile is the Mac's own: Claude Code's `~/.claude`, Codex's `~/.codex`,
+ * Grok's `~/.grok`, exactly as before profiles existed. Every other profile gets a
+ * home of its own under `~/.routi/profiles/<id>`, and each CLI is pointed there —
+ * `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GROK_HOME` plus `HOME` — so signing in from
+ * that profile signs in only that profile. Measured: Claude Code with an empty
+ * `CLAUDE_CONFIG_DIR` reports `loggedIn: false` while the Mac's own login is live.
+ */
+interface ProfileTools {
+  cli: ClaudeCli
+  codex: CodexCli
+  grok: GrokCli
+  /** Where this profile's harness adapters keep their isolated homes. */
+  dataDir: string
+  /** Claude Code's config dir, for a profile with its own login; unset for the default. */
+  claudeConfigDir?: string
+  /** True when the profile holds its own CLI logins rather than borrowing the Mac's. */
+  ownLogin: boolean
+}
+
+/**
  * Owns which credential the daemon uses and swaps the live provider when it changes.
  *
  * The daemon must start with no credentials at all — that is the whole point of
- * onboarding — so the provider map starts empty and is populated here.
+ * onboarding — so the provider map starts empty and is populated here. Adapters are
+ * filed by `providerKey(profileId, providerId)`: a profile is a separate set of
+ * connections, so two profiles on Claude Code are two adapters on two logins.
  */
 export class AuthManager {
-  private readonly cli = new ClaudeCli()
-  private readonly codex = new CodexCli()
-  private readonly grok = new GrokCli()
   private readonly credentials: Credentials
+  private readonly tools = new Map<string, ProfileTools>()
 
   constructor(
     private readonly store: Store,
@@ -81,20 +110,51 @@ export class AuthManager {
     this.credentials = new Credentials(dataDir)
   }
 
-  async status(): Promise<AuthStatus> {
-    const cliStatus = await this.cli.status()
+  private toolsFor(profileId: string): ProfileTools {
+    const found = this.tools.get(profileId)
+    if (found) return found
+    let made: ProfileTools
+    if (profileId === DEFAULT_PROFILE) {
+      made = { cli: new ClaudeCli(), codex: new CodexCli(), grok: new GrokCli(), dataDir: this.dataDir, ownLogin: false }
+    } else {
+      const dir = this.profileDir(profileId)
+      const claudeConfigDir = join(dir, 'claude')
+      mkdirSync(claudeConfigDir, { recursive: true })
+      const { grokHome, home } = isolatedGrokHome(dir, false)
+      const codexHome = join(dir, 'codex')
+      mkdirSync(codexHome, { recursive: true })
+      made = {
+        cli: new ClaudeCli({ CLAUDE_CONFIG_DIR: claudeConfigDir }),
+        codex: new CodexCli(undefined, { CODEX_HOME: codexHome }),
+        grok: new GrokCli(undefined, { GROK_HOME: grokHome, HOME: home }),
+        dataDir: dir,
+        claudeConfigDir,
+        ownLogin: true,
+      }
+    }
+    this.tools.set(profileId, made)
+    return made
+  }
+
+  private profileDir(profileId: string): string {
+    return join(this.dataDir, 'profiles', profileId)
+  }
+
+  async status(profileId = DEFAULT_PROFILE): Promise<AuthStatus> {
+    const tools = this.toolsFor(profileId)
+    const cliStatus = await tools.cli.status()
 
     const providers: Record<string, ProviderAuth> = {
-      anthropic: await this.keyOnlyStatus('anthropic'),
-      'anthropic-claude': await this.claudeStatus(cliStatus),
-      openai: await this.openAiStatus('openai'),
-      'openai-codex': await this.openAiStatus('openai-codex'),
-      'xai-grok': await this.grokStatus(),
+      anthropic: await this.keyOnlyStatus('anthropic', profileId),
+      'anthropic-claude': await this.claudeStatus(cliStatus, profileId),
+      openai: await this.openAiStatus('openai', profileId),
+      'openai-codex': await this.openAiStatus('openai-codex', profileId),
+      'xai-grok': await this.grokStatus(profileId),
       // Everything that speaks OpenAI's chat API: one shape, key only.
       ...Object.fromEntries(
         await Promise.all(
           Object.keys(COMPATIBLE_PROVIDERS).map(
-            async (id) => [id, await this.keyOnlyStatus(id)] as const,
+            async (id) => [id, await this.keyOnlyStatus(id, profileId)] as const,
           ),
         ),
       ),
@@ -114,7 +174,7 @@ export class AuthManager {
       mode: claude.configured ? claude.mode : direct.configured ? direct.mode : null,
       subscription: {
         cliInstalled: cliStatus.installed,
-        cliVersion: cliStatus.installed ? await this.cli.version() : null,
+        cliVersion: cliStatus.installed ? await tools.cli.version() : null,
         loggedIn: cliStatus.loggedIn,
         email: cliStatus.email,
         organization: cliStatus.organization,
@@ -125,18 +185,22 @@ export class AuthManager {
     }
   }
 
+  private modeOf(provider: string, profileId: string): AuthMode | null {
+    return (this.store.getSettings()[settingModeFor(provider, profileId)] as AuthMode | undefined) ?? null
+  }
+
   // --------------------------------------------------------------- Anthropic
 
   /** Claude Code, which reaches a Claude plan the way Codex reaches ChatGPT. */
-  private async claudeStatus(cli: Awaited<ReturnType<ClaudeCli['status']>>): Promise<ProviderAuth> {
-    const key = await this.credentials.getApiKey('anthropic-claude')
-    const mode = (this.store.getSettings()[settingModeFor('anthropic-claude')] as AuthMode | undefined) ?? null
+  private async claudeStatus(cli: Awaited<ReturnType<ClaudeCli['status']>>, profileId: string): Promise<ProviderAuth> {
+    const key = await this.credentials.getApiKey('anthropic-claude', profileId)
+    const mode = this.modeOf('anthropic-claude', profileId)
     return {
       configured: (mode === 'subscription' && cli.installed && cli.loggedIn) || (mode === 'api_key' && key !== null),
       mode,
       cli: {
         installed: cli.installed,
-        version: cli.installed ? await this.cli.version() : null,
+        version: cli.installed ? await this.toolsFor(profileId).cli.version() : null,
         loggedIn: cli.loggedIn,
         account: cli.email,
       },
@@ -146,11 +210,12 @@ export class AuthManager {
 
   // ------------------------------------------------------------------ OpenAI
 
-  private async openAiStatus(provider: string): Promise<ProviderAuth> {
+  private async openAiStatus(provider: string, profileId: string): Promise<ProviderAuth> {
     const usesCodex = provider === 'openai-codex'
-    const cli = usesCodex ? await this.codex.status() : { installed: false, loggedIn: false }
-    const key = await this.credentials.getApiKey(provider)
-    const mode = (this.store.getSettings()[settingModeFor(provider)] as AuthMode | undefined) ?? null
+    const codex = this.toolsFor(profileId).codex
+    const cli = usesCodex ? await codex.status() : { installed: false, loggedIn: false }
+    const key = await this.credentials.getApiKey(provider, profileId)
+    const mode = this.modeOf(provider, profileId)
 
     return {
       // As with Anthropic, a stored mode only counts while its credential still works.
@@ -159,7 +224,7 @@ export class AuthManager {
       mode,
       cli: {
         installed: cli.installed,
-        version: usesCodex && cli.installed ? await this.codex.version() : null,
+        version: usesCodex && cli.installed ? await codex.version() : null,
         loggedIn: cli.loggedIn,
         account: 'method' in cli ? cli.method : undefined,
       },
@@ -170,17 +235,18 @@ export class AuthManager {
   // --------------------------------------------------------------------- xAI
 
   /** Grok Build, which reaches a personal Grok account the way Codex reaches ChatGPT. */
-  private async grokStatus(): Promise<ProviderAuth> {
-    const cli = await this.grok.status()
-    const key = await this.credentials.getApiKey('xai-grok')
-    const mode = (this.store.getSettings()[settingModeFor('xai-grok')] as AuthMode | undefined) ?? null
+  private async grokStatus(profileId: string): Promise<ProviderAuth> {
+    const grok = this.toolsFor(profileId).grok
+    const cli = await grok.status()
+    const key = await this.credentials.getApiKey('xai-grok', profileId)
+    const mode = this.modeOf('xai-grok', profileId)
 
     return {
       configured: (mode === 'subscription' && cli.loggedIn) || (mode === 'api_key' && key !== null),
       mode,
       cli: {
         installed: cli.installed,
-        version: cli.installed ? await this.grok.version() : null,
+        version: cli.installed ? await grok.version() : null,
         loggedIn: cli.loggedIn,
         account: cli.account,
       },
@@ -189,9 +255,9 @@ export class AuthManager {
   }
 
   /** A provider with no account path: an API key or nothing. */
-  private async keyOnlyStatus(provider: string): Promise<ProviderAuth> {
-    const key = await this.credentials.getApiKey(provider)
-    const mode = (this.store.getSettings()[settingModeFor(provider)] as AuthMode | undefined) ?? null
+  private async keyOnlyStatus(provider: string, profileId: string): Promise<ProviderAuth> {
+    const key = await this.credentials.getApiKey(provider, profileId)
+    const mode = this.modeOf(provider, profileId)
     return {
       configured: mode === 'api_key' && key !== null,
       mode,
@@ -201,41 +267,42 @@ export class AuthManager {
   }
 
   /** Opens the vendor's browser sign-in for a provider configured in Settings. */
-  async providerLogin(provider: string): Promise<AuthStatus> {
+  async providerLogin(provider: string, profileId = DEFAULT_PROFILE): Promise<AuthStatus> {
+    const tools = this.toolsFor(profileId)
     if (provider === 'anthropic-claude') {
-      const cli = await this.cli.status()
+      const cli = await tools.cli.status()
       if (!cli.installed) {
         throw new Error(
           'Claude Code could not be started on this Mac. It ships with Routi Core, so this is worth reporting.',
         )
       }
-      if (!cli.loggedIn) await this.cli.login()
+      if (!cli.loggedIn) await tools.cli.login()
     } else if (provider === 'openai-codex') {
-      const cli = await this.codex.status()
+      const cli = await tools.codex.status()
       if (!cli.installed) {
         throw new Error(
           'Codex could not be started on this Mac. It ships with Routi Core, so this is worth reporting.',
         )
       }
-      if (!cli.loggedIn) await this.codex.login()
+      if (!cli.loggedIn) await tools.codex.login()
     } else if (provider === 'xai-grok') {
-      const cli = await this.grok.status()
+      const cli = await tools.grok.status()
       if (!cli.installed) {
         throw new Error(
           'Grok is not installed on this Mac. Install it from grok.com/cli, then try again.',
         )
       }
-      if (!cli.loggedIn) await this.grok.login()
+      if (!cli.loggedIn) await tools.grok.login()
     } else {
       throw new Error(`No account sign-in for provider: ${provider}`)
     }
 
-    this.store.setSettings({ [settingModeFor(provider)]: 'subscription' })
-    await this.applyProvider(provider)
-    return this.status()
+    this.store.setSettings({ [settingModeFor(provider, profileId)]: 'subscription' })
+    await this.applyProvider(provider, profileId)
+    return this.status(profileId)
   }
 
-  async providerSetApiKey(provider: string, key: string): Promise<AuthStatus & { verified: string }> {
+  async providerSetApiKey(provider: string, key: string, profileId = DEFAULT_PROFILE): Promise<AuthStatus & { verified: string }> {
     const compatible = COMPATIBLE_PROVIDERS[provider]
     if (!compatible && !HARNESS_PROVIDERS.has(provider) && provider !== 'openai' && provider !== 'anthropic') {
       throw new Error(`No API key slot for provider: ${provider}`)
@@ -252,18 +319,41 @@ export class AuthManager {
         ? new OpenAiCompatibleAdapter(checkAgainst, key).validate()
         : new OpenAiApiAdapter(key).validate())
 
-    await this.credentials.setApiKey(key, provider)
-    this.store.setSettings({ [settingModeFor(provider)]: 'api_key' })
-    await this.applyProvider(provider)
-    return { ...(await this.status()), verified }
+    await this.credentials.setApiKey(key, provider, profileId)
+    this.store.setSettings({ [settingModeFor(provider, profileId)]: 'api_key' })
+    await this.applyProvider(provider, profileId)
+    return { ...(await this.status(profileId)), verified }
   }
 
-  async providerSignOut(provider: string): Promise<AuthStatus> {
-    await this.credentials.clearApiKey(provider)
-    this.store.setSettings({ [settingModeFor(provider)]: null })
-    this.providers.get(provider)?.dispose()
-    this.providers.delete(provider)
-    return this.status()
+  async providerSignOut(provider: string, profileId = DEFAULT_PROFILE): Promise<AuthStatus> {
+    await this.credentials.clearApiKey(provider, profileId)
+    this.store.setSettings({ [settingModeFor(provider, profileId)]: null })
+    const key = providerKey(profileId, provider)
+    this.providers.get(key)?.dispose()
+    this.providers.delete(key)
+    return this.status(profileId)
+  }
+
+  /**
+   * Drops everything a deleted profile connected: its adapters, its stored modes and
+   * keys, and the directory holding its CLI logins. The default profile is the Mac's
+   * own and is never forgotten this way.
+   */
+  async forgetProfile(profileId: string): Promise<void> {
+    if (profileId === DEFAULT_PROFILE) return
+    for (const id of this.allProviderIds()) {
+      await this.credentials.clearApiKey(id, profileId)
+      this.store.setSettings({ [settingModeFor(id, profileId)]: null })
+      const key = providerKey(profileId, id)
+      this.providers.get(key)?.dispose()
+      this.providers.delete(key)
+    }
+    this.tools.delete(profileId)
+    rmSync(this.profileDir(profileId), { recursive: true, force: true })
+  }
+
+  private allProviderIds(): string[] {
+    return ['anthropic', 'openai', ...HARNESS_PROVIDERS, ...Object.keys(COMPATIBLE_PROVIDERS)]
   }
 
   /**
@@ -308,33 +398,35 @@ export class AuthManager {
     }
   }
 
-  /** Installs the adapter matching a provider's stored mode. */
-  private async applyProvider(provider: string): Promise<void> {
-    this.providers.get(provider)?.dispose()
-    this.providers.delete(provider)
+  /** Installs the adapter matching a provider's stored mode, for one profile. */
+  private async applyProvider(provider: string, profileId: string): Promise<void> {
+    const key = providerKey(profileId, provider)
+    this.providers.get(key)?.dispose()
+    this.providers.delete(key)
 
     const compatible = COMPATIBLE_PROVIDERS[provider]
     if (provider !== 'openai' && provider !== 'anthropic' && !HARNESS_PROVIDERS.has(provider) && !compatible) return
-    const mode = this.store.getSettings()[settingModeFor(provider)] as AuthMode | undefined
-    const key = await this.credentials.getApiKey(provider)
+    const mode = this.modeOf(provider, profileId)
+    const apiKey = await this.credentials.getApiKey(provider, profileId)
+    const tools = this.toolsFor(profileId)
 
     if (provider === 'anthropic') {
-      if (mode === 'api_key' && key) {
-        this.providers.set('anthropic', new AnthropicApiAdapter(key))
+      if (mode === 'api_key' && apiKey) {
+        this.providers.set(key, new AnthropicApiAdapter(apiKey))
       }
       return
     }
 
     if (compatible) {
-      if (mode === 'api_key' && key) {
-        this.providers.set(provider, new OpenAiCompatibleAdapter(compatible, key, this.desktops))
+      if (mode === 'api_key' && apiKey) {
+        this.providers.set(key, new OpenAiCompatibleAdapter(compatible, apiKey, this.desktops))
       }
       return
     }
 
     if (provider === 'openai') {
-      if (mode === 'api_key' && key) {
-        this.providers.set('openai', new OpenAiApiAdapter(key, this.desktops))
+      if (mode === 'api_key' && apiKey) {
+        this.providers.set(key, new OpenAiApiAdapter(apiKey, this.desktops))
       }
       return
     }
@@ -343,19 +435,25 @@ export class AuthManager {
     // a key is handed to it in the environment — so the two modes differ only in
     // whether a key comes along.
     if (mode !== 'api_key' && mode !== 'subscription') return
-    if (mode === 'api_key' && !key) return
-    if (mode === 'subscription' && !(await this.harnessSignedIn(provider))) return
+    if (mode === 'api_key' && !apiKey) return
+    if (mode === 'subscription' && !(await this.harnessSignedIn(provider, profileId))) return
 
     const opts = {
       cwd: this.sessionCwd,
-      dataDir: this.dataDir,
+      dataDir: tools.dataDir,
       mcpBaseUrl: this.mcpBaseUrl,
-      ...(mode === 'api_key' && key ? { apiKey: key } : {}),
+      ownLogin: tools.ownLogin,
+      ...(mode === 'api_key' && apiKey ? { apiKey } : {}),
     }
     this.providers.set(
-      provider,
+      key,
       provider === 'anthropic-claude'
-        ? new AnthropicSubscriptionAdapter({ cwd: this.sessionCwd, desktops: this.desktops, ...(opts.apiKey ? { apiKey: opts.apiKey } : {}) })
+        ? new AnthropicSubscriptionAdapter({
+            cwd: this.sessionCwd,
+            desktops: this.desktops,
+            ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
+            ...(tools.claudeConfigDir ? { configDir: tools.claudeConfigDir } : {}),
+          })
         : provider === 'xai-grok'
           ? new XaiSubscriptionAdapter(opts)
           : new OpenAiSubscriptionAdapter(opts),
@@ -363,12 +461,13 @@ export class AuthManager {
   }
 
   /** Whether the CLI behind a harness provider still has a live account login. */
-  private async harnessSignedIn(provider: string): Promise<boolean> {
+  private async harnessSignedIn(provider: string, profileId: string): Promise<boolean> {
+    const tools = this.toolsFor(profileId)
     const cli = provider === 'anthropic-claude'
-      ? await this.cli.status()
+      ? await tools.cli.status()
       : provider === 'xai-grok'
-        ? await this.grok.status()
-        : await this.codex.status()
+        ? await tools.grok.status()
+        : await tools.codex.status()
     return cli.installed && cli.loggedIn
   }
 
@@ -421,13 +520,15 @@ export class AuthManager {
     return this.status()
   }
 
-  /** Installs every configured provider. Called at boot and on change. */
+  /** Installs every configured provider of every profile. Called at boot and on change. */
   async applyMode(): Promise<void> {
+    // The migrations predate profiles, so they concern the default one only.
     await this.migrateCodexProvider()
     this.migrateAnthropicProvider()
-    await this.applyProvider('anthropic')
-    await this.applyProvider('openai')
-    for (const id of HARNESS_PROVIDERS) await this.applyProvider(id)
-    for (const id of Object.keys(COMPATIBLE_PROVIDERS)) await this.applyProvider(id)
+    const profiles = this.store.listProfiles().map((p) => p.id)
+    if (!profiles.includes(DEFAULT_PROFILE)) profiles.unshift(DEFAULT_PROFILE)
+    for (const profileId of profiles) {
+      for (const id of this.allProviderIds()) await this.applyProvider(id, profileId)
+    }
   }
 }

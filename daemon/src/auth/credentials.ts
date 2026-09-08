@@ -39,10 +39,15 @@ export class Credentials {
     return process.platform === 'darwin'
   }
 
-  private account(provider: string): string {
+  /**
+   * The Keychain account name. The default profile keeps the names from before
+   * profiles existed, so nothing already stored moves; another profile's key sits
+   * beside it under the same name with the profile's id appended.
+   */
+  private account(provider: string, profileId = 'default'): string {
     const account = ACCOUNTS[provider]
     if (!account) throw new Error(`No credential slot for provider: ${provider}`)
-    return account
+    return profileId === 'default' ? account : `${account}.${profileId}`
   }
 
   private readFallback(): Record<string, string> {
@@ -53,23 +58,24 @@ export class Credentials {
     }
   }
 
-  async getApiKey(provider = 'anthropic'): Promise<string | null> {
+  async getApiKey(provider = 'anthropic', profileId = 'default'): Promise<string | null> {
     if (this.useKeychain) {
-      const found = await this.readKeychain(SERVICE, provider)
+      const found = await this.readKeychain(SERVICE, provider, profileId)
       if (found !== null) return found
       // A key stored under the old name is adopted: written under the new one, so the
       // next read finds it there, and left in place under the old.
-      const old = await this.readKeychain(OLD_SERVICE, provider)
-      if (old !== null) await this.setApiKey(old, provider)
+      if (profileId !== 'default') return null
+      const old = await this.readKeychain(OLD_SERVICE, provider, profileId)
+      if (old !== null) await this.setApiKey(old, provider, profileId)
       return old
     }
-    return this.readFallback()[this.account(provider)] ?? null
+    return this.readFallback()[this.account(provider, profileId)] ?? null
   }
 
-  private async readKeychain(service: string, provider: string): Promise<string | null> {
+  private async readKeychain(service: string, provider: string, profileId: string): Promise<string | null> {
     try {
       const { stdout } = await run('security', [
-        'find-generic-password', '-s', service, '-a', this.account(provider), '-w',
+        'find-generic-password', '-s', service, '-a', this.account(provider, profileId), '-w',
       ])
       const key = stdout.trim()
       return key.length > 0 ? key : null
@@ -79,7 +85,7 @@ export class Credentials {
     }
   }
 
-  async setApiKey(key: string, provider = 'anthropic'): Promise<void> {
+  async setApiKey(key: string, provider = 'anthropic', profileId = 'default'): Promise<void> {
     const trimmed = key.trim()
     if (!trimmed) throw new Error('API key is empty.')
 
@@ -88,7 +94,7 @@ export class Credentials {
       await run('security', [
         'add-generic-password', '-U',
         '-s', SERVICE,
-        '-a', this.account(provider),
+        '-a', this.account(provider, profileId),
         '-w', trimmed,
         '-D', 'application password',
         '-j', `${provider} API key for Routi`,
@@ -96,23 +102,23 @@ export class Credentials {
       return
     }
 
-    const all = { ...this.readFallback(), [this.account(provider)]: trimmed }
+    const all = { ...this.readFallback(), [this.account(provider, profileId)]: trimmed }
     mkdirSync(dirname(this.fallbackPath), { recursive: true })
     writeFileSync(this.fallbackPath, JSON.stringify(all, null, 2), { mode: 0o600 })
     chmodSync(this.fallbackPath, 0o600)
   }
 
-  async clearApiKey(provider = 'anthropic'): Promise<void> {
+  async clearApiKey(provider = 'anthropic', profileId = 'default'): Promise<void> {
     if (this.useKeychain) {
       try {
-        await run('security', ['delete-generic-password', '-s', SERVICE, '-a', this.account(provider)])
+        await run('security', ['delete-generic-password', '-s', SERVICE, '-a', this.account(provider, profileId)])
       } catch {
         // Already absent.
       }
       return
     }
     const all = this.readFallback()
-    delete all[this.account(provider)]
+    delete all[this.account(provider, profileId)]
     if (Object.keys(all).length === 0) {
       rmSync(this.fallbackPath, { force: true })
       return

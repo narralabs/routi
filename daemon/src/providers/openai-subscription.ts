@@ -97,7 +97,7 @@ function toModelInfo(models: CodexModel[]): ModelInfo[] {
  * signing in or out with the CLI stays in effect, and Routi never holds a copy of the
  * credential.
  */
-function isolatedCodexHome(dataDir: string): string {
+function isolatedCodexHome(dataDir: string, linkLogin = true): string {
   const home = join(dataDir, 'codex')
   mkdirSync(home, { recursive: true })
 
@@ -112,6 +112,9 @@ function isolatedCodexHome(dataDir: string): string {
     ].join('\n'),
   )
 
+  // The default profile borrows the Mac's own Codex login; another profile signs in
+  // with CODEX_HOME pointed here, so its auth.json is its own and is left alone.
+  if (!linkLogin) return home
   const link = join(home, 'auth.json')
   const real = join(homedir(), '.codex', 'auth.json')
   try {
@@ -137,9 +140,9 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   private readonly listeners = new Map<string, (event: AppServerEvent) => void>()
 
   constructor(
-    private readonly opts: { cwd: string; dataDir: string; mcpBaseUrl: string; apiKey?: string },
+    private readonly opts: { cwd: string; dataDir: string; mcpBaseUrl: string; apiKey?: string; ownLogin?: boolean },
   ) {
-    const home = isolatedCodexHome(opts.dataDir)
+    const home = isolatedCodexHome(opts.dataDir, !opts.ownLogin)
     // Given in full because supplying env stops the child inheriting process.env —
     // which is the point. CODEX_HOME moves the agent off the operator's personal Codex
     // setup and onto Routi's own.

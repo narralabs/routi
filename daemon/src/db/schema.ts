@@ -185,6 +185,25 @@ const MIGRATIONS: string[] = [
     WHERE c.provider_session_id IS NOT NULL AND c.bot_id IS NOT NULL;
   `,
 
+  /**
+   * Profiles: an organisational context — a name, its bots, its own connections.
+   *
+   * "William (personal)" and "William (Narra Labs)" each with their own bots and their
+   * own Claude, Codex and Grok logins. The first profile has the fixed id `default`
+   * and is made at boot from the saved name, so every existing bot, key and login
+   * lands there untouched: its credentials keep their old Keychain slots and the
+   * harness CLIs keep their old homes. Only a second profile gets new ones.
+   */
+  `
+  CREATE TABLE profiles (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  ALTER TABLE bots ADD COLUMN profile_id TEXT REFERENCES profiles(id);
+  CREATE INDEX idx_bots_profile ON bots(profile_id);
+  `,
+
 ]
 
 export function openDb(path: string): Database.Database {

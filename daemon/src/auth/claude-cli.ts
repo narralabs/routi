@@ -82,6 +82,9 @@ interface RawStatus {
 
 export class ClaudeCli {
   private binary = ''
+  /** Extra environment — CLAUDE_CONFIG_DIR for a profile with its own login. */
+  constructor(private readonly env: Record<string, string> = {}) {}
+  private get spawnEnv(): NodeJS.ProcessEnv { return { ...process.env, ...this.env } }
 
   /** Re-resolved each time: the SDK may have fetched it since. */
   private resolve(): string {
@@ -103,7 +106,7 @@ export class ClaudeCli {
     if (version === null) return { installed: false, loggedIn: false }
 
     try {
-      const { stdout } = await run(this.binary, ['auth', 'status', '--json'], { timeout: 15_000 })
+      const { stdout } = await run(this.binary, ['auth', 'status', '--json'], { timeout: 15_000, env: this.spawnEnv })
       const raw = JSON.parse(stdout) as RawStatus
       return {
         installed: true,
@@ -132,6 +135,7 @@ export class ClaudeCli {
     const child = spawn(this.binary, ['auth', 'login', '--claudeai'], {
       detached: true,
       stdio: 'ignore',
+      env: this.spawnEnv,
     })
     child.unref()
 
@@ -154,7 +158,7 @@ export class ClaudeCli {
 
   async logout(): Promise<void> {
     try {
-      await run(this.binary, ['auth', 'logout'], { timeout: 30_000 })
+      await run(this.binary, ['auth', 'logout'], { timeout: 30_000, env: this.spawnEnv })
     } catch {
       // Nothing to log out of.
     }

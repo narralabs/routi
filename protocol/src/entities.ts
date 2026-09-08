@@ -23,6 +23,8 @@ export const Bot = z.object({
   model: z.string().default('default'),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
   surfaceMode: SurfaceMode.default('none'),
+  /** Which profile — organisational context — the bot belongs to. */
+  profileId: z.string().default('default'),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
   archivedAt: z.number().int().nullable().default(null),
@@ -75,6 +77,18 @@ export const Routine = z.object({
   nextRunAt: z.number().int().nullable().default(null),
 })
 export type Routine = z.infer<typeof Routine>
+
+/**
+ * A profile: an organisational context. A name, its bots, its own connections —
+ * "William (personal)" and "William (Narra Labs)" each on their own Claude account.
+ * The first one is `default`, holding everything from before profiles existed.
+ */
+export const Profile = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  createdAt: z.number().int(),
+})
+export type Profile = z.infer<typeof Profile>
 
 /**
  * One note a bot keeps.

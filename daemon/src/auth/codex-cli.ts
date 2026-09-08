@@ -44,7 +44,9 @@ export interface CodexAuthStatus {
  * wording changes matters less than whether it says logged in.
  */
 export class CodexCli {
-  constructor(private readonly binary = codexBinary()) {}
+  /** `env` carries CODEX_HOME for a profile with its own login. */
+  constructor(private readonly binary = codexBinary(), private readonly env: Record<string, string> = {}) {}
+  private get spawnEnv(): NodeJS.ProcessEnv { return { ...process.env, ...this.env } }
 
   async version(): Promise<string | null> {
     try {
@@ -60,7 +62,7 @@ export class CodexCli {
     if (version === null) return { installed: false, loggedIn: false }
 
     try {
-      const { stdout, stderr } = await run(this.binary, ['login', 'status'], { timeout: 15_000 })
+      const { stdout, stderr } = await run(this.binary, ['login', 'status'], { timeout: 15_000, env: this.spawnEnv })
       const line = `${stdout}\n${stderr}`.trim()
       if (!/logged in/i.test(line)) return { installed: true, loggedIn: false }
       const method = /using\s+(.+?)\.?$/i.exec(line)?.[1]?.trim()
@@ -81,7 +83,7 @@ export class CodexCli {
   async login(options: { timeoutMs?: number } = {}): Promise<CodexAuthStatus> {
     const timeoutMs = options.timeoutMs ?? 5 * 60_000
 
-    const child = spawn(this.binary, ['login'], { stdio: 'ignore', detached: false })
+    const child = spawn(this.binary, ['login'], { stdio: 'ignore', detached: false, env: this.spawnEnv })
     const deadline = Date.now() + timeoutMs
 
     try {

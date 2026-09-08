@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Block, Bot, Message, ServerEvent } from '@routi/protocol'
 import type { Routine, Store } from '../db/store.js'
-import type { ProviderAdapter } from '../providers/types.js'
+import { providerKey, type ProviderAdapter } from '../providers/types.js'
 import { wakeFor } from './channel.js'
 import type { Handovers } from '../surfaces/handover.js'
 import { memoryTools, type MemoryOwner } from './memory-tools.js'
@@ -233,7 +233,10 @@ export class SessionManager {
     if (!bot) return
     if (this.inFlight.has(conversationId)) return
 
-    const userName = (this.store.getSettings()['userName'] as string | undefined)?.trim()
+    // The person is greeted by their profile's name, minus any label after it:
+    // "William (Narra Labs)" is greeted as William.
+    const profileName = this.store.getProfile(bot.profileId)?.name.replace(/\s*\(.*\)\s*$/, '').trim()
+    const userName = profileName || (this.store.getSettings()['userName'] as string | undefined)?.trim()
     const hasSurface = bot.surfaceMode !== 'none'
     const greeting = userName ? `Greet them by name — they are called ${userName}.` : 'Greet them.'
 
@@ -301,7 +304,7 @@ export class SessionManager {
     /** Present when a routine woke this turn rather than a person. */
     routine?: { routineId: string; routineName: string },
   ): Promise<void> {
-    const provider = this.providers.get(bot.provider)
+    const provider = this.providers.get(providerKey(bot.profileId, bot.provider))
     if (!provider) {
       this.emit({ e: 'error', conversationId, code: 'no_provider', message: `Unknown provider: ${bot.provider}` })
       return

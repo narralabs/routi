@@ -1,3 +1,4 @@
+import { providerKey } from '../providers/types.js'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { McpHttp } from './mcp-http.js'
@@ -139,7 +140,8 @@ export class RoutiServer {
         client.helloed = true
         // The handshake has to succeed with no credential configured — that is the
         // state onboarding exists to fix — so account info is best-effort here.
-        const adapter = this.ctx.providers.get('anthropic-claude') ?? this.ctx.providers.get('anthropic')
+        // The handshake speaks for the default profile; the app asks per profile after.
+        const adapter = this.ctx.providers.get(providerKey('default', 'anthropic-claude')) ?? this.ctx.providers.get(providerKey('default', 'anthropic'))
         const account = (await adapter?.accountInfo()) ?? { authMode: 'subscription' as const }
         const auth = await this.ctx.auth.status()
         send(client.ws, {

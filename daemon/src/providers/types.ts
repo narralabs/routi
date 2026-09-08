@@ -60,6 +60,14 @@ export interface ProviderAdapter {
 }
 
 /**
+ * What an installed adapter is filed under: a profile's own connection to a provider.
+ * Two profiles on Claude Code are two adapters, each on its own login.
+ */
+export function providerKey(profileId: string, providerId: string): string {
+  return `${profileId}:${providerId}`
+}
+
+/**
  * What a runtime's per-conversation state is filed under.
  *
  * Conversation alone was enough while every conversation had exactly one bot. A room

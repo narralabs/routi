@@ -52,7 +52,7 @@ const NO_EFFORT_LEVELS: ModelInfo['effortLevels'] = []
  * signing in or out with the CLI stays in effect, and Routi never holds a copy of the
  * credential.
  */
-function isolatedGrokHome(dataDir: string): { grokHome: string; home: string } {
+export function isolatedGrokHome(dataDir: string, linkLogin = true): { grokHome: string; home: string } {
   const grokHome = join(dataDir, 'grok')
   const home = join(grokHome, 'home')
   mkdirSync(home, { recursive: true })
@@ -68,6 +68,9 @@ function isolatedGrokHome(dataDir: string): { grokHome: string; home: string } {
     ].join('\n'),
   )
 
+  // The default profile borrows the Mac's own Grok login; another profile signs in
+  // with GROK_HOME pointed here, so its auth.json is its own and is left alone.
+  if (!linkLogin) return { grokHome, home }
   const link = join(grokHome, 'auth.json')
   try {
     rmSync(link, { force: true })
@@ -95,9 +98,9 @@ export class XaiSubscriptionAdapter implements ProviderAdapter {
   private lineup: ModelInfo[] | null = null
 
   constructor(
-    private readonly opts: { cwd: string; dataDir: string; mcpBaseUrl: string; apiKey?: string },
+    private readonly opts: { cwd: string; dataDir: string; mcpBaseUrl: string; apiKey?: string; ownLogin?: boolean },
   ) {
-    const { grokHome, home } = isolatedGrokHome(opts.dataDir)
+    const { grokHome, home } = isolatedGrokHome(opts.dataDir, !opts.ownLogin)
     // Given in full because supplying env stops the child inheriting process.env —
     // which is the point.
     this.env = {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Block } from './blocks.js'
 import {
-  AccountInfo, AuthStatus, Bot, Conversation, DesktopHostStatus, Handover, Memory, Message, ModelInfo, Routine, SurfaceMode, SurfaceStatus,
+  AccountInfo, AuthStatus, Bot, Conversation, DesktopHostStatus, Handover, Memory, Message, ModelInfo, Profile, Routine, SurfaceMode, SurfaceStatus,
 } from './entities.js'
 
 /**
@@ -18,7 +18,10 @@ export const PROTOCOL_VERSION = 1
 // ---------------------------------------------------------------- RPC methods
 
 export const RpcMethods = {
-  'bots.list': { params: z.object({ includeArchived: z.boolean().default(false) }), result: z.object({ bots: z.array(Bot) }) },
+  'bots.list': {
+    params: z.object({ includeArchived: z.boolean().default(false), profileId: z.string().optional() }),
+    result: z.object({ bots: z.array(Bot) }),
+  },
   'bots.create': {
     params: z.object({
       name: z.string().min(1),
@@ -30,6 +33,7 @@ export const RpcMethods = {
       surfaceMode: SurfaceMode.default('none'),
       /** Fixed at creation, like the model. Defaults to the provider onboarding set up. */
       provider: z.string().default('anthropic'),
+      profileId: z.string().default('default'),
     }),
     result: z.object({ bot: Bot, conversation: Conversation }),
   },
@@ -71,7 +75,7 @@ export const RpcMethods = {
   },
   'messages.interrupt': { params: z.object({ conversationId: z.string() }), result: z.object({ ok: z.literal(true) }) },
 
-  'auth.status': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
+  'auth.status': { params: z.object({ profileId: z.string().default('default') }), result: z.object({ auth: AuthStatus }) },
   /** Opens the browser sign-in on the machine running routid. Long-running. */
   'auth.loginWithClaude': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
   'auth.setApiKey': { params: z.object({ key: z.string().min(1) }), result: z.object({ auth: AuthStatus }) },
@@ -80,13 +84,14 @@ export const RpcMethods = {
   // Providers configured after onboarding. `provider` names which one, so a third
   // vendor needs no new methods.
   'auth.providerLogin': {
-    params: z.object({ provider: z.string() }),
+    params: z.object({ provider: z.string(), profileId: z.string().default('default') }),
     result: z.object({ auth: AuthStatus }),
   },
   'auth.providerSetApiKey': {
     params: z.object({
       provider: z.string(),
       key: z.string().min(1),
+      profileId: z.string().default('default'),
       /** 'direct' or 'codex' for OpenAI; ignored by providers with one harness. */
       harness: z.string().optional(),
     }),
@@ -97,9 +102,16 @@ export const RpcMethods = {
     }),
   },
   'auth.providerSignOut': {
-    params: z.object({ provider: z.string() }),
+    params: z.object({ provider: z.string(), profileId: z.string().default('default') }),
     result: z.object({ auth: AuthStatus }),
   },
+
+  // Profiles: organisational contexts, each with its own bots and connections. The
+  // app chooses which one it is showing; the core keeps them all.
+  'profiles.list': { params: z.object({}), result: z.object({ profiles: z.array(Profile) }) },
+  'profiles.create': { params: z.object({ name: z.string().trim().min(1).max(80) }), result: z.object({ profile: Profile }) },
+  'profiles.rename': { params: z.object({ id: z.string(), name: z.string().trim().min(1).max(80) }), result: z.object({ profile: Profile }) },
+  'profiles.delete': { params: z.object({ id: z.string() }), result: z.object({}) },
 
   // Every surface call names a bot: desktops are per-bot, so there is no such thing
   // as "the" desktop to address.
@@ -215,14 +227,14 @@ export const RpcMethods = {
   },
 
   'models.list': {
-    params: z.object({ provider: z.string().default('anthropic') }),
+    params: z.object({ provider: z.string().default('anthropic'), profileId: z.string().default('default') }),
     result: z.object({
       models: z.array(ModelInfo),
       /** Whether a bot on this provider can be given a screen. */
       supportsSurface: z.boolean().default(true),
     }),
   },
-  'account.info': { params: z.object({}), result: z.object({ account: AccountInfo }) },
+  'account.info': { params: z.object({ profileId: z.string().default('default') }), result: z.object({ account: AccountInfo }) },
 
   /**
    * Whether a newer core exists, and the update itself.

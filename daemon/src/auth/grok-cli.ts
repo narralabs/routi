@@ -43,7 +43,9 @@ export function grokAuthFile(): string {
  * CLI whether one exists and lets the agent use it.
  */
 export class GrokCli {
-  constructor(private readonly binary = grokBinary()) {}
+  /** `env` carries GROK_HOME and HOME for a profile with its own login. */
+  constructor(private readonly binary = grokBinary(), private readonly env: Record<string, string> = {}) {}
+  private get spawnEnv(): NodeJS.ProcessEnv { return { ...process.env, ...this.env } }
 
   async version(): Promise<string | null> {
     try {
@@ -67,7 +69,7 @@ export class GrokCli {
     if (version === null) return { installed: false, loggedIn: false }
 
     try {
-      const { stdout, stderr } = await run(this.binary, ['models'], { timeout: 20_000 })
+      const { stdout, stderr } = await run(this.binary, ['models'], { timeout: 20_000, env: this.spawnEnv })
       if (/not authenticated/i.test(`${stdout}\n${stderr}`)) return { installed: true, loggedIn: false }
       return { installed: true, loggedIn: true, account: this.account() }
     } catch {
@@ -78,7 +80,7 @@ export class GrokCli {
   /** Every model this account can reach, asked of the CLI rather than hardcoded. */
   async models(): Promise<GrokModel[]> {
     try {
-      const { stdout } = await run(this.binary, ['models'], { timeout: 20_000 })
+      const { stdout } = await run(this.binary, ['models'], { timeout: 20_000, env: this.spawnEnv })
       return parseModelList(stdout)
     } catch {
       return []
@@ -111,7 +113,7 @@ export class GrokCli {
   async login(options: { timeoutMs?: number } = {}): Promise<GrokAuthStatus> {
     const timeoutMs = options.timeoutMs ?? 5 * 60_000
 
-    const child = spawn(this.binary, ['login'], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(this.binary, ['login'], { stdio: ['ignore', 'pipe', 'pipe'], env: this.spawnEnv })
     let prompt = ''
     child.stdout?.setEncoding('utf8')
     child.stderr?.setEncoding('utf8')

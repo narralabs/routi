@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { nextRun, parseSchedule, type Schedule } from '../sessions/schedule.js'
-import type { Block, Bot, Conversation, Memory, Message, Role } from '@routi/protocol'
+import type { Block, Bot, Conversation, Memory, Message, Profile, Role } from '@routi/protocol'
 
 const now = () => Date.now()
 
@@ -18,7 +18,14 @@ type BotRow = {
   id: string; name: string; avatar_color: string; system_prompt: string
   provider: string; model: string; effort: string | null; surface_mode: string
   created_at: number; updated_at: number; archived_at: number | null
+  profile_id: string | null
 }
+type ProfileRow = { id: string; name: string; created_at: number }
+
+/** The first profile's id: the one every pre-profile bot and credential belongs to. */
+export const DEFAULT_PROFILE = 'default'
+
+const toProfile = (r: ProfileRow): Profile => ({ id: r.id, name: r.name, createdAt: r.created_at })
 type RoutineRow = {
   id: string; bot_id: string; conversation_id: string; name: string; prompt: string
   schedule_json: string; enabled: number; created_at: number
@@ -88,6 +95,7 @@ const toBot = (r: BotRow): Bot => ({
   model: r.model,
   effort: (r.effort as Bot['effort']) ?? undefined,
   surfaceMode: r.surface_mode as Bot['surfaceMode'],
+  profileId: r.profile_id ?? DEFAULT_PROFILE,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
   archivedAt: r.archived_at,
@@ -144,13 +152,58 @@ const toMsg = (r: MsgRow): Message => ({
 export class Store {
   constructor(private readonly db: Database.Database) {}
 
+  // --------------------------------------------------------------- profiles
+
+  listProfiles(): Profile[] {
+    return (this.db.prepare('SELECT * FROM profiles ORDER BY created_at').all() as ProfileRow[]).map(toProfile)
+  }
+
+  getProfile(id: string): Profile | null {
+    const r = this.db.prepare('SELECT * FROM profiles WHERE id = ?').get(id) as ProfileRow | undefined
+    return r ? toProfile(r) : null
+  }
+
+  createProfile(name: string, id: string = randomUUID()): Profile {
+    const profile: Profile = { id, name: name.trim(), createdAt: now() }
+    this.db.prepare('INSERT INTO profiles (id, name, created_at) VALUES (@id, @name, @createdAt)').run(profile)
+    return profile
+  }
+
+  renameProfile(id: string, name: string): Profile | null {
+    this.db.prepare('UPDATE profiles SET name = ? WHERE id = ?').run(name.trim(), id)
+    return this.getProfile(id)
+  }
+
+  /** Only an empty profile goes, and never the last one. */
+  deleteProfile(id: string): void {
+    if (this.listProfiles().length <= 1) throw new Error('The last profile cannot be deleted.')
+    if (this.listBots(true, id).length > 0) throw new Error('Delete or move its bots first.')
+    this.db.prepare('DELETE FROM profiles WHERE id = ?').run(id)
+  }
+
+  /**
+   * The first profile, made once from whatever name was saved before profiles
+   * existed, and given every bot that has none. Run at boot before anything reads
+   * bots, so the world before profiles is exactly the default profile after them.
+   */
+  ensureDefaultProfile(): Profile {
+    const existing = this.getProfile(DEFAULT_PROFILE)
+    if (existing) return existing
+    const name = ((this.getSettings()['userName'] as string | undefined)?.trim() || 'Personal')
+    const profile = this.createProfile(name, DEFAULT_PROFILE)
+    this.db.prepare('UPDATE bots SET profile_id = ? WHERE profile_id IS NULL').run(DEFAULT_PROFILE)
+    return profile
+  }
+
   // ------------------------------------------------------------------- bots
 
-  listBots(includeArchived = false): Bot[] {
-    const sql = includeArchived
-      ? 'SELECT * FROM bots ORDER BY updated_at DESC'
-      : 'SELECT * FROM bots WHERE archived_at IS NULL ORDER BY updated_at DESC'
-    return (this.db.prepare(sql).all() as BotRow[]).map(toBot)
+  listBots(includeArchived = false, profileId?: string): Bot[] {
+    const where = [
+      includeArchived ? null : 'archived_at IS NULL',
+      profileId ? 'COALESCE(profile_id, @def) = @profileId' : null,
+    ].filter(Boolean).join(' AND ')
+    const sql = `SELECT * FROM bots${where ? ` WHERE ${where}` : ''} ORDER BY updated_at DESC`
+    return (this.db.prepare(sql).all({ def: DEFAULT_PROFILE, profileId }) as BotRow[]).map(toBot)
   }
 
   getBot(id: string): Bot | null {
@@ -359,7 +412,7 @@ export class Store {
 
   createBot(input: {
     name: string; systemPrompt?: string; model?: string; effort?: Bot['effort']
-    avatarColor?: string; surfaceMode?: Bot['surfaceMode']; provider?: string
+    avatarColor?: string; surfaceMode?: Bot['surfaceMode']; provider?: string; profileId?: string
   }): { bot: Bot; conversation: Conversation } {
     const count = this.db.prepare('SELECT COUNT(*) AS n FROM bots').get() as { n: number }
     const t = now()
@@ -372,6 +425,7 @@ export class Store {
       model: input.model ?? 'default',
       effort: input.effort,
       surfaceMode: input.surfaceMode ?? 'none',
+      profileId: input.profileId ?? DEFAULT_PROFILE,
       createdAt: t,
       updatedAt: t,
       archivedAt: null,
@@ -380,8 +434,8 @@ export class Store {
     const conversation = this.db.transaction(() => {
       this.db
         .prepare(
-          `INSERT INTO bots (id,name,avatar_color,system_prompt,provider,model,effort,surface_mode,created_at,updated_at,archived_at)
-           VALUES (@id,@name,@avatarColor,@systemPrompt,@provider,@model,@effort,@surfaceMode,@createdAt,@updatedAt,NULL)`,
+          `INSERT INTO bots (id,name,avatar_color,system_prompt,provider,model,effort,surface_mode,created_at,updated_at,archived_at,profile_id)
+           VALUES (@id,@name,@avatarColor,@systemPrompt,@provider,@model,@effort,@surfaceMode,@createdAt,@updatedAt,NULL,@profileId)`,
         )
         .run({ ...bot, effort: bot.effort ?? null })
       return this.createConversation(bot.id, 'New chat')
@@ -401,6 +455,7 @@ export class Store {
       ...rest,
       id: existing.id,
       provider: existing.provider,
+      profileId: existing.profileId,
       effort: 'effort' in patch ? (patchedEffort ?? undefined) : existing.effort,
       updatedAt: now(),
     }

@@ -55,10 +55,16 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
    * environment exactly as it spends a plan, so the two modes differ only in whether a
    * key comes along — the same shape as Codex.
    */
-  constructor(private readonly opts: { cwd: string; desktops?: DesktopPool; apiKey?: string }) {}
+  constructor(private readonly opts: { cwd: string; desktops?: DesktopPool; apiKey?: string; configDir?: string }) {}
 
+  /** A profile's own Claude login lives in its own config dir; the default keeps the CLI's. */
   private get env(): Record<string, string | undefined> | undefined {
-    return this.opts.apiKey ? { ...process.env, ANTHROPIC_API_KEY: this.opts.apiKey } : undefined
+    if (!this.opts.apiKey && !this.opts.configDir) return undefined
+    return {
+      ...process.env,
+      ...(this.opts.apiKey ? { ANTHROPIC_API_KEY: this.opts.apiKey } : {}),
+      ...(this.opts.configDir ? { CLAUDE_CONFIG_DIR: this.opts.configDir } : {}),
+    }
   }
 
   // ------------------------------------------------------------ capabilities

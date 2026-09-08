@@ -1,6 +1,6 @@
 import { RpcMethods, type RpcMethod } from '@routi/protocol'
 import type { Store } from '../db/store.js'
-import type { ProviderAdapter } from '../providers/types.js'
+import { providerKey, type ProviderAdapter } from '../providers/types.js'
 import { describeSchedule } from '../sessions/schedule.js'
 import type { SessionManager } from '../sessions/manager.js'
 import type { AuthManager } from '../auth/manager.js'
@@ -36,8 +36,8 @@ type Handler = (params: unknown, ctx: RpcContext) => Promise<unknown>
  */
 const handlers: Record<RpcMethod, Handler> = {
   'bots.list': async (p, ctx) => {
-    const { includeArchived } = p as { includeArchived: boolean }
-    return { bots: ctx.store.listBots(includeArchived) }
+    const { includeArchived, profileId } = p as { includeArchived: boolean; profileId?: string }
+    return { bots: ctx.store.listBots(includeArchived, profileId) }
   },
 
   'bots.create': async (p, ctx) => {
@@ -45,13 +45,14 @@ const handlers: Record<RpcMethod, Handler> = {
       name: string; systemPrompt: string; model: string
       effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
       avatarColor?: string; surfaceMode: 'none' | 'container' | 'host'
-      provider?: string
+      provider?: string; profileId: string
     }
+    if (!ctx.store.getProfile(params.profileId)) throw new RpcError('not_found', `No such profile: ${params.profileId}`)
     const created = ctx.store.createBot(params)
     // A bot with a screen gets it now rather than on first use. Pulling a container up
     // takes tens of seconds, and a bot is expected to start working the moment it is
     // made — waiting until its first tool call would strand it mid-greeting.
-    const adapter = ctx.providers.get(created.bot.provider)
+    const adapter = ctx.providers.get(providerKey(created.bot.profileId, created.bot.provider))
     if (params.surfaceMode === 'container' && adapter?.supportsSurface) {
       ctx.desktops.warm(created.bot.id)
     }
@@ -71,7 +72,7 @@ const handlers: Record<RpcMethod, Handler> = {
     // effort are applied per turn by every adapter and need no drop; dropping for
     // them would cost a harness bot its thread, which is its memory of the chat.
     if (bot.systemPrompt !== before.systemPrompt) {
-      const adapter = ctx.providers.get(bot.provider)
+      const adapter = ctx.providers.get(providerKey(bot.profileId, bot.provider))
       for (const conversation of ctx.store.listConversations(bot.id)) {
         adapter?.release(`${conversation.id}:${bot.id}`)
       }
@@ -125,7 +126,7 @@ const handlers: Record<RpcMethod, Handler> = {
     return { ok: true as const }
   },
 
-  'auth.status': async (_p, ctx) => ({ auth: await ctx.auth.status() }),
+  'auth.status': async (p, ctx) => ({ auth: await ctx.auth.status((p as { profileId: string }).profileId) }),
 
   'auth.loginWithClaude': async (_p, ctx) => {
     try {
@@ -148,18 +149,18 @@ const handlers: Record<RpcMethod, Handler> = {
   'auth.signOut': async (_p, ctx) => ({ auth: await ctx.auth.signOut() }),
 
   'auth.providerLogin': async (p, ctx) => {
-    const { provider } = p as { provider: string }
+    const { provider, profileId } = p as { provider: string; profileId: string }
     try {
-      return { auth: await ctx.auth.providerLogin(provider) }
+      return { auth: await ctx.auth.providerLogin(provider, profileId) }
     } catch (err) {
       throw new RpcError('login_failed', err instanceof Error ? err.message : String(err))
     }
   },
 
   'auth.providerSetApiKey': async (p, ctx) => {
-    const { provider, key } = p as { provider: string; key: string }
+    const { provider, key, profileId } = p as { provider: string; key: string; profileId: string }
     try {
-      const { verified, ...auth } = await ctx.auth.providerSetApiKey(provider, key)
+      const { verified, ...auth } = await ctx.auth.providerSetApiKey(provider, key, profileId)
       return { auth, verified }
     } catch (err) {
       throw new RpcError('invalid_key', err instanceof Error ? err.message : String(err))
@@ -167,8 +168,36 @@ const handlers: Record<RpcMethod, Handler> = {
   },
 
   'auth.providerSignOut': async (p, ctx) => {
-    const { provider } = p as { provider: string }
-    return { auth: await ctx.auth.providerSignOut(provider) }
+    const { provider, profileId } = p as { provider: string; profileId: string }
+    return { auth: await ctx.auth.providerSignOut(provider, profileId) }
+  },
+
+  'profiles.list': async (_p, ctx) => ({ profiles: ctx.store.listProfiles() }),
+
+  'profiles.create': async (p, ctx) => {
+    const { name } = p as { name: string }
+    return { profile: ctx.store.createProfile(name) }
+  },
+
+  'profiles.rename': async (p, ctx) => {
+    const { id, name } = p as { id: string; name: string }
+    const profile = ctx.store.renameProfile(id, name)
+    if (!profile) throw new RpcError('not_found', `No such profile: ${id}`)
+    return { profile }
+  },
+
+  'profiles.delete': async (p, ctx) => {
+    const { id } = p as { id: string }
+    if (id === 'default') throw new RpcError('bad_request', 'The first profile cannot be deleted.')
+    if (!ctx.store.getProfile(id)) throw new RpcError('not_found', `No such profile: ${id}`)
+    // Its bots are the person's work and are never deleted along with it.
+    try {
+      ctx.store.deleteProfile(id)
+    } catch (err) {
+      throw new RpcError('bad_request', err instanceof Error ? err.message : String(err))
+    }
+    await ctx.auth.forgetProfile(id)
+    return {}
   },
 
   'desktop.status': async (_p, ctx) => ({ desktop: await describeDesktopHost(ctx) }),
@@ -319,16 +348,17 @@ const handlers: Record<RpcMethod, Handler> = {
   },
 
   'models.list': async (p, ctx) => {
-    const { provider } = p as { provider: string }
-    const adapter = ctx.providers.get(provider)
+    const { provider, profileId } = p as { provider: string; profileId: string }
+    const adapter = ctx.providers.get(providerKey(profileId, provider))
     // Before onboarding finishes there is no provider yet; an empty list lets the
     // client render without special-casing.
     if (!adapter) return { models: [], supportsSurface: false }
     return { models: await adapter.listModels(), supportsSurface: adapter.supportsSurface }
   },
 
-  'account.info': async (_p, ctx) => {
-    const adapter = ctx.providers.get('anthropic-claude') ?? ctx.providers.get('anthropic')
+  'account.info': async (p, ctx) => {
+    const { profileId } = p as { profileId: string }
+    const adapter = ctx.providers.get(providerKey(profileId, 'anthropic-claude')) ?? ctx.providers.get(providerKey(profileId, 'anthropic'))
     if (!adapter) throw new RpcError('not_configured', 'No Anthropic credential configured yet.')
     return { account: await adapter.accountInfo() }
   },

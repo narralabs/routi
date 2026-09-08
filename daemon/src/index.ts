@@ -63,6 +63,9 @@ async function main(): Promise<void> {
     `http://127.0.0.1:${PORT}`,
     desktops,
   )
+  // Every bot belongs to a profile; the first one is named after the person, and
+  // an upgraded core's bots are moved into it before their adapters are installed.
+  store.ensureDefaultProfile()
   await auth.applyMode()
 
   let server: RoutiServer

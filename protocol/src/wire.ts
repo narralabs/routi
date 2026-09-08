@@ -182,6 +182,11 @@ export const RpcMethods = {
         z.object({ kind: z.literal('key'), keys: z.array(z.string()).min(1) }),
         z.object({ kind: z.literal('open'), url: z.string() }),
         z.object({ kind: z.literal('paste'), text: z.string() }),
+        // A press at one point released at another: a drag, for a finger on a phone.
+        z.object({
+          kind: z.literal('drag'),
+          fromX: z.number(), fromY: z.number(), toX: z.number(), toY: z.number(),
+        }),
       ]),
     }),
     result: z.object({ ok: z.literal(true) }),

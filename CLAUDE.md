@@ -88,6 +88,16 @@ nine desktop verbs are in it. Notes and routines are answered in `runDesktopTool
 before the desktop is touched, so saving one never starts a container.
 `pnpm --filter routid spike:memory` proves all three layers against the real CLI.
 
+### The desktop on a phone
+
+`apple/Routi/Views/MobileScreen.swift` is the whole thing: a UIKit gesture layer over
+the fitted frame (tap, double tap, one-finger drag, two-finger scroll, two-finger tap
+and press-and-hold for right-click, pinch to zoom), a trackpad mode that moves the
+desktop's pointer relatively, a keyboard bar with the keys a phone lacks, and the
+clipboard both ways. A drag is the `drag` input kind, run as one xdotool chain in
+`desktop.ts` so the container image did not change. The Mac keeps `ScreenWindow`.
+Debug builds open straight onto it with `-showScreen`.
+
 ### Where the core listens
 
 Loopback, plus the Tailscale address when present (`daemon/src/server/tailscale.ts`,

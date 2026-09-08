@@ -403,7 +403,15 @@ struct ChatView: View {
             Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button("Screen", systemImage: "desktopcomputer") { showBotSidebar.toggle() }
+            // A phone has no room for a side column: the screen takes the whole
+            // display. An iPad has the room, and keeps the rail beside the chat.
+            Button("Screen", systemImage: "desktopcomputer") {
+                if UIDevice.current.userInterfaceIdiom == .phone {
+                    model.isShowingScreen = true
+                } else {
+                    showBotSidebar.toggle()
+                }
+            }
         }
         #endif
     }

@@ -30,6 +30,7 @@
 		A71839107A782FF6A0A74BE4 /* NoteEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A829C4CB13084CF2DEEE912D /* NoteEditor.swift */; };
 		A7CC511EBDE57164BEAD0FB7 /* ToolbarStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */; };
 		A82B92A42AE70C57D9A2F486 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E531433B6982110683524454 /* AppModel.swift */; };
+		AB479DF6C4DE7DB2969E29B1 /* MobileScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 244B305A6147E7F5E37527F0 /* MobileScreen.swift */; };
 		AEEE9600AFA8BA8AA7B788BF /* HandoverCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E2F25951C19F693EF8EE16 /* HandoverCard.swift */; };
 		C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 184722C04D7C490D94182666 /* RoutiApp.swift */; };
 		CC0218F546FFF1FC732BBBCB /* Handover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F745F0678DD8714864203C0 /* Handover.swift */; };
@@ -49,6 +50,7 @@
 		0F126D3177A0B31881954AE1 /* Effort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effort.swift; sourceTree = "<group>"; };
 		12E2F25951C19F693EF8EE16 /* HandoverCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoverCard.swift; sourceTree = "<group>"; };
 		184722C04D7C490D94182666 /* RoutiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutiApp.swift; sourceTree = "<group>"; };
+		244B305A6147E7F5E37527F0 /* MobileScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileScreen.swift; sourceTree = "<group>"; };
 		2C5AE73982ED2E7411675921 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
 		366F6379C430E013241DB531 /* RoutiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutiClient.swift; sourceTree = "<group>"; };
 		3C1CCA89D76AC485ADB29A15 /* BotListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotListView.swift; sourceTree = "<group>"; };
@@ -171,6 +173,7 @@
 				3C1CCA89D76AC485ADB29A15 /* BotListView.swift */,
 				F4DFC65D324CCCB7788FAC01 /* ChatView.swift */,
 				4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */,
+				244B305A6147E7F5E37527F0 /* MobileScreen.swift */,
 				5BD073724E27CFF96D741B5D /* NewBotSheet.swift */,
 				B2D720880BAD6D2F0296D4A8 /* RootView.swift */,
 				04C419477237E8F8F539AB6D /* ScreenWindow.swift */,
@@ -316,6 +319,7 @@
 				87FC4C93BBFD139AA2A0F595 /* InstallCommand.swift in Sources */,
 				92ECCE6EDA5BDDF9C5B0CBEF /* MarkdownText.swift in Sources */,
 				DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */,
+				AB479DF6C4DE7DB2969E29B1 /* MobileScreen.swift in Sources */,
 				5AC5D791694CFB6FB3A4DAC1 /* ModelName.swift in Sources */,
 				3C30816F38EAD85EBFEFA0CE /* NewBotSheet.swift in Sources */,
 				A71839107A782FF6A0A74BE4 /* NoteEditor.swift in Sources */,

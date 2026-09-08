@@ -582,8 +582,10 @@ final class AppModel {
     func pasteIntoSurface() async {
         #if os(macOS)
         guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else { return }
-        await sendSurfaceInput(["kind": "paste", "text": text])
+        #else
+        guard let text = UIPasteboard.general.string, !text.isEmpty else { return }
         #endif
+        await sendSurfaceInput(["kind": "paste", "text": text])
     }
 
     /// Copies from the desktop onto the Mac's clipboard.
@@ -591,14 +593,16 @@ final class AppModel {
     /// Presses the desktop's own copy shortcut first, then reads what landed on its
     /// clipboard — there is no way to know what was selected without asking it to copy.
     func copyFromSurface() async {
-        #if os(macOS)
         guard let botID = surfaceBotID else { return }
         await sendSurfaceInput(["kind": "key", "keys": ["ctrl+c"]])
         try? await Task.sleep(for: .milliseconds(250))
         guard let result = try? await client.rpc("surface.clipboard", ["botId": botID]),
               let text = result["text"] as? String, !text.isEmpty else { return }
+        #if os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        #else
+        UIPasteboard.general.string = text
         #endif
     }
 

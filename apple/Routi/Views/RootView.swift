@@ -42,7 +42,11 @@ struct RootView: View {
                 // Neither chat nor an error is correct until the handshake lands.
                 ConnectingView()
             } else if model.isShowingScreen {
+                #if os(macOS)
                 ScreenWindow()
+                #else
+                MobileScreen()
+                #endif
             } else {
                 main
             }
@@ -51,7 +55,16 @@ struct RootView: View {
         .animation(.snappy(duration: 0.3), value: model.authKnown)
         .animation(.snappy(duration: 0.3), value: model.isSettling)
         .animation(.snappy(duration: 0.25), value: model.isShowingScreen)
-        .task { model.start() }
+        .task {
+            model.start()
+            #if DEBUG
+            // Straight to the desktop, for looking at it without tapping there.
+            if ProcessInfo.processInfo.arguments.contains("-showScreen") {
+                try? await Task.sleep(for: .seconds(3))
+                model.isShowingScreen = true
+            }
+            #endif
+        }
     }
 
     private var main: some View {

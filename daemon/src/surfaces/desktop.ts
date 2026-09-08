@@ -133,6 +133,8 @@ export type DesktopInput =
   | { kind: 'open'; url: string }
   /** Puts text on the desktop's clipboard and pastes it. */
   | { kind: 'paste'; text: string }
+  /** Button down at one point, up at another. */
+  | { kind: 'drag'; fromX: number; fromY: number; toX: number; toY: number }
 
 /**
  * The one machine every screen lives on.
@@ -602,6 +604,16 @@ export class Desktop {
 
   async send(input: DesktopInput): Promise<void> {
     if (this.state !== 'running' || !this.display) throw new Error('This bot has no screen running.')
+
+    // A drag is one xdotool chain rather than an `act` verb, so the container image
+    // needs no change for it: down at the start, a move, up at the end.
+    if (input.kind === 'drag') {
+      const [fx, fy, tx, ty] = [input.fromX, input.fromY, input.toX, input.toY].map((n) => String(Math.round(n)))
+      await host.execOn(this.display, [
+        'xdotool', 'mousemove', fx!, fy!, 'mousedown', '1', 'mousemove', tx!, ty!, 'mouseup', '1',
+      ])
+      return
+    }
 
     const args = ((): string[] => {
       switch (input.kind) {

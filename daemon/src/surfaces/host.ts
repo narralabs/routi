@@ -161,6 +161,9 @@ export class HostSurface {
         // On this Mac the clipboard is already the user's own, so pasting is the
         // keystroke and nothing else.
         case 'paste': return ['key', 'cmd+v']
+        // The helper has no press-and-release; a phone dragging on This Mac is rare
+        // enough to say no rather than teach it one.
+        case 'drag': throw new Error('Dragging is not supported on a This Mac screen yet.')
       }
     })()
 

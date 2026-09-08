@@ -383,7 +383,7 @@ extension KeySymbol {
 ///
 /// A plain arrow with a light outline so it stays visible on dark and light windows
 /// alike, anchored at its tip the way a real cursor is.
-private struct RemoteCursor: View {
+struct RemoteCursor: View {
     var body: some View {
         Image(systemName: "cursorarrow.fill")
             .font(.system(size: 15))

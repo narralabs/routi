@@ -43,6 +43,7 @@ final class PhoneNavigationTests: XCTestCase {
         menu.tap()
         XCTAssertTrue(app.buttons["New Profile…"].waitForExistence(timeout: 5), "the menu should offer a new profile")
         XCTAssertTrue(app.buttons["Settings…"].exists, "the menu should offer Settings")
+        XCTAssertTrue(app.buttons["Give Feedback…"].exists, "the menu should offer feedback")
         app.buttons["Settings…"].tap()
         // The phone's Settings opens on its list of panes; General is the first.
         let general = app.buttons["General"].exists ? app.buttons["General"] : app.staticTexts["General"]

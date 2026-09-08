@@ -1,0 +1,46 @@
+name: Something's off
+description: A bot, the app or the core did something it shouldn't have.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Opened from the app, the versions below are already filled in. Keep them;
+        they are usually the first thing we look at.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead. A screenshot helps; a bot's transcript helps more.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Make a bot on Claude Code with a screen
+        2. Ask it to …
+        3. …
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      placeholder: 0.1.31
+  - type: input
+    id: core_version
+    attributes:
+      label: Core version
+      description: Settings › Routi Core shows it.
+      placeholder: 0.1.31
+  - type: input
+    id: system
+    attributes:
+      label: Where
+      description: The Mac or phone the app runs on, and the Mac running the core if different.
+      placeholder: macOS 26.6.1 on a MacBook Pro; core on a Mac mini
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider the bot runs on
+      options: [Claude Code, Anthropic API, Codex, OpenAI API, Grok CLI, xAI API, DeepSeek API, Not about a bot]

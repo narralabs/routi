@@ -11,6 +11,7 @@ import SwiftUI
 /// thumb expects.
 struct ProfileMenu<Label: View>: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
     @ViewBuilder let label: () -> Label
 
     #if os(macOS)
@@ -46,6 +47,11 @@ struct ProfileMenu<Label: View>: View {
             Button { model.isShowingSettings = true } label: {
                 SwiftUI.Label("Settings…", systemImage: "gearshape")
             }
+            Section("Support") {
+                Button { openURL(model.feedbackURL) } label: {
+                    SwiftUI.Label("Give Feedback…", systemImage: "exclamationmark.bubble")
+                }
+            }
         } label: {
             label()
         }
@@ -62,6 +68,7 @@ struct ProfileMenu<Label: View>: View {
 /// New Profile, then Settings. Rows highlight under the pointer like a menu's.
 private struct ProfilePanel: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
     let dismiss: () -> Void
 
     var body: some View {
@@ -104,6 +111,26 @@ private struct ProfilePanel: View {
             } action: {
                 dismiss()
                 model.isShowingSettings = true
+            }
+
+            Divider().padding(.vertical, 5).padding(.horizontal, 4)
+
+            Text("Support")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 4)
+
+            // The issue form on GitHub, with the versions filled in. Everyone using
+            // Routi this early knows their way around an issue; what they cannot be
+            // expected to remember is which core they are on.
+            PanelRow(title: "Give Feedback…") {
+                Image(systemName: "exclamationmark.bubble")
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(width: 20, height: 20)
+            } action: {
+                dismiss()
+                openURL(model.feedbackURL)
             }
         }
         .padding(6)

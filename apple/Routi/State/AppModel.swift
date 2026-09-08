@@ -193,6 +193,29 @@ final class AppModel {
     var account: AccountInfo? { client.account }
     var coreVersion: String? { client.serverVersion }
 
+    /// Where feedback goes: the repository's issue form, with the versions and the
+    /// machine filled in from here, since those are what a report is missing most.
+    var feedbackURL: URL {
+        var parts = URLComponents(string: "https://github.com/narralabs/routi/issues/new")!
+        parts.queryItems = [
+            .init(name: "template", value: "bug_report.yml"),
+            .init(name: "app_version", value: appVersion),
+            .init(name: "core_version", value: coreVersion ?? "not connected"),
+            .init(name: "system", value: Self.systemDescription),
+        ]
+        return parts.url!
+    }
+
+    private static var systemDescription: String {
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        let version = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+        #if os(macOS)
+        return "macOS \(version)"
+        #else
+        return "\(UIDevice.current.systemName) \(version) on \(UIDevice.current.model)"
+        #endif
+    }
+
     /// Whether the list and a thread are on screen together, so one should be open.
     static var startsOnThread: Bool {
         #if os(macOS)

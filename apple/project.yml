@@ -13,8 +13,8 @@ configs:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.31"
-    CURRENT_PROJECT_VERSION: "131"
+    MARKETING_VERSION: "0.1.32"
+    CURRENT_PROJECT_VERSION: "132"
     # Ad-hoc signing ("Sign to Run Locally"). Needs no Apple account and still
     # satisfies the sandbox entitlement, so a fresh clone builds and runs on this Mac
     # immediately.

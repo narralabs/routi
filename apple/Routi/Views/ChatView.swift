@@ -358,11 +358,18 @@ struct ChatView: View {
         // name read as a button and groups the two icons into one pill.
         // `sharedBackgroundVisibility(.hidden)` drops that chrome so the header sits
         // flat on the window; the buttons draw their own hover state instead.
+        //
+        // The face and the name are two items, not one HStack: macOS 26 crossfades an
+        // item's content whenever it changes, and the face changes every frame while
+        // it moves, which left the name beside it forever mid-fade (measured: its ink
+        // varied twentyfold between frames a quarter second apart). Its own item, the
+        // name is redrawn only when the name changes.
         ToolbarItem(placement: .navigation) {
-            HStack(spacing: 8) {
-                BotAvatar(color: bot.color, seed: bot.id, size: 20, mood: model.mood(for: bot.id))
-                Text(bot.name).font(.system(size: 13, weight: .semibold))
-            }
+            BotAvatar(color: bot.color, seed: bot.id, size: 20, mood: model.mood(for: bot.id))
+        }
+        .flatBackground()
+        ToolbarItem(placement: .navigation) {
+            Text(bot.name).font(.system(size: 13, weight: .semibold))
         }
         .flatBackground()
 

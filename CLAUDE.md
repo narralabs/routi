@@ -62,6 +62,35 @@ with a mode until 0.1.11; `migrateAnthropicProvider()` moves a plan and its bots
 `anthropic-claude` at boot, and the old `auth.loginWithClaude` / `auth.setApiKey` /
 `auth.signOut` RPCs remain as aliases onto the pair.
 
+### Profiles
+
+A profile is an organisational context — "William (Personal)", "William (Narra Labs)"
+— with its own bots and its own provider connections on one core. There are no Routi
+accounts; a profile is not a login, it is a partition. `profiles` table, `bots.profile_id`,
+`profiles.*` RPCs; `bots.list` / `bots.create` / `auth.*` / `models.list` / `account.info`
+take a `profileId` that defaults to `default`, so an older client keeps working on the
+first profile. The app remembers which profile it shows in defaults (`currentProfile`),
+per device, and asks for everything with it; the core has no notion of "current".
+
+The first profile has the fixed id `default` and is what the world before profiles
+became: `Store.ensureDefaultProfile()` runs at boot before `applyMode()`, names it from
+the old `userName` setting (else "Personal") and takes every bot with no profile.
+Onboarding names it ("Name your profile"); the sidebar name, the initials and the
+greeting are its name, the greeting minus any label in brackets.
+
+Connections are per profile because that is the point — a work Claude account beside a
+personal one. Adapters are filed under `providerKey(profileId, providerId)`; settings
+keys are `authMode.<provider>` for the default profile (unchanged) and
+`authMode.<profileId>.<provider>` for the rest; Keychain accounts get `.<profileId>`
+appended the same way. A harness CLI is pointed at the profile's own home under
+`~/.routi/profiles/<id>/` — `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GROK_HOME` + `HOME` —
+so signing in there signs in only there (measured: an empty `CLAUDE_CONFIG_DIR` reports
+`loggedIn: false` while the Mac's own login is live). The default profile keeps
+borrowing the Mac's own CLI logins, as before. Deleting a profile refuses while it has
+bots, refuses `default` always, and otherwise drops its adapters, settings, keys and
+home directory. Memory's `user` scope is deliberately not per profile: it is about the
+person, and the person is the same in both.
+
 ### What a bot remembers, and where
 
 Three layers, and the distinction matters when something "forgets":

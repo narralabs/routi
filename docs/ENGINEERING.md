@@ -195,6 +195,26 @@ signed in, and the login keychain must be unlocked — which an auto-login Mac's
 boot. A locked keychain is the likeliest cause of a core that starts but cannot reach
 Claude.
 
+### Profiles
+
+Routi has no accounts of its own, and the General pane used to look as if it did
+("Account William, Sign Out") when all it had was a name and a Claude login. What it has
+instead is profiles: organisational contexts on one core, each with its own bots and its
+own provider connections, so a personal Claude account and a company one can both be
+signed in and never share a bot. Onboarding makes exactly one, named after the person;
+the menu behind that name (sidebar foot on the Mac, top left on the phone) is where the
+rest are — Switch Profile lists them with a New Profile… entry, and Settings sits under
+it. A new profile starts with nothing connected and says so in its empty list; its
+accounts are connected under Settings › Providers like the first one's were.
+
+The core keeps every profile and no notion of a current one; the app sends `profileId`
+with every request that depends on it and remembers its choice per device. Isolation of
+a vendor CLI's login is by environment — `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GROK_HOME`
+plus `HOME` — under `~/.routi/profiles/<id>/`; the first profile keeps the Mac's own
+logins so an upgraded core changes nothing. `pnpm --filter routid probe` proves the
+split: the second profile it makes starts signed out of Claude Code while the first is
+signed in, sees none of the first's bots, and cannot be deleted until its own bot is.
+
 ## The desktop
 
 One container, shared by every bot, with a display per bot. The value of a desktop is

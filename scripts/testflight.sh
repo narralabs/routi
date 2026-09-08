@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Builds the iPhone and iPad app for the App Store and uploads it to TestFlight:
 #
 #   scripts/testflight.sh

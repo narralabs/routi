@@ -18,7 +18,25 @@ struct OnboardingView: View {
         case finishing
     }
 
-    @State private var step: Step = .welcome
+    @State private var step: Step = Self.startingStep
+
+    /// Debug builds can be launched on a later step (`-onboardingStep endpoint`), so a
+    /// screen deep in setup can be looked at without tapping through the ones before.
+    private static var startingStep: Step {
+        #if DEBUG
+        if let i = ProcessInfo.processInfo.arguments.firstIndex(of: "-onboardingStep"),
+           i + 1 < ProcessInfo.processInfo.arguments.count {
+            switch ProcessInfo.processInfo.arguments[i + 1] {
+            case "endpoint": return .endpoint
+            case "credential": return .credential
+            case "screens": return .screens
+            case "finishing": return .finishing
+            default: break
+            }
+        }
+        #endif
+        return .welcome
+    }
     @State private var direction: Edge = .trailing
 
     var body: some View {

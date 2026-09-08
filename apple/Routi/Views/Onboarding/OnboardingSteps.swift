@@ -115,15 +115,45 @@ struct EndpointStep: View {
         OnboardingScaffold(
             icon: "network",
             title: "Connect to Routi Core",
-            subtitle: "Routi Core runs on a Mac that stays on. Enter that Mac's address. With Tailscale on the Mac and on this device, its Tailscale address works from anywhere — at home or away."
+            subtitle: "Routi Core runs on a Mac that stays on. Enter that Mac's address. With Tailscale on the Mac and on this device, its Tailscale address works from anywhere, at home or away."
         ) {
             VStack(spacing: 14) {
+                #if os(macOS)
                 Form {
                     TextField("Host", text: $host, prompt: Text("100.101.102.103 or mac-mini.tailnet.ts.net"))
                     TextField("Port", value: $port, format: .number.grouping(.never))
                 }
                 .formStyle(.grouped)
                 .frame(height: 100)
+                #else
+                // Not a Form: on a phone that is a scrolling list, and pinned to a
+                // height it became two cramped rows with a scrollbar. Two fields in a
+                // card, the way the phone's own settings do it.
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Host").frame(width: 48, alignment: .leading)
+                        TextField("", text: $host, prompt: Text("100.101.102.103"))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+                    Divider().padding(.leading, 64)
+                    HStack {
+                        Text("Port").frame(width: 48, alignment: .leading)
+                        TextField("", value: $port, format: .number.grouping(.never))
+                            .keyboardType(.numberPad)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+                }
+                .background(.background, in: .rect(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.separator, lineWidth: 0.5)
+                }
+                #endif
 
                 // Where to find the address, and what Tailscale is, for a first-timer.
                 VStack(alignment: .leading, spacing: 4) {

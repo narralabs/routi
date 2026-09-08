@@ -60,16 +60,59 @@ if [ -n "$identity" ]; then
   fi
 fi
 
-# A DMG, because that is what a Mac app arrives as: a window with the app and an
-# Applications shortcut, named for the product. A zip downloaded as a bare file people
-# did not recognise.
+# A DMG, because that is what a Mac app arrives as: a window with the app, an
+# Applications shortcut and an arrow between them, named for the product. A zip
+# downloaded as a bare file people did not recognise.
+#
+# The window's look — backdrop, icon places, size, no toolbar — is Finder state kept
+# in the volume's .DS_Store, so it is laid out once here, by the Finder, on a writable
+# image, and the image is then compressed with that state inside. The volume wears
+# the app's own icon while mounted.
 dmg="$out/RoutiBot.dmg"
 stage="$out/dmg-stage"
-rm -rf "$stage" "$dmg"; mkdir -p "$stage"
+rw="$out/RoutiBot-rw.dmg"
+volume="Routi Bot"
+mount="/Volumes/$volume"
+rm -rf "$stage" "$dmg" "$rw"; mkdir -p "$stage/.background"
 cp -R "$app" "$stage/"
 ln -s /Applications "$stage/Applications"
-hdiutil create -volname "Routi Bot" -srcfolder "$stage" -ov -format UDZO -quiet "$dmg"
+cp "$root/packaging/dmg/background.tiff" "$stage/.background/background.tiff"
+hdiutil detach "$mount" -quiet 2>/dev/null || true
+hdiutil create -volname "$volume" -srcfolder "$stage" -ov -format UDRW -fs HFS+ -quiet "$rw"
 rm -rf "$stage"
+hdiutil attach "$rw" -mountpoint "$mount" -nobrowse -noverify -quiet
+osascript >/dev/null <<EOF_LAYOUT
+tell application "Finder"
+  tell disk "$volume"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set the bounds of container window to {400, 200, 1060, 640}
+    set options to the icon view options of container window
+    set arrangement of options to not arranged
+    set icon size of options to 128
+    set text size of options to 14
+    set background picture of options to file ".background:background.tiff"
+    set position of item "Routi Bot.app" of container window to {150, 185}
+    set position of item "Applications" of container window to {510, 185}
+    close
+    open
+    update without registering applications
+    delay 2
+    close
+  end tell
+end tell
+EOF_LAYOUT
+# The volume's icon goes on last: the Finder's layout pass above removes a
+# .VolumeIcon.icns it finds, and hdiutil leaves one in the source folder behind.
+cp "$app/Contents/Resources/AppIcon.icns" "$mount/.VolumeIcon.icns"
+SetFile -a C "$mount"
+chmod -Rf go-w "$mount" 2>/dev/null || true
+sync
+hdiutil detach "$mount" -quiet
+hdiutil convert "$rw" -format UDZO -imagekey zlib-level=9 -ov -quiet -o "$dmg"
+rm -f "$rw"
 [ -n "$identity" ] && codesign --sign "$identity" --timestamp "$dmg" >/dev/null
 
 if [ -n "$identity" ]; then

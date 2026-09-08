@@ -135,7 +135,14 @@ Two artifacts, one script. `scripts/package.sh` builds the app universal and Rel
 signs it with a Developer ID Application certificate when the keychain has one, and
 notarizes and staples when credentials are stored (`xcrun notarytool store-credentials
 routi-notary`); without them it signs to run locally and says so. It also packs the core
-as a source tarball with its installer.
+as a source tarball with its installer. The disk image opens the way Docker's does: the
+app on the left, Applications on the right, "drag and drop" and an arrow between them,
+no toolbar, and the app's icon on the mounted volume. That look is Finder state in the
+volume's `.DS_Store`, so the script lays the window out with the Finder on a writable
+image and compresses it afterwards; the backdrop is drawn by `packaging/dmg/background.py`
+(rerun it and commit the outputs after a change). The volume icon goes on after the
+Finder pass, which removes one it finds. `ROUTI_PACKAGE_NO_NOTARIZE=1` skips the wait
+on Apple for a build that only runs here.
 
 The core publishes itself: pushing a `v*` tag runs `.github/workflows/release.yml`, which
 attaches `routi-core.tar.gz` and its sha256 to a GitHub release. The app does not — the

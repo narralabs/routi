@@ -99,8 +99,8 @@ before the desktop is touched, so saving one never starts a container.
 the fitted frame, a trackpad mode that moves the desktop's pointer relatively, a
 keyboard bar with the keys a phone lacks, and the clipboard both ways. The touch model,
 arrived at by testing on a hand rather than a spec: one finger moves the pointer only,
-with the arrow lifted 36pt above the fingertip; a tap clicks where it lands, except
-near where the finger last lifted, where it clicks what the arrow is on; press-and-hold
+with the arrow lifted 36pt above the fingertip; a tap clicks exactly where it lands,
+always (to click what you aimed at, tap the arrow); press-and-hold
 is decided on release (still = right-click, moved = drag); two fingers scroll, a
 two-finger tap right-clicks, pinch zooms. No double-tap recognizer: it delayed every
 tap. Frames are decoded once on arrival, never in the body. `RoutiUITests` is the

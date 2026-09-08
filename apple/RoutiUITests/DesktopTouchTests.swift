@@ -57,27 +57,20 @@ final class DesktopTouchTests: XCTestCase {
         XCTAssertFalse(log.contains("click(3)"), "a hold that moved must not right-click; log: \(log)")
     }
 
-    /// Move to aim, lift, tap near the same place: the click lands where the arrow was
-    /// left, not under the finger. A tap elsewhere clicks where it lands. The second
-    /// tap is deliberately off by a finger's width, since a hand never returns to the
-    /// same pixel.
-    func testTapAfterAimingClicksWhereTheArrowIs() {
+    /// A tap clicks exactly where it lands, even right after a drag: the point under
+    /// the fingertip, not where the arrow was left. Tapping the arrow itself is how a
+    /// person clicks what they aimed at.
+    func testTapClicksUnderTheFingerEvenAfterAiming() {
         point(0.3, 0.5).press(forDuration: 0.05, thenDragTo: point(0.6, 0.5))
         XCTAssertTrue(waitForLog(containing: "move"), "log: \(log)")
         sleep(1)
-        let arrowX = 0.6 * 1280.0
-        point(0.6 + 12.0 / desktop.frame.width, 0.5 + 8.0 / desktop.frame.height).tap()
+        point(0.6, 0.5).tap()
         XCTAssertTrue(waitForLog(containing: "click(1)@"), "log: \(log)")
         let click = log.components(separatedBy: " | ").last ?? ""
-        let xs = click.replacingOccurrences(of: "click(1)@", with: "").split(separator: ",").first.flatMap { Double($0) } ?? -1
-        XCTAssertEqual(xs, arrowX, accuracy: 3, "the tap should click at the arrow's x, not the fingertip's; log: \(log)")
-        let arrow = click.replacingOccurrences(of: "click(1)@", with: "")
-
-        point(0.15, 0.2).tap()
-        let deadline = Date().addingTimeInterval(8)
-        while Date() < deadline, log.components(separatedBy: "click(1)@").count < 3 { usleep(150_000) }
-        let last = log.components(separatedBy: " | ").last ?? ""
-        XCTAssertTrue(last.hasPrefix("click(1)@") && !last.hasSuffix(arrow), "a tap elsewhere clicks there, not at the arrow; log: \(log)")
+        let parts = click.replacingOccurrences(of: "click(1)@", with: "").split(separator: ",").compactMap { Double($0) }
+        XCTAssertEqual(parts.count, 2, "log: \(log)")
+        XCTAssertEqual(parts[0], 0.6 * 1280, accuracy: 3, "x under the finger; log: \(log)")
+        XCTAssertEqual(parts[1], 0.5 * 800, accuracy: 3, "y under the finger, not lifted; log: \(log)")
     }
 
     func testHoldRightClicks() {

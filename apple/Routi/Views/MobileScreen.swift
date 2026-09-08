@@ -426,26 +426,12 @@ private struct TouchLayer: UIViewRepresentable {
             )
         }
 
-        /// Where the last drag let the pointer go: the finger's place and the arrow's.
-        /// A drag lifts the arrow above the finger to keep it visible, so a tap that
-        /// lands back where the finger lifted means "click what the arrow is on", not
-        /// "click 36 points under it". Drag to aim, tap to confirm.
-        private var lastDragEnd: (finger: CGPoint, pointer: CGPoint)?
-
+        /// A tap clicks exactly where the finger lands. Nothing else: a rule that let a
+        /// tap near the last lift-off click "what the arrow was on" second-guessed the
+        /// finger, and a person aiming at the arrow tapped the arrow and got somewhere
+        /// else. The arrow is visible above the finger while moving; tap the arrow.
         private func clickPoint(_ g: UIGestureRecognizer) -> CGPoint {
-            if parent.trackpadMode { return parent.pointer() }
-            let here = g.location(in: g.view)
-            // Within a fingertip of where the finger lifted, in screen points whatever
-            // the zoom: a hand does not come back to the same pixel.
-            if let end = lastDragEnd, hypot(here.x - end.finger.x, here.y - end.finger.y) * parent.zoom < 60 {
-                return end.pointer
-            }
-            lastDragEnd = nil
-            return desktopPoint(here)
-        }
-
-        private func endedDrag(finger: CGPoint, pointer: CGPoint) {
-            lastDragEnd = (finger, pointer)
+            parent.trackpadMode ? parent.pointer() : desktopPoint(g.location(in: g.view))
         }
 
         @objc func tap(_ g: UITapGestureRecognizer) {
@@ -500,7 +486,6 @@ private struct TouchLayer: UIViewRepresentable {
                     if hypot(to.x - from.x, to.y - from.y) > 4 {
                         parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
                     }
-                    if !parent.trackpadMode { endedDrag(finger: g.location(in: g.view), pointer: to) }
                 } else if g.state == .ended {
                     let p = parent.trackpadMode ? parent.pointer() : desktopPoint(pressOrigin)
                     parent.onPointerMoved(p)
@@ -562,7 +547,6 @@ private struct TouchLayer: UIViewRepresentable {
                 let p = liftedPoint(g)
                 parent.onPointerMoved(p)
                 queueMove(p)
-                endedDrag(finger: g.location(in: g.view), pointer: p)
             default: break
             }
         }
@@ -610,7 +594,7 @@ struct ScreenHelpSheet: View {
             List {
                 Section("Moving around") {
                     HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
-                    HelpRow("cursorarrow.click", "Point and click", "One finger moves the pointer; the arrow rides just above your fingertip. Tap to click where you tap. To hit something small, move until the arrow is on it, lift, and tap in the same place.")
+                    HelpRow("cursorarrow.click", "Point and click", "Tap to click exactly where you tap. Drag one finger to move the pointer; the arrow rides just above your fingertip so you can see it. To hit something small, drag until the arrow is on it, then tap the arrow.")
                     HelpRow("hand.draw", "Drag", "Press and hold until you feel a tick, then move. It lets go where you lift.")
                     HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving. A hold that moves drags instead, for a careful drag.")
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")

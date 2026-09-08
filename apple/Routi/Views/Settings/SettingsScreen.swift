@@ -285,6 +285,62 @@ struct GeneralPane: View {
     }
 }
 
+/// The Mac app's own update, in the same pane as the core's: downloaded on its own,
+/// installed by a relaunch. The phone has nothing here; TestFlight does that.
+private struct AppUpdateRow: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        #if os(macOS)
+        let updater = model.appUpdater
+        switch updater.phase {
+        case .ready(let version):
+            SettingsRow(
+                title: "App",
+                detail: "Routi Bot \(version) is downloaded and verified. Restarting installs it; this is \(model.appVersion)."
+            ) {
+                Button("Restart to Update") { model.restartToUpdate() }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("restartToUpdate")
+            }
+        case .downloading(let fraction):
+            SettingsRow(title: "App", detail: "Downloading Routi Bot \(updater.latestVersion ?? "")…") {
+                if let fraction {
+                    ProgressView(value: fraction).frame(width: 120)
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+            }
+        case .checking:
+            SettingsRow(title: "App", detail: "Checking for a newer Routi Bot…") {
+                ProgressView().controlSize(.small)
+            }
+        case .failed(let why):
+            SettingsRow(title: "App", detail: "The app could not update itself: \(why) The disk image is the way round it.") {
+                Link("Download", destination: AppModel.dmgURL)
+            }
+        case .idle, .upToDate:
+            if model.appUpdateAvailable {
+                SettingsRow(
+                    title: "App",
+                    detail: updater.isEnabled
+                        ? "Routi Bot \(model.coreUpdate?.latest ?? "") is out; this is \(model.appVersion). It downloads on its own; checking now hurries it along."
+                        : "Routi Bot \(model.coreUpdate?.latest ?? "") is out; this is \(model.appVersion). A debug build does not update itself."
+                ) {
+                    if updater.isEnabled {
+                        Button("Check Now") { updater.check() }
+                    } else {
+                        Link("Download", destination: AppModel.dmgURL)
+                    }
+                }
+            }
+        }
+        #else
+        EmptyView()
+        #endif
+    }
+}
+
 /// Avatar, the profile's editable name, and what it holds. There is no account here:
 /// Routi has no accounts of its own, and the Claude or ChatGPT sign-ins live with
 /// their providers, where each can be disconnected on its own.
@@ -485,14 +541,7 @@ struct ConnectionPane: View {
                         }
                     }
                 }
-                if model.appUpdateAvailable {
-                    SettingsRow(
-                        title: "App",
-                        detail: "Routi Bot \(model.coreUpdate?.latest ?? "") is out; this is \(model.appVersion). The app does not update itself yet."
-                    ) {
-                        Link("Download", destination: AppModel.dmgURL)
-                    }
-                }
+                AppUpdateRow()
                 SettingsRow(title: "Protocol") {
                     SettingsValue(text: "v\(RoutiClient.protocolVersion)")
                 }

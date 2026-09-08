@@ -19,14 +19,17 @@ cd "$root"
 for pkg in daemon/package.json protocol/package.json; do
   sed -i '' "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$version\"/" "$pkg"
 done
-# The app carries the same number, and its build number is the patch: the two used to
-# be bumped by hand and drifted, so a release's DMG reported the release before it.
-build="${version##*.}"
+# The app carries the same number. Its build number is the version packed into one
+# integer (0.1.30 is 130, 0.2.0 is 200): Sparkle orders releases by it, so it has to
+# climb across a minor bump, which the patch number alone did not. The two used to be
+# bumped by hand and drifted, so a release's DMG reported the release before it.
+major="${version%%.*}"; rest="${version#*.}"; minor="${rest%%.*}"; patch="${rest#*.}"
+build=$((major * 10000 + minor * 100 + patch))
 sed -i '' "s/MARKETING_VERSION: \"[^\"]*\"/MARKETING_VERSION: \"$version\"/; s/CURRENT_PROJECT_VERSION: \"[^\"]*\"/CURRENT_PROJECT_VERSION: \"$build\"/" apple/project.yml
 (cd apple && ./bootstrap.sh >/dev/null)
 git add daemon/package.json protocol/package.json apple/project.yml apple/Routi.xcodeproj/project.pbxproj
 git commit -q -m "Core $version"
 git tag "v$version"
 git push -q origin HEAD:main "v$version"
-echo "Tagged v$version. The Release workflow publishes the tarball; then attach the DMG and bump the tap:"
-echo "  gh release upload v$version build/RoutiBot.dmg"
+echo "Tagged v$version. The Release workflow publishes the tarball; then attach the app and bump the tap:"
+echo "  scripts/package.sh && gh release upload v$version build/RoutiBot.dmg build/appcast.xml"

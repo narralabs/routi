@@ -39,6 +39,15 @@ settings:
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
       GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 $(inherited)"
 
+# Sparkle updates the Mac app in place: a background download, then "Restart to
+# Update". The phone gets its updates from TestFlight and the App Store, so the
+# dependency is filtered to macOS. The public key pairs with a private key kept in
+# the release Mac's login keychain (generated once by Sparkle's generate_keys).
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.9.6
+
 schemes:
   Routi:
     build:
@@ -78,6 +87,9 @@ targets:
     supportedDestinations: [macOS]
     sources:
       - path: Routi
+    dependencies:
+      - package: Sparkle
+        destinationFilters: [macOS]
     # Stamps each build with the time and commit it came from. Debug builds show it
     # in the sidebar, which settles "am I looking at the new one?" without guessing
     # from file timestamps.
@@ -90,6 +102,12 @@ targets:
         # cannot know, and it refuses cleartext to anything but loopback and .local.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        # Sparkle: where the Mac app looks for a newer release, and the key its
+        # downloads must be signed with. The feed is the newest release's asset.
+        SUFeedURL: https://github.com/narralabs/routi/releases/latest/download/appcast.xml
+        SUPublicEDKey: QQ0Dug1X13Tm/BllMY7rTyWGPuav5MPCPsfzJ78uQSM=
+        # The app is sandboxed, so the installer runs from Sparkle's XPC service.
+        SUEnableInstallerLauncherService: true
     postBuildScripts:
       - name: Stamp build identity
         basedOnDependencyAnalysis: false

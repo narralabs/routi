@@ -142,14 +142,34 @@ attaches `routi-core.tar.gz` and its sha256 to a GitHub release. The app does no
 certificate lives on one Mac — so a release is:
 
 ```bash
-git tag v0.x.y && git push origin main v0.x.y      # core builds and publishes
-scripts/package.sh                                 # app, notarized
-gh release upload v0.x.y build/RoutiBot.dmg --clobber
+scripts/release-core.sh 0.x.y                      # versions, tag, push; core publishes
+scripts/package.sh                                 # app, notarized, plus its appcast
+gh release upload v0.x.y build/RoutiBot.dmg build/appcast.xml --clobber
 ```
 
 then the checksum from the release into `packaging/homebrew/routi-core.rb` (url and
 sha256 are the two lines that change), copied to `Formula/routi-core.rb` in the
 `narralabs/homebrew-tap` repository.
+
+### How each side updates
+
+The core updates itself from the button in Settings › Routi Core (above). The Mac app
+updates itself with Sparkle, the way Cursor does: a check on launch and daily, a
+download and signature check in the background, then a "Restart to Update" button in
+the same pane; ignored, it installs on the next quit. `AppUpdater` in
+`apple/Routi/State/` is Sparkle's user driver, so the state shows in our pane rather
+than Sparkle's windows. What it reads is `appcast.xml`, uploaded beside the DMG on
+every release and reached through the newest release's `latest/download` URL; what it
+trusts is the EdDSA signature in that file, made by `generate_appcast` inside
+`package.sh` with the private key in the release Mac's login keychain (Sparkle's
+`generate_keys` made the pair; `generate_keys -x <file>` exports a backup, which
+belongs somewhere safe and not in the repository). Losing that key means every
+installed app stops trusting new releases and has to be replaced by hand once. The app
+is sandboxed, so Sparkle's installer runs from its XPC service, allowed by the
+mach-lookup entitlements. Sparkle orders releases by `CFBundleVersion`, which
+`release-core.sh` packs from the version (0.1.30 → 130) so it climbs across minor bumps.
+Debug builds never check; `-checkAppUpdate -appcastURL <url>` turns one on against a
+feed of your own, which is how the flow is tested. The phone updates through TestFlight.
 
 The iPhone and iPad app goes to TestFlight with `scripts/testflight.sh`, after the
 release: it archives for iOS under the Narra Labs team and uploads through the Apple ID

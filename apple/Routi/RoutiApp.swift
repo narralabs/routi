@@ -24,6 +24,14 @@ struct RoutiApp: App {
         .defaultSize(width: 1180, height: 760)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            // Where every Mac app keeps it. The state lands in Settings › Routi Core.
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    model.appUpdater.check()
+                    model.showSettings(pane: "core")
+                }
+                .disabled(!model.appUpdater.isEnabled)
+            }
             // ⌘, opens settings in-window rather than a separate panel, so the Mac
             // and the phone show the same screen.
             CommandGroup(replacing: .appSettings) {

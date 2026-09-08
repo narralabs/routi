@@ -247,15 +247,39 @@ final class AppModel {
 
     var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0" }
 
-    /// The app is behind the latest release. It cannot update itself; it links the DMG.
+    #if os(macOS)
+    /// The Mac app's own updater: downloads in the background, offers a relaunch.
+    let appUpdater = AppUpdater()
+    #endif
+
+    /// The app is behind the latest release, by the core's account of what is out.
     var appUpdateAvailable: Bool {
         guard let latest = coreUpdate?.latest else { return false }
         return Self.compareVersions(latest, appVersion) > 0
     }
 
-    /// Something — core or app — is behind, and worth a line in the sidebar.
-    var updateAvailable: Bool {
-        (coreUpdate?.available ?? false) || appUpdateAvailable
+    #if os(macOS)
+    /// Installs the downloaded release and relaunches. Any sheet goes first: AppKit
+    /// refuses to quit an app with a modal sheet up ("App termination blocked by
+    /// modal sheet"), and Settings is where the button lives.
+    func restartToUpdate() {
+        isShowingSettings = false
+        isShowingNewProfile = false
+        isShowingScreen = false
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            appUpdater.installAndRelaunch()
+        }
+    }
+    #endif
+
+    /// A release of the app is downloaded and waiting for the relaunch.
+    var appUpdateReady: Bool {
+        #if os(macOS)
+        return appUpdater.isReady
+        #else
+        return false
+        #endif
     }
 
     static let dmgURL = URL(string: "https://github.com/narralabs/routi/releases/latest/download/RoutiBot.dmg")!

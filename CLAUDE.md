@@ -150,6 +150,15 @@ bound by `RoutiServer.listenAlso` from `index.ts` on a 30s check). Never the LAN
 is no client auth yet. `/mcp` is loopback-only on every listener. `core.addresses` is
 what Settings shows a phone's owner.
 
+### Updates, both sides
+
+The core: `daemon/src/update.ts` + `scripts/update-core.sh`, below. The Mac app:
+Sparkle, driven by `apple/Routi/State/AppUpdater.swift` (our own user driver, so the
+state shows in Settings › Routi Core, not Sparkle's windows). `package.sh` signs an
+`appcast.xml` with the key in the release Mac's keychain; it is uploaded beside the DMG.
+Debug builds do not check unless launched with `-checkAppUpdate`, and `-appcastURL`
+points them at a local feed for testing. See ENGINEERING.md › Releasing.
+
 ### Updating the core from the app
 
 `daemon/src/update.ts` + `scripts/update-core.sh`. The core fetches, verifies and unpacks

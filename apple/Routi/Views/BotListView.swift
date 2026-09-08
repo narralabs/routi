@@ -377,10 +377,11 @@ private struct SidebarFooter: View {
             BuildStamp()
             #endif
 
-            // A release is out. One quiet row, which opens the pane with the button; the
-            // core updates itself from there, and the app links its download.
-            if model.updateAvailable && !model.isUpdatingCore {
-                FooterRow(title: "Update available") {
+            // A release is out. The two halves update on their own timelines, so each
+            // gets a row: the core's opens the pane with its Update button; the app's
+            // is the restart itself once its download is done, the way Cursor's is.
+            if model.coreUpdate?.available == true && !model.isUpdatingCore {
+                FooterRow(title: "Core update available") {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(.system(size: 15))
                         .foregroundStyle(Color.accentColor)
@@ -388,7 +389,31 @@ private struct SidebarFooter: View {
                 } action: {
                     model.showSettings(pane: "core")
                 }
+                .accessibilityIdentifier("coreUpdateRow")
             }
+            #if os(macOS)
+            if model.appUpdateReady {
+                FooterRow(title: "Restart to update the app") {
+                    Image(systemName: "arrow.clockwise.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 22, height: 22)
+                } action: {
+                    model.restartToUpdate()
+                }
+                .accessibilityIdentifier("appRestartRow")
+            } else if model.appUpdateAvailable {
+                FooterRow(title: "App update available") {
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 22, height: 22)
+                } action: {
+                    model.showSettings(pane: "core")
+                }
+                .accessibilityIdentifier("appUpdateRow")
+            }
+            #endif
 
             // The profile row: the name opens the profile menu, which is where Settings
             // lives too, rather than the word "Settings" taking a row of its own.

@@ -7,6 +7,30 @@ import XCTest
 /// exists, but that a tap becomes a click, a drag becomes a drag and nothing else,
 /// and a hold becomes a right-click. Needs a core on 127.0.0.1:7171 with a bot that
 /// has a screen.
+/// The phone's navigation around the desktop: open a bot, open its screen, close it,
+/// go back to the list, and open the same bot again. That last tap did nothing once.
+final class PhoneNavigationTests: XCTestCase {
+    func testBackFromTheScreenThenTheListThenTheSameBotAgain() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
+        app.launch()
+        let firstBot = app.cells.firstMatch
+        XCTAssertTrue(firstBot.waitForExistence(timeout: 30), "no bots listed; is the core running?")
+        let name = firstBot.staticTexts.firstMatch.label
+        firstBot.tap()
+        XCTAssertTrue(app.buttons["showScreen"].waitForExistence(timeout: 10), "the chat should open")
+        app.buttons["showScreen"].tap()
+        XCTAssertTrue(app.buttons["closeScreen"].waitForExistence(timeout: 10), "the desktop should open")
+        app.buttons["closeScreen"].tap()
+        XCTAssertTrue(app.buttons["showScreen"].waitForExistence(timeout: 10), "closing the desktop should land on the chat")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.cells.firstMatch.waitForExistence(timeout: 10), "back should show the list")
+        XCTAssertFalse(app.cells.firstMatch.isSelected, "nothing should stay selected on the list")
+        app.cells.firstMatch.tap()
+        XCTAssertTrue(app.buttons["showScreen"].waitForExistence(timeout: 10), "tapping \(name) again should open its chat")
+    }
+}
+
 final class DesktopTouchTests: XCTestCase {
     private var app: XCUIApplication!
     private var desktop: XCUIElement!
@@ -153,7 +177,7 @@ final class DesktopTouchTests: XCTestCase {
     func testTapThenHoldThenMoveDrags() {
         let start = point(0.5, 0.5)
         start.tap()
-        start.press(forDuration: 0.4, thenDragTo: point(0.7, 0.6))
+        start.press(forDuration: 0.7, thenDragTo: point(0.7, 0.6))
         XCTAssertTrue(waitForLog(containing: "release@"), "tap-then-hold-then-move should end with the button up; log: \(log.suffix(300))")
         let entries = log.components(separatedBy: " | ")
         let iPress = entries.lastIndex(where: { $0.hasPrefix("press@") }) ?? -1

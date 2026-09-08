@@ -78,6 +78,7 @@ struct MobileScreen: View {
     private var topBar: some View {
         HStack(spacing: 10) {
             RoundButton(systemName: "chevron.left") { model.isShowingScreen = false }
+                .accessibilityIdentifier("closeScreen")
             if let bot {
                 HStack(spacing: 8) {
                     BotAvatar(color: bot.color, seed: bot.id, size: 24)
@@ -474,14 +475,6 @@ private struct TouchLayer: UIViewRepresentable {
         // drag counted as a hold and let go as a right-click.
         press.allowableMovement = 12
         c.press = press
-        // Tap, then press and hold, then move: the trackpad drag, as on a Mac. It is
-        // its own gesture so a finger that merely pauses while pointing never starts
-        // one — that pause used to become a mouse drag on release, and the desktop's
-        // pointer leapt back to where the pause began.
-        let tapHold = UILongPressGestureRecognizer(target: c, action: #selector(Coordinator.tapHold(_:)))
-        tapHold.numberOfTapsRequired = 1
-        tapHold.minimumPressDuration = 0.12
-        tapHold.allowableMovement = 3_000
         let drag = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.oneFingerPan(_:)))
         drag.minimumNumberOfTouches = 1
         drag.maximumNumberOfTouches = 1
@@ -489,7 +482,7 @@ private struct TouchLayer: UIViewRepresentable {
         scroll.minimumNumberOfTouches = 2
         scroll.maximumNumberOfTouches = 2
         let pinch = UIPinchGestureRecognizer(target: c, action: #selector(Coordinator.pinch(_:)))
-        for g in [tap, twoFingerTap, press, tapHold, drag, scroll, pinch] {
+        for g in [tap, twoFingerTap, press, drag, scroll, pinch] {
             g.delegate = c
             view.addGestureRecognizer(g)
         }
@@ -557,8 +550,12 @@ private struct TouchLayer: UIViewRepresentable {
             parent.trackpadMode ? parent.pointer() : desktopPoint(g.location(in: g.view))
         }
 
+        /// When the last tap was, so a hold that follows one closely is a drag.
+        private var lastTapAt = Date.distantPast
+
         @objc func tap(_ g: UITapGestureRecognizer) {
             let p = clickPoint(g)
+            lastTapAt = Date()
             parent.onPointerMoved(p)
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             parent.onInput(["kind": "click", "x": Int(p.x), "y": Int(p.y)])
@@ -575,6 +572,11 @@ private struct TouchLayer: UIViewRepresentable {
         /// half a second before dragging got a context menu instead of a drag.
         private var pressOrigin: CGPoint = .zero
         private var holdMoved = false
+        /// A hold that came right after a tap: the trackpad drag. The button goes down
+        /// at the pointer when the hold takes and comes up where the finger lifts.
+        /// Decided from the tap's time rather than by a tap-counting recogniser, whose
+        /// system double-tap window a finger — or a test — misses too easily.
+        private var dragging = false
 
         @objc func press(_ g: UILongPressGestureRecognizer) {
             switch g.state {
@@ -584,7 +586,11 @@ private struct TouchLayer: UIViewRepresentable {
                 pressOrigin = g.location(in: g.view)
                 lastPressLocation = pressOrigin
                 dragStart = parent.trackpadMode ? parent.pointer() : nil
+                dragging = parent.trackpadMode && Date().timeIntervalSince(lastTapAt) < 1.0
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                if dragging, let from = dragStart {
+                    parent.onInput(["kind": "press", "x": Int(from.x), "y": Int(from.y), "button": 1])
+                }
             case .changed:
                 let here = g.location(in: g.view)
                 if !holdMoved, hypot(here.x - pressOrigin.x, here.y - pressOrigin.y) > 12 {
@@ -604,7 +610,10 @@ private struct TouchLayer: UIViewRepresentable {
                     queueMove(p)
                 }
             case .ended, .cancelled:
-                if holdMoved, !parent.trackpadMode, let from = dragStart {
+                if dragging {
+                    let to = parent.pointer()
+                    parent.onInput(["kind": "release", "x": Int(to.x), "y": Int(to.y), "button": 1])
+                } else if holdMoved, !parent.trackpadMode, let from = dragStart {
                     // Tap-where-you-touch has no other drag; in trackpad mode a hold that
                     // moved only moved the pointer, and the drag is tap-then-hold.
                     let to = liftedPoint(g)
@@ -621,39 +630,8 @@ private struct TouchLayer: UIViewRepresentable {
                 dragStart = nil
                 pressing = false
                 holdMoved = false
+                dragging = false
                 lastPressLocation = nil
-            default: break
-            }
-        }
-
-        /// Tap, then hold, then move: the button goes down at the pointer, the pointer
-        /// follows the finger, and the button comes up where it lifts. A tick marks
-        /// the hold taking, so the person knows they are dragging and not pointing.
-        private var tapHoldStart: CGPoint?
-        private var tapHoldLast: CGPoint?
-
-        @objc func tapHold(_ g: UILongPressGestureRecognizer) {
-            guard parent.trackpadMode else { return }
-            switch g.state {
-            case .began:
-                pressing = true
-                let from = parent.pointer()
-                tapHoldStart = from
-                tapHoldLast = g.location(in: g.view)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                // The button goes down now, so what is under the pointer moves with
-                // the finger rather than jumping at the end.
-                parent.onInput(["kind": "press", "x": Int(from.x), "y": Int(from.y), "button": 1])
-            case .changed:
-                let here = g.location(in: g.view)
-                if let last = tapHoldLast { nudgePointer(dx: here.x - last.x, dy: here.y - last.y) }
-                tapHoldLast = here
-            case .ended, .cancelled:
-                let to = parent.pointer()
-                parent.onInput(["kind": "release", "x": Int(to.x), "y": Int(to.y), "button": 1])
-                tapHoldStart = nil
-                tapHoldLast = nil
-                pressing = false
             default: break
             }
         }

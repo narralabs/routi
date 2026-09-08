@@ -19,7 +19,8 @@ that touches the phone's desktop is proven by its UI tests, with a core running 
 7171 and an iPhone simulator: `cd apple && ./bootstrap.sh --ios && xcodebuild test
 -scheme Routi -destination 'id=<simulator>' -only-testing:RoutiUITests
 CODE_SIGNING_ALLOWED=NO`. A screenshot shows a view exists; only the tests show it
-works.
+works. Run them with nothing else building: under load XCUITest's own timing goes,
+and a test that passes alone in ten seconds can hang for a thousand.
 
 ## How providers work
 

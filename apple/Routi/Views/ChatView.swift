@@ -412,6 +412,7 @@ struct ChatView: View {
                     showBotSidebar.toggle()
                 }
             }
+            .accessibilityIdentifier("showScreen")
         }
         #endif
     }

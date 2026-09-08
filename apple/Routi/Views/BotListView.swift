@@ -33,7 +33,16 @@ struct BotListView: View {
         Binding(
             get: { model.selectedBotID },
             set: { newValue in
-                guard let id = newValue else { return }
+                guard let id = newValue else {
+                    // On a phone, back to the list means no bot is open. Ignoring it
+                    // left the old selection set: the row stayed highlighted and a tap
+                    // on it changed nothing, so nothing happened. The Mac keeps its
+                    // thread; it never sends nil for a thread that is still showing.
+                    #if !os(macOS)
+                    model.clearSelection()
+                    #endif
+                    return
+                }
                 Task { await model.select(bot: id) }
             }
         )

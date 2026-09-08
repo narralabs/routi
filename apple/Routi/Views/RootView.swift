@@ -45,7 +45,7 @@ struct RootView: View {
                 #if os(macOS)
                 ScreenWindow()
                 #else
-                MobileScreen()
+                main
                 #endif
             } else {
                 main
@@ -93,6 +93,16 @@ struct RootView: View {
         .sheet(isPresented: $showingNewBot) {
             NewBotSheet()
         }
+        #if !os(macOS)
+        // Over the chat rather than in place of it: the navigation underneath keeps
+        // its state, so closing the desktop lands back exactly where it was opened.
+        .fullScreenCover(isPresented: Binding(
+            get: { model.isShowingScreen },
+            set: { model.isShowingScreen = $0 }
+        )) {
+            MobileScreen()
+        }
+        #endif
         .sheet(isPresented: Binding(
             get: { model.isShowingSettings },
             set: { model.isShowingSettings = $0 }

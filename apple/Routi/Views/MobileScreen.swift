@@ -40,7 +40,10 @@ struct MobileScreen: View {
         .statusBarHidden(false)
         .onAppear { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
         .onDisappear { model.endFrames(frameViewer) }
-        .task {
+        // Keyed on the bot: the view can appear a beat before the selection lands, and
+        // asking once then would leave it on "Starting the desktop…" for good.
+        .task(id: model.selectedBotID) {
+            guard model.selectedBotID != nil else { return }
             await model.refreshSurface()
             await model.startSurface()
         }

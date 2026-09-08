@@ -363,7 +363,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "PLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n[ -f \"$PLIST\" ] || exit 0\nSTAMP=\"$(date '+%H:%M:%S')\"\nSHA=\"$(git -C \"$SRCROOT/..\" rev-parse --short HEAD 2>/dev/null || echo '-')\"\nfor KEY in RoutiBuildTime:\"$STAMP\" RoutiBuildCommit:\"$SHA\"; do\n  NAME=\"${KEY%%:*}\"; VALUE=\"${KEY#*:}\"\n  /usr/libexec/PlistBuddy -c \"Add :$NAME string $VALUE\" \"$PLIST\" 2>/dev/null \\\n    || /usr/libexec/PlistBuddy -c \"Set :$NAME $VALUE\" \"$PLIST\"\ndone\n";
+			shellScript = "PLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n[ -f \"$PLIST\" ] || exit 0\n# Day and 24-hour time: \"02:39\" alone read as either two in the afternoon or\n# two at night, and a stale build looked current.\nSTAMP=\"$(date '+%b %-d %H:%M')\"\nSHA=\"$(git -C \"$SRCROOT/..\" rev-parse --short HEAD 2>/dev/null || echo '-')\"\nfor KEY in RoutiBuildTime:\"$STAMP\" RoutiBuildCommit:\"$SHA\"; do\n  NAME=\"${KEY%%:*}\"; VALUE=\"${KEY#*:}\"\n  /usr/libexec/PlistBuddy -c \"Add :$NAME string $VALUE\" \"$PLIST\" 2>/dev/null \\\n    || /usr/libexec/PlistBuddy -c \"Set :$NAME $VALUE\" \"$PLIST\"\ndone\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

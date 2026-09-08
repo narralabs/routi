@@ -119,7 +119,9 @@ targets:
         script: |
           PLIST="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
           [ -f "$PLIST" ] || exit 0
-          STAMP="$(date '+%H:%M:%S')"
+          # Day and 24-hour time: "02:39" alone read as either two in the afternoon or
+          # two at night, and a stale build looked current.
+          STAMP="$(date '+%b %-d %H:%M')"
           SHA="$(git -C "$SRCROOT/.." rev-parse --short HEAD 2>/dev/null || echo '-')"
           for KEY in RoutiBuildTime:"$STAMP" RoutiBuildCommit:"$SHA"; do
             NAME="${KEY%%:*}"; VALUE="${KEY#*:}"

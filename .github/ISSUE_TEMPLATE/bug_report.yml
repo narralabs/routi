@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Opened from the app, the versions below are already filled in. Keep them;
-        they are usually the first thing we look at.
+        Thanks for taking the time. If you came here from Give Feedback in the app,
+        the version fields are filled in for you.
   - type: textarea
     id: what
     attributes:

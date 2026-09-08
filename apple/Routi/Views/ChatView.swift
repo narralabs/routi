@@ -32,6 +32,11 @@ struct ChatView: View {
         // Just the chat. The screen is a sibling column now, not a panel nested here.
         content
             .navigationTitle(bot.name)
+            #if !os(macOS)
+            // Inline, not large: a large title scrolls away with the first message and
+            // then sits over the transcript. The name stays in the bar beside Back.
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar { toolbarContent }
             .sheet(isPresented: $showingSettings) {
                 BotSettingsSheet(bot: bot)
@@ -385,6 +390,15 @@ struct ChatView: View {
         }
         .flatBackground()
         #else
+        // The bot in the bar: its face and its name, where a chat app keeps them.
+        ToolbarItem(placement: .principal) {
+            HStack(spacing: 8) {
+                BotAvatar(color: bot.color, seed: bot.id, size: 24)
+                Text(bot.name)
+                    .font(.system(size: 16, weight: .semibold))
+                    .lineLimit(1)
+            }
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Button("Bot Settings", systemImage: "slider.horizontal.3") { showingSettings = true }
         }

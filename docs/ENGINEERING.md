@@ -25,7 +25,7 @@ it — including the phone, which is the same app over a different network path.
 - **`protocol/`** — zod schemas for the wire format. `apple/Routi/Models/` is the
   hand-written Swift mirror; the two change in the same commit.
 - **`containers/desktop/`** — the shared Linux desktop: one machine, an X display per
-  bot, Chromium, and a small `act` script that is the only input surface exposed.
+  bot (minimal xfwm4 + picom + bottom Plank; no XFCE top panel), Chromium, and a small `act` script that is the only input surface exposed.
 
 Because clients never talk to a vendor, a provider is a daemon-side adapter and nothing
 else changes.

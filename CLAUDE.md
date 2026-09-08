@@ -24,7 +24,10 @@ that touches the phone's desktop is proven by its UI tests, with a core running 
 -scheme Routi -destination 'id=<simulator>' -only-testing:RoutiUITests
 CODE_SIGNING_ALLOWED=NO`. A screenshot shows a view exists; only the tests show it
 works. Run them with nothing else building: under load XCUITest's own timing goes,
-and a test that passes alone in ten seconds can hang for a thousand.
+and a test that passes alone in ten seconds can hang for a thousand. Afterwards a plain
+`./bootstrap.sh` puts `project.yml` back to Mac-only and ad-hoc signing by itself; never
+`git checkout` the file to get there, which also throws away any edit not yet committed
+(it took the Sparkle settings with it twice).
 
 ## How providers work
 

@@ -148,12 +148,20 @@ final class DesktopTouchTests: XCTestCase {
         XCTAssertEqual(x, 1152, accuracy: 60, "the pointer should have moved exactly as far as the finger; log tail: \(log.suffix(200))")
     }
 
-    /// Tap, then press and hold, then move: that is the drag, from the pointer.
+    /// Tap, then press and hold, then move: the button goes down at the pointer when
+    /// the hold takes, the pointer moves, and the button comes up where it lifts.
     func testTapThenHoldThenMoveDrags() {
         let start = point(0.5, 0.5)
         start.tap()
         start.press(forDuration: 0.4, thenDragTo: point(0.7, 0.6))
-        XCTAssertTrue(waitForLog(containing: "drag@"), "tap-then-hold-then-move should drag; log: \(log.suffix(300))")
+        XCTAssertTrue(waitForLog(containing: "release@"), "tap-then-hold-then-move should end with the button up; log: \(log.suffix(300))")
+        let entries = log.components(separatedBy: " | ")
+        let iPress = entries.lastIndex(where: { $0.hasPrefix("press@") }) ?? -1
+        let iRelease = entries.lastIndex(where: { $0.hasPrefix("release@") }) ?? -1
+        XCTAssertGreaterThanOrEqual(iPress, 0, "the button should go down when the hold takes; log: \(log.suffix(300))")
+        XCTAssertLessThan(iPress, iRelease, "down before up; log: \(log.suffix(300))")
+        XCTAssertTrue(entries[iPress..<iRelease].contains("move"), "the pointer should move between down and up; log: \(log.suffix(300))")
+        XCTAssertFalse(log.contains("drag@"), "no atomic drag any more; log: \(log.suffix(300))")
     }
 
     func testHoldRightClicks() {

@@ -187,6 +187,10 @@ export const RpcMethods = {
           kind: z.literal('drag'),
           fromX: z.number(), fromY: z.number(), toX: z.number(), toY: z.number(),
         }),
+        // The button down, and up, as separate events: a live drag from a mouse or a
+        // held finger, with the desktop reacting as the pointer moves between them.
+        z.object({ kind: z.literal('press'), x: z.number(), y: z.number(), button: z.number().int().min(1).max(3).optional() }),
+        z.object({ kind: z.literal('release'), x: z.number(), y: z.number(), button: z.number().int().min(1).max(3).optional() }),
       ]),
     }),
     result: z.object({ ok: z.literal(true) }),

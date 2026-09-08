@@ -232,6 +232,8 @@ struct MobileScreen: View {
         case "click": return "click(\(input["button"] as? Int ?? 1))@\(input["x"] ?? 0),\(input["y"] ?? 0)"
         case "doubleClick": return "doubleClick@\(input["x"] ?? 0),\(input["y"] ?? 0)"
         case "drag": return "drag@\(input["fromX"] ?? 0),\(input["fromY"] ?? 0)->\(input["toX"] ?? 0),\(input["toY"] ?? 0)"
+        case "press": return "press@\(input["x"] ?? 0),\(input["y"] ?? 0)"
+        case "release": return "release@\(input["x"] ?? 0),\(input["y"] ?? 0)"
         case "type": return "type(\(input["text"] ?? ""))"
         case "key": return "key(\((input["keys"] as? [String])?.joined(separator: "+") ?? ""))"
         default: return kind
@@ -635,20 +637,20 @@ private struct TouchLayer: UIViewRepresentable {
             switch g.state {
             case .began:
                 pressing = true
-                tapHoldStart = parent.pointer()
+                let from = parent.pointer()
+                tapHoldStart = from
                 tapHoldLast = g.location(in: g.view)
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                // The button goes down now, so what is under the pointer moves with
+                // the finger rather than jumping at the end.
+                parent.onInput(["kind": "press", "x": Int(from.x), "y": Int(from.y), "button": 1])
             case .changed:
                 let here = g.location(in: g.view)
                 if let last = tapHoldLast { nudgePointer(dx: here.x - last.x, dy: here.y - last.y) }
                 tapHoldLast = here
             case .ended, .cancelled:
-                if let from = tapHoldStart {
-                    let to = parent.pointer()
-                    if hypot(to.x - from.x, to.y - from.y) > 2 {
-                        parent.onInput(["kind": "drag", "fromX": Int(from.x), "fromY": Int(from.y), "toX": Int(to.x), "toY": Int(to.y)])
-                    }
-                }
+                let to = parent.pointer()
+                parent.onInput(["kind": "release", "x": Int(to.x), "y": Int(to.y), "button": 1])
                 tapHoldStart = nil
                 tapHoldLast = nil
                 pressing = false

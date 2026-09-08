@@ -135,6 +135,9 @@ export type DesktopInput =
   | { kind: 'paste'; text: string }
   /** Button down at one point, up at another. */
   | { kind: 'drag'; fromX: number; fromY: number; toX: number; toY: number }
+  /** The button down, and up, on their own, with moves in between for a live drag. */
+  | { kind: 'press'; x: number; y: number; button?: PointerButton }
+  | { kind: 'release'; x: number; y: number; button?: PointerButton }
 
 /**
  * The one machine every screen lives on.
@@ -611,6 +614,13 @@ export class Desktop {
       const [fx, fy, tx, ty] = [input.fromX, input.fromY, input.toX, input.toY].map((n) => String(Math.round(n)))
       await host.execOn(this.display, [
         'xdotool', 'mousemove', fx!, fy!, 'mousedown', '1', 'mousemove', tx!, ty!, 'mouseup', '1',
+      ])
+      return
+    }
+    if (input.kind === 'press' || input.kind === 'release') {
+      const verb = input.kind === 'press' ? 'mousedown' : 'mouseup'
+      await host.execOn(this.display, [
+        'xdotool', 'mousemove', String(Math.round(input.x)), String(Math.round(input.y)), verb, String(input.button ?? 1),
       ])
       return
     }

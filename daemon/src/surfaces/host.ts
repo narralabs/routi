@@ -164,6 +164,8 @@ export class HostSurface {
         // The helper has no press-and-release; a phone dragging on This Mac is rare
         // enough to say no rather than teach it one.
         case 'drag': throw new Error('Dragging is not supported on a This Mac screen yet.')
+        case 'press': throw new Error('Dragging is not supported on a This Mac screen yet.')
+        case 'release': throw new Error('Dragging is not supported on a This Mac screen yet.')
       }
     })()
 

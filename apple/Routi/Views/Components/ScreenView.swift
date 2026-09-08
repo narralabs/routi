@@ -62,15 +62,15 @@ struct ScreenView: View {
             if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
         #endif
-        // The desktop's cursor, drawn rather than captured.
+        // The desktop's cursor, drawn rather than captured — on the thumbnail only.
         //
         // X screenshots contain no pointer — the server composites it above the root
         // window — so the frame can never show one. Drawing it from the position that
-        // arrives with each frame is what makes the screen legible: you can see where
-        // the desktop thinks you are pointing, and watch the cursor move on its own
-        // while a bot is working.
+        // arrives with each frame is what lets the thumbnail show a bot at work. In the
+        // full-window view the Mac's own pointer is the pointer, and a second arrow a
+        // frame behind it only ever read as a laggy cursor; it is not drawn there.
         .overlay(alignment: .topLeading) {
-            if let pointer, fitted.width > 0, size.width > 0 {
+            if let pointer, fitted.width > 0, size.width > 0, !isInteractive {
                 let scale = fitted.width / size.width
                 RemoteCursor()
                     .offset(x: pointer.x * scale, y: pointer.y * scale)
@@ -273,14 +273,20 @@ struct DesktopInputLayer: NSViewRepresentable {
             )
         }
 
+        /// Down on mouse-down, up on mouse-up, moves in between: a real drag, with the
+        /// desktop reacting as it goes. This used to send a whole click on mouse-down,
+        /// so nothing on the desktop could be dragged — a window, a selection, a
+        /// scrollbar — however far the mouse then moved. Two quick presses are two
+        /// quick clicks, which the desktop reads as a double-click by itself.
         override func mouseDown(with event: NSEvent) {
             guard let p = screenPoint(event) else { return }
             window?.makeFirstResponder(self)
-            if event.clickCount >= 2 {
-                onInput(["kind": "doubleClick", "x": p.x, "y": p.y])
-            } else {
-                onInput(["kind": "click", "x": p.x, "y": p.y, "button": 1])
-            }
+            onInput(["kind": "press", "x": p.x, "y": p.y, "button": 1])
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            guard let p = screenPoint(event) else { return }
+            onInput(["kind": "release", "x": p.x, "y": p.y, "button": 1])
         }
 
         override func rightMouseDown(with event: NSEvent) {

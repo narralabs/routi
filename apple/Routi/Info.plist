@@ -23,5 +23,11 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/narralabs/routi/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>QQ0Dug1X13Tm/BllMY7rTyWGPuav5MPCPsfzJ78uQSM=</string>
 </dict>
 </plist>

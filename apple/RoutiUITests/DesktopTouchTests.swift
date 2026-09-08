@@ -37,17 +37,44 @@ final class DesktopTouchTests: XCTestCase {
         desktop.coordinate(withNormalizedOffset: CGVector(dx: x, dy: y))
     }
 
-    func testTapClicksWhereTapped() {
-        point(0.5, 0.5).tap()
-        XCTAssertTrue(waitForLog(containing: "click(1)@"), "a tap should send a left click; log: \(log)")
+    private func lastClick() -> (x: Double, y: Double)? {
+        guard let entry = log.components(separatedBy: " | ").last(where: { $0.hasPrefix("click(1)@") }) else { return nil }
+        let parts = entry.replacingOccurrences(of: "click(1)@", with: "").split(separator: ",").compactMap { Double($0) }
+        return parts.count == 2 ? (parts[0], parts[1]) : nil
     }
 
-    func testOneFingerMovesThePointerAndNothingElse() {
+    /// The pointer starts in the middle, and a tap clicks there — wherever the tap is.
+    func testTapClicksAtThePointerWhichStartsInTheMiddle() {
+        point(0.2, 0.15).tap()
+        XCTAssertTrue(waitForLog(containing: "click(1)@"), "a tap should send a left click; log: \(log)")
+        guard let click = lastClick() else { return XCTFail("no click in log: \(log)") }
+        XCTAssertEqual(click.x, 640, accuracy: 2, "the click should land at the pointer, in the middle; log: \(log)")
+        XCTAssertEqual(click.y, 400, accuracy: 2, "log: \(log)")
+    }
+
+    /// One finger moves the pointer by its travel: to the right here, then a tap
+    /// clicks at the moved pointer, and nothing was dragged or clicked on the way.
+    func testOneFingerMovesThePointerRelatively() {
         point(0.3, 0.5).press(forDuration: 0.05, thenDragTo: point(0.7, 0.5))
         XCTAssertTrue(waitForLog(containing: "move"), "the pointer should move live; log: \(log)")
         sleep(1)
         XCTAssertFalse(log.contains("drag@"), "a finger moving must not drag; log: \(log)")
         XCTAssertFalse(log.contains("click"), "a finger moving must not click; log: \(log)")
+        point(0.1, 0.9).tap()
+        XCTAssertTrue(waitForLog(containing: "click(1)@"), "log: \(log)")
+        guard let click = lastClick() else { return XCTFail("no click: \(log)") }
+        XCTAssertGreaterThan(click.x, 700, "the pointer should have moved right of the middle; log: \(log)")
+        XCTAssertEqual(click.y, 400, accuracy: 6, "and not up or down; log: \(log)")
+    }
+
+    /// The black margin above the picture is touch too: a drag there moves the pointer.
+    func testDragInTheBlackMarginMovesThePointer() {
+        point(0.5, 0.08).press(forDuration: 0.05, thenDragTo: point(0.5, 0.2))
+        XCTAssertTrue(waitForLog(containing: "move"), "a drag in the margin should move the pointer; log: \(log)")
+        point(0.5, 0.08).tap()
+        XCTAssertTrue(waitForLog(containing: "click(1)@"), "log: \(log)")
+        guard let click = lastClick() else { return XCTFail("no click: \(log)") }
+        XCTAssertGreaterThan(click.y, 420, "the pointer should have moved down; log: \(log)")
     }
 
     func testHoldThenMoveDrags() {
@@ -55,22 +82,6 @@ final class DesktopTouchTests: XCTestCase {
         point(0.3, 0.6).press(forDuration: 0.6, thenDragTo: point(0.7, 0.6))
         XCTAssertTrue(waitForLog(containing: "drag@"), "log: \(log)")
         XCTAssertFalse(log.contains("click(3)"), "a hold that moved must not right-click; log: \(log)")
-    }
-
-    /// A tap clicks exactly where it lands, even right after a drag: the point under
-    /// the fingertip, not where the arrow was left. Tapping the arrow itself is how a
-    /// person clicks what they aimed at.
-    func testTapClicksUnderTheFingerEvenAfterAiming() {
-        point(0.3, 0.5).press(forDuration: 0.05, thenDragTo: point(0.6, 0.5))
-        XCTAssertTrue(waitForLog(containing: "move"), "log: \(log)")
-        sleep(1)
-        point(0.6, 0.5).tap()
-        XCTAssertTrue(waitForLog(containing: "click(1)@"), "log: \(log)")
-        let click = log.components(separatedBy: " | ").last ?? ""
-        let parts = click.replacingOccurrences(of: "click(1)@", with: "").split(separator: ",").compactMap { Double($0) }
-        XCTAssertEqual(parts.count, 2, "log: \(log)")
-        XCTAssertEqual(parts[0], 0.6 * 1280, accuracy: 3, "x under the finger; log: \(log)")
-        XCTAssertEqual(parts[1], 0.5 * 800, accuracy: 3, "y under the finger, not lifted; log: \(log)")
     }
 
     func testHoldRightClicks() {

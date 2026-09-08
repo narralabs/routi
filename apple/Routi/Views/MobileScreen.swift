@@ -13,7 +13,10 @@ import UIKit
 struct MobileScreen: View {
     @Environment(AppModel.self) private var model
     @State private var frameViewer = UUID()
-    @State private var trackpadMode = false
+    /// Relative pointing, like a trackpad, is the default: the pointer starts in the
+    /// middle and a finger anywhere on the screen moves it by its travel. Measured
+    /// against how a hand actually uses a phone, and how Grok Bot's app behaves.
+    @State private var trackpadMode = true
     @State private var showingHelp = false
     @State private var showingKeyboard = false
     @State private var typed = ""
@@ -66,6 +69,9 @@ struct MobileScreen: View {
             guard model.selectedBotID != nil else { return }
             await model.refreshSurface()
             await model.startSurface()
+            // Start in the middle, and say so to the desktop, so the arrow drawn and the
+            // pointer the desktop has agree from the first touch.
+            if trackpadPointer == nil, model.surface.width > 0 { recenter() }
         }
         .sheet(isPresented: $showingHelp) { ScreenHelpSheet() }
     }
@@ -88,6 +94,9 @@ struct MobileScreen: View {
             RoundButton(systemName: "questionmark") { showingHelp = true }
             Menu {
                 Toggle(isOn: $trackpadMode) { Label("Trackpad mode", systemImage: "cursorarrow.rays") }
+                Toggle(isOn: Binding(get: { !trackpadMode }, set: { trackpadMode = !$0 })) {
+                    Label("Tap where you touch", systemImage: "hand.tap")
+                }
                 Button { recenter() } label: { Label("Recenter pointer", systemImage: "scope") }
                 if zoom > 1 {
                     Button { withAnimation { zoom = 1; pan = .zero } } label: { Label("Reset zoom", systemImage: "arrow.down.right.and.arrow.up.left") }
@@ -175,6 +184,53 @@ struct MobileScreen: View {
             let fitted = fittedSize(size, in: proxy.size)
             ZStack {
                 Color.black
+                picture(size: size, fitted: fitted)
+                    .scaleEffect(zoom)
+                    .offset(pan)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+            // Touch is the whole pane, black margins included: a finger moving the
+            // pointer should not stop working at the picture's edge.
+            .overlay {
+                if fitted.width > 0, size.width > 0 {
+                    TouchLayer(
+                        paneSize: proxy.size,
+                        desktopSize: size,
+                        fittedSize: fitted,
+                        trackpadMode: trackpadMode,
+                        zoom: zoom,
+                        pan: pan,
+                        pointer: { trackpadPointer ?? model.surfacePointer ?? CGPoint(x: size.width / 2, y: size.height / 2) },
+                        onPointerMoved: { trackpadPointer = $0 },
+                        onInput: { input in
+                            #if DEBUG
+                            inputLog.append(Self.describe(input))
+                            #endif
+                            Task { await model.sendSurfaceInput(input) }
+                        },
+                        sendMove: { p in
+                            #if DEBUG
+                            inputLog.append("move")
+                            #endif
+                            await model.sendSurfaceInput(["kind": "move", "x": Int(p.x), "y": Int(p.y)])
+                        },
+                        onZoom: { delta, _ in
+                            let next = min(max(zoom * delta, 1), 4)
+                            zoom = next
+                            if next == 1 { pan = .zero }
+                        },
+                        onPan: { delta in
+                            pan = clamp(CGSize(width: pan.width + delta.width, height: pan.height + delta.height), fitted: fitted, in: proxy.size)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func picture(size: CGSize, fitted: CGSize) -> some View {
                 Group {
                     if let image = frameImage {
                         Image(uiImage: image).resizable().interpolation(.medium)
@@ -199,44 +255,6 @@ struct MobileScreen: View {
                             .animation(.linear(duration: 0.06), value: pointer)
                     }
                 }
-                .overlay {
-                    if fitted.width > 0, size.width > 0 {
-                        TouchLayer(
-                            desktopSize: size,
-                            fittedSize: fitted,
-                            trackpadMode: trackpadMode,
-                            zoom: zoom,
-                            pointer: { trackpadPointer ?? model.surfacePointer ?? CGPoint(x: size.width / 2, y: size.height / 2) },
-                            onPointerMoved: { trackpadPointer = $0 },
-                            onInput: { input in
-                                #if DEBUG
-                                inputLog.append(Self.describe(input))
-                                #endif
-                                Task { await model.sendSurfaceInput(input) }
-                            },
-                            sendMove: { p in
-                                #if DEBUG
-                                inputLog.append("move")
-                                #endif
-                                await model.sendSurfaceInput(["kind": "move", "x": Int(p.x), "y": Int(p.y)])
-                            },
-                            onZoom: { delta, anchor in
-                                let next = min(max(zoom * delta, 1), 4)
-                                zoom = next
-                                if next == 1 { pan = .zero }
-                            },
-                            onPan: { delta in
-                                pan = clamp(CGSize(width: pan.width + delta.width, height: pan.height + delta.height), fitted: fitted, in: proxy.size)
-                            }
-                        )
-                    }
-                }
-                .scaleEffect(zoom)
-                .offset(pan)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .clipped()
-        }
     }
 
     /// The pointer the finger last put somewhere wins over the frame's, which lags it;
@@ -323,10 +341,12 @@ private struct RoundButtonLabel: View {
 /// tell fingers apart. Touch locations are the layer's own coordinates, which sit
 /// over the fitted picture, so a point here is a point on the desktop, scaled.
 private struct TouchLayer: UIViewRepresentable {
+    let paneSize: CGSize
     let desktopSize: CGSize
     let fittedSize: CGSize
     let trackpadMode: Bool
     let zoom: CGFloat
+    let pan: CGSize
     let pointer: () -> CGPoint
     let onPointerMoved: (CGPoint) -> Void
     let onInput: ([String: Any]) -> Void
@@ -419,12 +439,16 @@ private struct TouchLayer: UIViewRepresentable {
             return desktopPoint(p)
         }
 
-        /// A point on the layer, as desktop pixels.
+        /// A point on the pane, as desktop pixels: undo the zoom and pan about the
+        /// pane's centre, take off the letterbox, then scale to the desktop.
         private func desktopPoint(_ p: CGPoint) -> CGPoint {
+            let c = CGPoint(x: parent.paneSize.width / 2, y: parent.paneSize.height / 2)
+            let ux = (p.x - c.x - parent.pan.width) / parent.zoom + c.x - (parent.paneSize.width - parent.fittedSize.width) / 2
+            let uy = (p.y - c.y - parent.pan.height) / parent.zoom + c.y - (parent.paneSize.height - parent.fittedSize.height) / 2
             let scale = parent.desktopSize.width / max(parent.fittedSize.width, 1)
             return CGPoint(
-                x: min(max(p.x * scale, 0), parent.desktopSize.width - 1),
-                y: min(max(p.y * scale, 0), parent.desktopSize.height - 1)
+                x: min(max(ux * scale, 0), parent.desktopSize.width - 1),
+                y: min(max(uy * scale, 0), parent.desktopSize.height - 1)
             )
         }
 
@@ -595,18 +619,19 @@ struct ScreenHelpSheet: View {
         NavigationStack {
             List {
                 Section("Moving around") {
-                    HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
-                    HelpRow("cursorarrow.click", "Point and click", "Tap to click exactly where you tap. Drag one finger to move the pointer; its tip is under your fingertip. Lift to see where it landed, and tap that spot to click it. Pinch in for anything small.")
+                    HelpRow("cursorarrow.motionlines", "Point", "The pointer starts in the middle. Drag one finger anywhere on the screen, black edges included, and it moves with your finger, like a trackpad.")
+                    HelpRow("cursorarrow.click", "Click", "Tap anywhere to click where the pointer is. Two quick taps double-click.")
                     HelpRow("hand.draw", "Drag", "Press and hold until you feel a tick, then move. It lets go where you lift.")
-                    HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving. A hold that moves drags instead, for a careful drag.")
+                    HelpRow("list.bullet", "Right-click", "Tap with two fingers, or press and hold without moving.")
+                    HelpRow("arrow.up.arrow.down", "Scroll", "Drag with two fingers.")
                     HelpRow("plus.magnifyingglass", "Zoom in", "Pinch to zoom. Zoomed in, two fingers pan instead of scrolling.")
                 }
                 Section("Typing and the clipboard") {
                     HelpRow("keyboard", "Type", "Tap the keyboard button in the bottom bar. Return sends the line; the row above it has the keys a phone lacks.")
                     HelpRow("clipboard", "Copy and paste", "The clipboard button in the bottom bar copies to this phone or pastes from it.")
                 }
-                Section("When a pointer is easier") {
-                    HelpRow("cursorarrow.rays", "Trackpad mode", "Turn it on from the ··· menu. Your finger moves the pointer; tap to click there, press and hold then move to drag. Recenter pointer if it drifts.")
+                Section("The other way") {
+                    HelpRow("hand.tap", "Tap where you touch", "From the ··· menu. A tap then clicks the exact spot under your finger, and a drag moves the pointer to where your finger is. Recenter pointer puts it back in the middle in either mode.")
                 }
             }
             .navigationTitle("Using the computer")

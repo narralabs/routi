@@ -20,4 +20,6 @@ xcodebuild -scheme Routi -configuration Debug -destination 'platform=macOS' \
   -derivedDataPath "$derived" build 2>&1 | grep -E "error:|warning: .*Routi/|\*\* BUILD" || true
 app="$derived/Build/Products/Debug/Routi Bot.app"
 [ -d "$app" ] || { echo "No app built." >&2; exit 1; }
-open -n "$app" --args -daemonPort "${ROUTI_DEV_PORT:-7172}" "$@"
+# The host too, not only the port: an app that has been pointed at another Mac's
+# core keeps that host in its defaults, and a dev port on that host is nothing.
+open -n "$app" --args -daemonHost "${ROUTI_DEV_HOST:-127.0.0.1}" -daemonPort "${ROUTI_DEV_PORT:-7172}" "$@"

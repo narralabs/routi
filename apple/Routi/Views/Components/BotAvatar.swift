@@ -129,6 +129,11 @@ struct BotAvatar: View {
             .contentShape(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous))
             // Simultaneous, so a poke in a list row still selects the row.
             .simultaneousGesture(TapGesture().onEnded { poke() })
+            // Its temper as a value, so the UI tests can prove a poke landed: on the
+            // phone a face sits in the chat's bar, where a tap has nothing else to do.
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("botFace")
+            .accessibilityValue(startled ? "startled" : String(describing: temper))
             // The loop is started from a task, never from the body or an `onChange`:
             // `withAnimation` inside a view update joins that update's transaction,
             // and a repeat-forever animation started while the chat was being swapped

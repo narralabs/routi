@@ -344,6 +344,32 @@ final class AppModel {
      to the old one means the script put it back; nothing within ten minutes is a
      failure to say out loud, with the installer as the way out.
      */
+    /// What an update would cut short, in a sentence — or nil when nothing is running.
+    ///
+    /// The core restarts on an update and does not wait: a turn in flight is lost
+    /// where it stood, and a routine killed mid-run is not rerun until its next time.
+    /// The app already knows every busy thread, which are routines, and every open
+    /// handover, so it says so before the button does anything — the way a restart
+    /// names the documents it would close — and leaves the choice with the person.
+    var workInProgress: String? {
+        var items: [String] = []
+        for id in busyConversations.sorted() {
+            let name = conversations[id].flatMap { conv in bots.first { $0.id == conv.botId }?.name } ?? "A bot in another profile"
+            if let routine = busyRoutineNames[id] {
+                items.append("\(name) is running “\(routine)”")
+            } else {
+                items.append("\(name) is mid-reply")
+            }
+        }
+        for handover in handovers.values where !busyConversations.contains(handover.conversationId) {
+            let name = bots.first { $0.id == handover.botId }?.name ?? "A bot in another profile"
+            items.append("\(name) is waiting for you")
+        }
+        guard !items.isEmpty else { return nil }
+        let list = items.count == 1 ? items[0] : items.dropLast().joined(separator: ", ") + " and " + items.last!
+        return list + ". Updating restarts Routi Core and stops them; a routine cut short is not rerun until its next time."
+    }
+
     func startCoreUpdate() async {
         guard let target = coreUpdate?.latest, !isUpdatingCore else { return }
         coreUpdateOutcome = nil

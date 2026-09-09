@@ -476,6 +476,8 @@ struct ConnectionPane: View {
     @Environment(AppModel.self) private var model
     @AppStorage("daemonHost") private var host = "127.0.0.1"
     @AppStorage("daemonPort") private var port = 7171
+
+    @State private var confirmingCoreUpdate = false
     @State private var draftHost = ""
     @State private var draftPort = 7171
 
@@ -535,9 +537,18 @@ struct ConnectionPane: View {
                                     .frame(maxWidth: 260, alignment: .trailing)
                             }
                         } else if model.coreUpdate?.available == true {
-                            Button("Update Routi Core") { Task { await model.startCoreUpdate() } }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(!(model.coreUpdate?.canUpdate ?? false))
+                            // With work running, the button asks first: see `workInProgress`.
+                            Button("Update Routi Core") {
+                                if model.workInProgress != nil { confirmingCoreUpdate = true } else { Task { await model.startCoreUpdate() } }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!(model.coreUpdate?.canUpdate ?? false))
+                            .confirmationDialog("Update now?", isPresented: $confirmingCoreUpdate) {
+                                Button("Update Anyway", role: .destructive) { Task { await model.startCoreUpdate() } }
+                                Button("Wait", role: .cancel) {}
+                            } message: {
+                                Text(model.workInProgress ?? "")
+                            }
                         }
                     }
                 }

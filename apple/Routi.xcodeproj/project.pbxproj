@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		08966B34941B3AE65C038BE8 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */; };
+		121F5D600BB09425082B33D3 /* FaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6132C9BD1682BD1B1B50464C /* FaceTests.swift */; };
 		15C44DA114D533E687FB4811 /* Blocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502F8CF0DE246295A5890E87 /* Blocks.swift */; };
 		161C6ED5CC704F12603B50FB /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA56FAD7115195CEA260370F /* Notifier.swift */; };
 		1F2AA4D9B1926967F36F7680 /* Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9EE469AEAC6433B4672D15 /* Auth.swift */; };
@@ -75,6 +76,7 @@
 		502F8CF0DE246295A5890E87 /* Blocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Blocks.swift; sourceTree = "<group>"; };
 		5BD073724E27CFF96D741B5D /* NewBotSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBotSheet.swift; sourceTree = "<group>"; };
 		5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
+		6132C9BD1682BD1B1B50464C /* FaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceTests.swift; sourceTree = "<group>"; };
 		75ECC9B53C46B40DF50283ED /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
 		7D95DDD971A18799D215D6EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		84706E803B8FFFC6DFA36B93 /* Routi-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Routi-iOS.entitlements"; sourceTree = "<group>"; };
@@ -238,6 +240,7 @@
 			isa = PBXGroup;
 			children = (
 				01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */,
+				6132C9BD1682BD1B1B50464C /* FaceTests.swift */,
 			);
 			path = RoutiUITests;
 			sourceTree = "<group>";
@@ -373,6 +376,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */,
+				121F5D600BB09425082B33D3 /* FaceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

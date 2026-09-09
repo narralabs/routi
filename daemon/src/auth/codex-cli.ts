@@ -80,6 +80,15 @@ export class CodexCli {
    * then waits on a local callback, so completion shows up in the status, not on
    * stdout. Same approach as the Claude side.
    */
+  /** Signs the CLI out (`codex logout` removes its stored credentials), so Disconnect means it. */
+  async logout(): Promise<void> {
+    try {
+      await run(this.binary, ['logout'], { timeout: 30_000, env: this.spawnEnv })
+    } catch {
+      // Nothing stored, or no CLI: nothing to remove.
+    }
+  }
+
   async login(options: { timeoutMs?: number } = {}): Promise<CodexAuthStatus> {
     const timeoutMs = options.timeoutMs ?? 5 * 60_000
 

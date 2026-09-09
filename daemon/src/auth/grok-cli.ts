@@ -77,6 +77,20 @@ export class GrokCli {
     }
   }
 
+  /**
+   * Signs the CLI out, so the next `login` is a real one. Without this, Disconnect
+   * only forgot Routi's own setting; the CLI kept its session, and the next Connect
+   * found it signed in and kept whichever account that was — measured on a Mac where
+   * an Apple-relay account would not give way to the one wanted.
+   */
+  async logout(): Promise<void> {
+    try {
+      await run(this.binary, ['logout'], { timeout: 30_000, env: this.spawnEnv })
+    } catch {
+      // Not signed in, or no CLI: either way there is nothing left to sign out of.
+    }
+  }
+
   /** Every model this account can reach, asked of the CLI rather than hardcoded. */
   async models(): Promise<GrokModel[]> {
     try {

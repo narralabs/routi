@@ -19,6 +19,9 @@ struct ProviderInfo: Identifiable, Hashable {
     let tint: Color
     let isAvailable: Bool
 
+    /// The providers that are a vendor's own signed-in CLI rather than a key.
+    static let harnessIDs: Set<String> = ["anthropic-claude", "openai-codex", "xai-grok"]
+
     static let all: [ProviderInfo] = [
         // Two entries per vendor, named by what runs the bot: the vendor's own agent,
         // which is the only thing that can spend a personal plan, and the direct API,
@@ -380,7 +383,11 @@ private struct ProviderConnectPane: View {
                 Task { await model.providerSignOut(provider.id) }
             }
         } message: {
-            Text("Bots already using \(provider.name) will stop working until you reconnect.")
+            // A harness provider is a signed-in CLI: disconnecting signs it out on the
+            // core's Mac, which is what lets a different account be used next.
+            Text(ProviderInfo.harnessIDs.contains(provider.id)
+                ? "Signs \(provider.name) out on the Mac running Routi Core, so you can sign in with a different account. Bots already using it will stop working until you reconnect."
+                : "Bots already using \(provider.name) will stop working until you reconnect.")
         }
     }
 

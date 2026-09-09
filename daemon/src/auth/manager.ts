@@ -325,7 +325,21 @@ export class AuthManager {
     return { ...(await this.status(profileId)), verified }
   }
 
+  /**
+   * Disconnect. For a harness provider this signs the vendor's CLI out as well as
+   * forgetting Routi's setting: the CLI's session is the connection, and left in
+   * place it came straight back on the next Connect with the same account, which
+   * made switching accounts impossible from the app. On the default profile that
+   * CLI login is the Mac's own, so this signs the Mac out of that CLI too — which is
+   * exactly what someone pressing Disconnect on "Grok CLI" is asking for.
+   */
   async providerSignOut(provider: string, profileId = DEFAULT_PROFILE): Promise<AuthStatus> {
+    if (HARNESS_PROVIDERS.has(provider)) {
+      const tools = this.toolsFor(profileId)
+      if (provider === 'anthropic-claude') await tools.cli.logout()
+      else if (provider === 'openai-codex') await tools.codex.logout()
+      else if (provider === 'xai-grok') await tools.grok.logout()
+    }
     await this.credentials.clearApiKey(provider, profileId)
     this.store.setSettings({ [settingModeFor(provider, profileId)]: null })
     const key = providerKey(profileId, provider)

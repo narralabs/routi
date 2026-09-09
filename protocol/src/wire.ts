@@ -272,8 +272,17 @@ export const RpcMethods = {
       addresses: z.object({
         hostname: z.string(),
         tailscale: z.string().nullable(),
-        /** Whether the core is answering on that Tailscale address right now. */
+        /** Whether the core itself is bound to that Tailscale address right now. */
         listening: z.boolean(),
+        /**
+         * How Tailscale stands on the Mac: `absent` (not installed), `down` (installed,
+         * daemon not answering), `userspace` (running without a network interface, so
+         * the core cannot bind the address; reachable there only through `tailscale
+         * serve`), or `interface` (the address is on an interface and the core binds it).
+         */
+        tailscaleMode: z.enum(['absent', 'down', 'userspace', 'interface']),
+        /** Whether a connection to the Tailscale address on the core's port reaches the core — bound, or served. */
+        reachable: z.boolean(),
       }),
     }),
   },

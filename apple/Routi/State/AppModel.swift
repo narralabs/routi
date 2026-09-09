@@ -241,7 +241,12 @@ final class AppModel {
     struct CoreAddresses: Codable, Hashable {
         var hostname: String
         var tailscale: String?
+        /// Bound to the address itself. False under a userspace Tailscale, where the
+        /// core is reached through `tailscale serve` instead; `reachable` covers both.
         var listening: Bool
+        /// `absent`, `down`, `userspace` or `interface`. Optional: an older core says nothing.
+        var tailscaleMode: String?
+        var reachable: Bool?
     }
 
     var coreAddresses: CoreAddresses?

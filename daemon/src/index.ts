@@ -11,7 +11,7 @@ import { Scheduler } from './sessions/scheduler.js'
 import { Handovers } from './surfaces/handover.js'
 import { DesktopPool } from './surfaces/pool.js'
 import { Updater } from './update.js'
-import { machineName, tailscaleAddress } from './server/tailscale.js'
+import { bindableAddress, machineName, tailscaleReport } from './server/tailscale.js'
 
 const DATA_DIR = process.env['ROUTI_DATA_DIR'] ?? join(homedir(), '.routi')
 
@@ -80,9 +80,18 @@ async function main(): Promise<void> {
   )
   server = new RoutiServer({
     store, sessions, providers, auth, desktops, handovers, updater,
-    addresses: () => {
-      const tailscale = tailscaleAddress()
-      return { hostname: machineName(), tailscale, listening: tailscale !== null && server.alsoListeningOn.includes(tailscale) }
+    // For telling the person, not for binding: the report says how Tailscale stands
+    // here, which the interface scan below cannot — a userspace daemon has an address
+    // and no interface, and the core is reachable on it through `tailscale serve`.
+    addresses: async () => {
+      const ts = await tailscaleReport(PORT, server.alsoListeningOn)
+      return {
+        hostname: machineName(),
+        tailscale: ts.address,
+        listening: ts.address !== null && server.alsoListeningOn.includes(ts.address),
+        tailscaleMode: ts.mode,
+        reachable: ts.reachable,
+      }
     },
   })
 
@@ -103,7 +112,9 @@ async function main(): Promise<void> {
    */
   if (!process.env['ROUTI_HOST']) {
     const bindTailscale = async () => {
-      const address = tailscaleAddress()
+      // Only an address on a real interface: a userspace daemon's is not bindable,
+      // and trying every half minute would be a permanent EADDRNOTAVAIL.
+      const address = bindableAddress()
       if (!address || server.alsoListeningOn.includes(address)) return
       if (await server.listenAlso(PORT, address)) console.log(`also listening on ws://${address}:${PORT}  (Tailscale)`)
     }

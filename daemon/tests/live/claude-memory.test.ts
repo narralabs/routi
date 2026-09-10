@@ -1,4 +1,8 @@
 /**
+ * LIVE INTEGRATION TEST — uses your signed-in Claude account and consumes usage.
+ * Not included in pnpm test or CI. Uses a temporary Routi database and HTTP server;
+ * Claude may retain test sessions in its own local session history.
+ *
  * Memory and resume, driven through the real Claude Code adapter.
  *
  * Three turns, three claims:
@@ -11,25 +15,29 @@
  *      resume error is caught before the bot has spoken, the session is rebuilt blank,
  *      and the transcript from the database leads the turn.
  *
- * Run: pnpm --filter routid spike:memory
+ * Run: pnpm --filter routid test:live:claude-memory
  */
 import { createServer } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Message } from '@routi/protocol'
-import { AnthropicSubscriptionAdapter } from '../src/providers/anthropic-subscription.js'
-import type { ChatRequest, ProviderEvent } from '../src/providers/types.js'
-import { openDb } from '../src/db/schema.js'
-import { Store } from '../src/db/store.js'
-import { McpHttp } from '../src/server/mcp-http.js'
-import { DesktopPool } from '../src/surfaces/pool.js'
-import { Handovers } from '../src/surfaces/handover.js'
-import { memoryTools } from '../src/sessions/memory-tools.js'
+import { AnthropicSubscriptionAdapter } from '../../src/providers/anthropic-subscription.js'
+import type { ChatRequest, ProviderEvent } from '../../src/providers/types.js'
+import { openDb } from '../../src/db/schema.js'
+import { Store } from '../../src/db/store.js'
+import { McpHttp } from '../../src/server/mcp-http.js'
+import { DesktopPool } from '../../src/surfaces/pool.js'
+import { Handovers } from '../../src/surfaces/handover.js'
+import { memoryTools } from '../../src/sessions/memory-tools.js'
+
+if (process.env.ROUTI_LIVE_TESTS !== '1') {
+  throw new Error('Live account usage requires the explicit test:live:claude-memory command.')
+}
 
 delete process.env.ANTHROPIC_API_KEY
 
-const cwd = mkdtempSync(join(tmpdir(), 'routi-spike-memory-'))
+const cwd = mkdtempSync(join(tmpdir(), 'routi-live-memory-test-'))
 const db = openDb(':memory:')
 const store = new Store(db)
 store.ensureDefaultProfile()

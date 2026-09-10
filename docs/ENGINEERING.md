@@ -278,7 +278,7 @@ and [Claude SDK HTTP configuration](https://code.claude.com/docs/en/agent-sdk/mc
 `pnpm test` includes a real MCP client connecting to a temporary loopback server:
 initialization, discovery, screenless notes and structured schedules, bot isolation,
 app change callbacks, image content, and tool errors. These tests need no provider
-credentials or Docker. `pnpm --filter routid spike:memory` is the live Claude check
+credentials or Docker. `pnpm --filter routid test:live:claude-memory` is the live Claude check
 for remembering through HTTP, resuming a session, and recovering from an invalid
 session ID; it uses the signed-in account and a temporary database/server.
 

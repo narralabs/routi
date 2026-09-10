@@ -464,7 +464,7 @@ export class AuthManager {
       provider === 'anthropic-claude'
         ? new AnthropicSubscriptionAdapter({
             cwd: this.sessionCwd,
-            desktops: this.desktops,
+            mcpBaseUrl: this.mcpBaseUrl,
             ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
             ...(tools.claudeConfigDir ? { configDir: tools.claudeConfigDir } : {}),
           })

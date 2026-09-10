@@ -241,6 +241,47 @@ signed in, and the login keychain must be unlocked — which an auto-login Mac's
 boot. A locked keychain is the likeliest cause of a core that starts but cannot reach
 Claude.
 
+### Shared HTTP MCP server
+
+Claude Code (through the Agent SDK), Codex CLI, and Grok CLI all receive Routi's
+tools from the same daemon-hosted MCP server:
+
+```text
+Claude Code ─┐
+Codex CLI ───┼─ HTTP /mcp/:botId/:conversationId
+Grok CLI ────┘       -> server/mcp-http.ts
+                     -> surfaces/tools.ts
+                     -> screen, memory, routines, handover
+```
+
+The daemon listens before a harness starts using tools. Each URL identifies the bot
+and conversation; one shared server serves all of them. Tool discovery returns JSON
+Schema from `desktopToolSpecs`, and calls go through `runDesktopTool`. The HTTP server
+binds memory and routines to the URL's context, emits app change events, and includes
+screen tools only for bots with a screen. Direct API adapters still call the same
+provider-neutral tool implementation from their own tool loops.
+
+Claude still uses `@anthropic-ai/claude-agent-sdk` to run conversations, stream events,
+and resume sessions. Its MCP configuration is `{ type: 'http', url }`, named `desktop`
+to preserve existing `mcp__desktop__*` names and the explicit `allowedTools` list.
+The SDK-specific server wrapper and JSON-Schema-to-Zod conversion are removed, along
+with the unused standalone stdio MCP server. Tool failures now reach Claude with MCP
+`isError`, as they already do for Codex and Grok.
+
+The endpoint uses stateless Streamable HTTP with JSON POST responses and protocol
+version `2025-03-26`. Notifications receive 202 with no body. GET returns 405 because
+there is no server-initiated SSE stream. It remains local to the daemon; adding an
+external marketplace service would require its own connection and authentication
+configuration. See the [MCP transport specification](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
+and [Claude SDK HTTP configuration](https://code.claude.com/docs/en/agent-sdk/mcp).
+
+`pnpm test` includes a real MCP client connecting to a temporary loopback server:
+initialization, discovery, screenless notes and structured schedules, bot isolation,
+app change callbacks, image content, and tool errors. These tests need no provider
+credentials or Docker. `pnpm --filter routid test:live:claude-memory` is the live Claude check
+for remembering through HTTP, resuming a session, and recovering from an invalid
+session ID; it uses the signed-in account and a temporary database/server.
+
 ### Codex integration: app-server, not the TypeScript SDK
 
 Routi depends on `@openai/codex` for the executable. It does not use

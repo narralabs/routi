@@ -7,21 +7,10 @@ import type { DesktopPool } from '../surfaces/pool.js'
 import { TOOL_INSTRUCTIONS, desktopToolSpecs, runDesktopTool } from '../surfaces/tools.js'
 
 /**
- * The same tools, over HTTP, for harnesses that sandbox what they launch.
- *
- * The stdio server runs as a child of whatever started it and inherits that process's
- * restrictions. Under Codex's seatbelt that means no Docker socket and no loopback —
- * so every call failed, and the model reported it as being denied permission to use a
- * browser, which is not what happened.
- *
- * Serving over HTTP moves the work back inside the daemon, which is not sandboxed and
- * owns the containers anyway. The harness only makes a request. That also makes this
- * the most portable delivery of the three: anything that can speak HTTP and MCP gets
- * these tools without running our code at all, which matters for a model behind a
- * harness we do not control.
- *
- * Bound to loopback with the rest of the daemon. One URL per bot, because a tool call
- * has to know whose screen it is acting on.
+ * Routi's MCP server for Claude Code, Codex, Grok, and other HTTP MCP clients.
+ * The daemon owns tool execution; clients receive JSON Schema and MCP content.
+ * Bound to loopback by RoutiServer, with bot and conversation in each URL.
+ * Stateless Streamable HTTP: JSON responses, no server-initiated SSE stream.
  */
 export class McpHttp {
   constructor(
@@ -69,15 +58,16 @@ export class McpHttp {
     // /mcp/:botId/:conversationId — a routine belongs to a bot in a conversation, so
     // both travel in the path.
     const path = (req.url ?? '').slice('/mcp/'.length).split('?')[0] ?? ''
-    const [botId = '', conversationId = ''] = path.split('/').map(decodeURIComponent)
+    let botId: string, conversationId: string
+    try {
+      [botId = '', conversationId = ''] = path.split('/').map(decodeURIComponent)
+    } catch {
+      return this.fail(res, 400, 'Invalid URL encoding.')
+    }
     if (!botId) return this.fail(res, 400, 'No bot in the URL.')
 
-    if (req.method === 'GET') {
-      // Some clients probe with GET before posting; say what lives here.
-      res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ name: 'routi-desktop', botId, transport: 'streamable-http' }))
-      return
-    }
+    // Streamable HTTP clients may open a GET event stream. We don't offer one.
+    res.setHeader('Allow', 'POST')
     if (req.method !== 'POST') return this.fail(res, 405, 'POST a JSON-RPC request.')
 
     const body = await this.readBody(req)
@@ -88,14 +78,22 @@ export class McpHttp {
       return this.fail(res, 400, 'Body was not JSON.')
     }
 
-    const result = await this.dispatch(botId, conversationId, request)
-    // A notification expects no answer, and MCP says to acknowledge it with 202.
-    if (result === undefined) {
+    if (!request || typeof request !== 'object' || Array.isArray(request) || typeof request.method !== 'string') {
+      return this.fail(res, 400, 'Expected a JSON-RPC request.')
+    }
+    // Notifications (including cancellation) receive no JSON-RPC response.
+    if (request.id === undefined) {
       res.writeHead(202).end()
       return
     }
+    const result = await this.dispatch(botId, conversationId, request)
     res.writeHead(200, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ jsonrpc: '2.0', id: request.id ?? null, result }))
+    res.end(JSON.stringify({
+      jsonrpc: '2.0', id: request.id,
+      ...(result === undefined
+        ? { error: { code: -32601, message: `Unknown method: ${request.method}` } }
+        : { result }),
+    }))
   }
 
   private async dispatch(
@@ -106,14 +104,14 @@ export class McpHttp {
     switch (request.method) {
       case 'initialize':
         return {
-          protocolVersion: '2024-11-05',
+          protocolVersion: '2025-03-26',
           capabilities: { tools: {} },
           serverInfo: { name: 'routi-desktop', version: '0.1.0' },
           instructions: TOOL_INSTRUCTIONS,
         }
 
-      case 'notifications/initialized':
-        return undefined
+      case 'ping':
+        return {}
 
       case 'tools/list':
         return {
@@ -153,7 +151,7 @@ export class McpHttp {
       }
 
       default:
-        return { content: [{ type: 'text', text: `Unknown method: ${request.method}` }], isError: true }
+        return undefined
     }
   }
 

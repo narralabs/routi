@@ -1,99 +1,5 @@
-import { createSdkMcpServer, type SdkMcpToolDefinition } from '@anthropic-ai/claude-agent-sdk'
-import { z } from 'zod'
 import { Browser } from './browser.js'
 import type { Surface } from './pool.js'
-
-/**
- * The desktop, exposed to a bot as tools it can actually call.
- *
- * Until now bots ran with `tools: []` — they could describe what they would do but
- * never do it, which is why a bot handed a concrete task still asked permission
- * instead of starting. These are the hands.
- *
- * The verb list is deliberately small and mirrors `act` in the container: a bot gets
- * a pointer, a keyboard and a browser, not a shell. Anything it wants to accomplish
- * goes through the same surface a person would use.
- *
- * Definitions are plain objects rather than the SDK's `tool()` helper. That helper
- * infers a fresh generic per call and the inference compounds across the array — by
- * the third entry tsc reports "Type instantiation is excessively deep".
- * `SdkMcpToolDefinition` is just `{ name, description, inputSchema, handler }`, so
- * building it directly sidesteps the problem.
- */
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- mirrors the SDK's
-// own `tools?: Array<SdkMcpToolDefinition<any>>`.
-type ToolDef = SdkMcpToolDefinition<any>
-
-/** The two MCP content shapes these tools return, spelled out so the literal
- *  `type` fields match the SDK's union rather than widening to `string`. */
-type TextContent = { type: 'text'; text: string }
-type ImageContent = { type: 'image'; data: string; mimeType: string }
-type ToolResult = { content: Array<TextContent | ImageContent> }
-
-const say = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] })
-
-export function desktopToolServer(desktop: Surface | null, ctx: ToolContext = {}, opts: ToolOptions = {}) {
-  /**
-   * Built from the same specs every other provider gets, rather than written out
-   * again here. The two lists drifted the moment the browser verbs were added — the
-   * OpenAI path had them and Claude did not — which is exactly the bug a second
-   * source of truth guarantees.
-   */
-  const tools: ToolDef[] = desktopToolSpecs(ctx, opts).map((spec) => ({
-    name: spec.name,
-    description: spec.description,
-    inputSchema: zodShapeOf(spec.parameters),
-    handler: async (args: Record<string, unknown>): Promise<ToolResult> => {
-      const result = await runDesktopTool(desktop, spec.name, args ?? {}, ctx)
-      if (!result.imageDataUrl) return say(result.output)
-      return {
-        content: [
-          { type: 'image', data: result.imageDataUrl.split(',')[1] ?? '', mimeType: 'image/jpeg' },
-          { type: 'text', text: result.output },
-        ],
-      }
-    },
-  }))
-
-  return createSdkMcpServer({
-    name: 'desktop',
-    version: '0.1.0',
-    instructions: TOOL_INSTRUCTIONS,
-    tools,
-  })
-}
-
-/**
- * The JSON Schema a spec carries, as the zod shape the agent SDK wants.
- *
- * Only the shapes these tools actually use. Written by hand rather than pulled from a
- * converter library because the alternative is a dependency for six tools, and
- * because `tool()`'s own inference already had to be avoided here: its generics
- * compound across an array until tsc reports "Type instantiation is excessively
- * deep".
- */
-function zodShapeOf(parameters: Record<string, unknown>): Record<string, z.ZodTypeAny> {
-  const properties = (parameters['properties'] ?? {}) as Record<string, { type?: string }>
-  const required = new Set((parameters['required'] ?? []) as string[])
-
-  const shape: Record<string, z.ZodTypeAny> = {}
-  for (const [name, schema] of Object.entries(properties)) {
-    // Object and array fall through to `unknown` rather than to a string. They used to
-    // land on z.string(), so a tool taking a structured argument — a schedule — rejected
-    // every well-formed call the model made, and reported it as an invalid schedule.
-    const base: z.ZodTypeAny =
-      schema.type === 'number'
-        ? z.number()
-        : schema.type === 'boolean'
-          ? z.boolean()
-          : schema.type === 'object' || schema.type === 'array'
-            ? z.unknown()
-            : z.string()
-    shape[name] = required.has(name) ? base : base.optional()
-  }
-  return shape
-}
 
 /**
  * How to use this screen, said once for every harness that loads these tools.
@@ -128,15 +34,7 @@ export const TOOL_INSTRUCTIONS = [
 
 // --------------------------------------------------------------- shared core
 
-/**
- * The desktop verbs, described once, independent of any provider.
- *
- * Two harnesses need these now. The Claude path registers them as an in-process MCP
- * server and the agent SDK calls them for us; the OpenAI path declares them as
- * function tools and runs the loop by hand. Only the declaration differs — a JSON
- * Schema there, a zod shape here — so the behaviour lives in `runDesktopTool` and
- * both call it. A verb added in one place is a verb both bots gain.
- */
+/** Provider-neutral tool definitions, shared by HTTP MCP and direct API adapters. */
 export interface DesktopToolSpec {
   name: string
   description: string
@@ -573,17 +471,6 @@ export async function runDesktopTool(
     return { ok: false, output: message, summary: 'Failed' }
   }
 }
-
-/**
- * Names the SDK gives these tools once the server is registered.
- *
- * Listed in `allowedTools` so a bot can use its own screen without a permission
- * prompt per action — the user granted that by giving the bot a screen, and asking
- * per click would make any real task unusable. Derived from the specs so a new verb
- * is allowed by existing.
- */
-export const toolNames = (ctx: ToolContext = {}, opts: ToolOptions = {}): string[] =>
-  desktopToolSpecs(ctx, opts).map((spec) => `mcp__desktop__${spec.name}`)
 
 /** The memory verbs, which touch no screen. */
 function runMemoryTool(

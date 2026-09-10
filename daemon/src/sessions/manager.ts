@@ -506,9 +506,6 @@ export class SessionManager {
       const sid = (meta?.['sessionId'] as string | undefined) ?? null
       if (sid) this.store.setProviderSession(conversationId, bot.id, bot.provider, sid)
 
-      this.inFlight.delete(conversationId)
-      this.live.delete(conversationId)
-      surface?.release(conversationId)
       const preview = finalBlocks
         .find((block): block is Extract<Block, { type: 'text' }> => block.type === 'text' && block.text.trim().length > 0)
         ?.text.trim().replace(/\s+/g, ' ').slice(0, 200)
@@ -516,6 +513,9 @@ export class SessionManager {
         e: 'message.completed', conversationId, messageId, stopReason, providerMeta: meta,
         ...(preview ? { preview } : {}),
       })
+
+      // Finish this turn's status before queued work announces that it is busy.
+      this.emit({ e: 'conversation.busy', conversationId, busy: false })
 
       // Deleted from inFlight first, so anything sent mid-turn starts now rather than
       // queueing again behind a turn that has already finished.
@@ -527,7 +527,6 @@ export class SessionManager {
         const posted = this.store.getMessage(messageId)
         if (posted) void this.runChannelTurn(conversationId, posted, bot.id)
       }
-      this.emit({ e: 'conversation.busy', conversationId, busy: false })
 
       const conv = this.store.getConversation(conversationId)
       if (conv) this.emit({ e: 'conversation.updated', conversation: conv })

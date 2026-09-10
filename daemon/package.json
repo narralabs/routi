@@ -8,6 +8,7 @@
     "start": "node dist/src/index.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
     "spike": "tsx scripts/spike-auth.ts",
     "spike:session": "tsx scripts/spike-session.ts",
     "probe": "tsx scripts/probe.ts",

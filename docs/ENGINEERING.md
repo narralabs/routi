@@ -78,6 +78,24 @@ xcodebuild -scheme Routi -destination "id=<simulator udid>" CODE_SIGNING_ALLOWED
 
 ## Verifying
 
+Core CI (`.github/workflows/core-ci.yml`) builds the daemon and shared protocol and
+runs the offline core tests on macOS with Node 22 for every pull request and push to
+`main`. It can also be started manually in GitHub Actions. Run the same checks locally:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+pnpm test
+```
+
+The tests in `daemon/tests/` use temporary SQLite databases and a fake provider. They
+cover saved conversations, startup cleanup, memory deletion, schedule calculation,
+streaming, and provider failure without credentials, network calls, Docker, or an
+open app. This is initial regression coverage, not a replacement for the live probes
+below. App builds, UI tests, real provider integration, and install/update flows are
+not part of Core CI yet. The release workflow remains separate; this check does not
+by itself prevent publishing a tag or merging a pull request.
+
 ```bash
 pnpm --filter routid typecheck
 pnpm --filter routid spike            # subscription auth reaches Claude at all

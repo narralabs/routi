@@ -28,6 +28,7 @@ export class RoutiServer {
       ctx.desktops, ctx.store, ctx.handovers,
       (owner) => ctx.sessions.memoryChanged(owner, 'bot'),
       (botId) => ctx.sessions.routinesChanged(botId),
+      (botId, conversationId, image) => ctx.sessions.attachImage(botId, conversationId, image),
     )
 
     this.handle = (req, res) => {

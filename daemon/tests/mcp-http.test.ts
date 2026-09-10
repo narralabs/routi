@@ -5,6 +5,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { openDb } from '../src/db/schema.js'
 import { Store } from '../src/db/store.js'
+import { SessionManager } from '../src/sessions/manager.js'
+import type { ServerEvent } from '@routi/protocol'
 import { McpHttp } from '../src/server/mcp-http.js'
 import { Handovers } from '../src/surfaces/handover.js'
 import type { DesktopPool, Surface } from '../src/surfaces/pool.js'
@@ -26,8 +28,11 @@ async function setup(t: TestContext) {
     assert.equal(botId, screen.bot.id, 'screenless tools must not resolve a desktop')
     return surface
   } } as DesktopPool
+  const events: ServerEvent[] = []
+  const sessions = new SessionManager(store, new Map(), (event) => events.push(event))
   const mcp = new McpHttp(desktops, store, new Handovers(() => {}),
-    (owner) => memoryChanges.push(owner), (botId) => routineChanges.push(botId))
+    (owner) => memoryChanges.push(owner), (botId) => routineChanges.push(botId),
+    (botId, conversationId, image) => sessions.attachImage(botId, conversationId, image))
   const server = createServer((req, res) => { void mcp.handle(req, res) })
   const clients: Client[] = []
   t.after(async () => {
@@ -47,7 +52,7 @@ async function setup(t: TestContext) {
     await client.connect(new StreamableHTTPClientTransport(new URL(urlFor(target))))
     return client
   }
-  return { store, first, second, screen, surface, connect, urlFor, memoryChanges, routineChanges }
+  return { store, first, second, screen, surface, connect, urlFor, memoryChanges, routineChanges, events }
 }
 
 test('standard MCP client discovers tools and saves notes and structured routines in the URL context', async (t) => {
@@ -114,4 +119,32 @@ test('HTTP MCP acknowledges notifications and declines unsupported event streams
   assert.deepEqual(await unknown.json(), {
     jsonrpc: '2.0', id: 9, error: { code: -32601, message: 'Unknown method: missing' },
   })
+})
+
+test('requested screenshots are saved and broadcast inline, while navigation captures remain private', async (t) => {
+  const f = await setup(t)
+  const client = await f.connect(f.screen)
+  await client.callTool({ name: 'screenshot', arguments: {} })
+  assert.equal(f.store.listMessages(f.screen.conversation.id).length, 0)
+  const result = await client.callTool({ name: 'screenshot', arguments: { attach: true } })
+  assert.equal(result.isError, false)
+  assert.match(JSON.stringify(result.content), /attached to the conversation/)
+  const messages = f.store.listMessages(f.screen.conversation.id)
+  assert.equal(messages.length, 1)
+  assert.equal(messages[0]?.botId, f.screen.bot.id)
+  assert.deepEqual(messages[0]?.blocks, [{
+    type: 'image', mediaType: 'image/jpeg', dataUrl: `data:image/jpeg;base64,${Buffer.from('test-image').toString('base64')}`,
+  }])
+  const created = f.events.find((event) => event.e === 'message.created')
+  assert.ok(created?.e === 'message.created')
+  assert.deepEqual(created.message, messages[0])
+  assert.deepEqual(f.store.listMessages(f.first.conversation.id), [])
+
+  // A URL cannot use one bot's screen to post into another bot's conversation.
+  const wrong = await f.connect({ ...f.screen, conversation: f.first.conversation })
+  assert.equal((await wrong.callTool({ name: 'screenshot', arguments: { attach: true } })).isError, true)
+  assert.deepEqual(f.store.listMessages(f.first.conversation.id), [])
+  f.surface.captureFrame = async () => { throw new Error('Capture unavailable') }
+  assert.equal((await client.callTool({ name: 'screenshot', arguments: { attach: true } })).isError, true)
+  assert.equal(f.store.listMessages(f.screen.conversation.id).length, 1)
 })

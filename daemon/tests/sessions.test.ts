@@ -149,3 +149,21 @@ test('a queued reply stays busy after the previous turn finishes', { timeout: 5_
     [{ type: 'text', text: 'Reply 1' }], [{ type: 'text', text: 'Reply 2' }],
   ])
 })
+
+test('an inline attachment survives later streamed text from a direct provider', { timeout: 5_000 }, async (t) => {
+  const image = { type: 'image' as const, mediaType: 'image/jpeg', dataUrl: 'data:image/jpeg;base64,dGVzdA==' }
+  const f = setup(t, async function* (req) {
+    yield { type: 'block_start', index: 0, block: { type: 'text', text: 'Capturing. ' } }
+    req.toolContext!.attachImage!(image)
+    yield { type: 'text_delta', index: 0, text: 'Attached.' }
+    yield { type: 'done', stopReason: 'end_turn', meta: {} }
+  })
+  await f.sessions.send(f.conversation.id, [{ type: 'text', text: 'Send a screenshot' }])
+  await f.completed
+  const replies = f.store.listMessages(f.conversation.id).filter((message) => message.role === 'assistant')
+  assert.deepEqual(replies.map((message) => message.blocks), [
+    [{ type: 'text', text: 'Capturing. Attached.' }], [image],
+  ])
+  assert.equal(f.sessions.isBusy(f.conversation.id), false)
+  assert.ok(f.events.some((event) => event.e === 'message.created' && event.message.blocks[0]?.type === 'image'))
+})

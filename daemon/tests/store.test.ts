@@ -20,6 +20,10 @@ test('bot, transcript, and provider session survive reopening the database', (t)
   const message = store.insertMessage({
     conversationId: conversation.id, role: 'user', blocks: [{ type: 'text', text: 'Find a hotel' }],
   })
+  const screenshot = store.insertMessage({
+    conversationId: conversation.id, botId: bot.id, role: 'assistant',
+    blocks: [{ type: 'image', mediaType: 'image/png', dataUrl: 'data:image/png;base64,dGVzdA==' }],
+  })
   store.setProviderSession(conversation.id, bot.id, 'fake', 'saved-session')
   db.close()
 
@@ -28,7 +32,7 @@ test('bot, transcript, and provider session survive reopening the database', (t)
   reopened.ensureDefaultProfile()
   assert.deepEqual(reopened.getBot(bot.id), bot)
   assert.equal(reopened.getConversation(conversation.id)?.botId, bot.id)
-  assert.deepEqual(reopened.listMessages(conversation.id), [message])
+  assert.deepEqual(reopened.listMessages(conversation.id), [message, screenshot])
   assert.deepEqual(reopened.getProviderSession(conversation.id, bot.id), {
     provider: 'fake', sessionId: 'saved-session',
   })

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Block, Bot, Message, ServerEvent } from '@routi/protocol'
+import type { Block, Bot, ImageBlock, Message, ServerEvent } from '@routi/protocol'
 import type { Routine, Store } from '../db/store.js'
 import { providerKey, type ProviderAdapter } from '../providers/types.js'
 import { wakeFor } from './channel.js'
@@ -77,6 +77,19 @@ export class SessionManager {
   /** A bot's routines changed; every client's rail is told. */
   routinesChanged(botId: string): void {
     this.emit({ e: 'routines.updated', botId })
+  }
+
+  /** Attach independently of provider block indexes, which can still be streaming. */
+  attachImage(botId: string, conversationId: string, image: ImageBlock): void {
+    const conversation = this.store.getConversation(conversationId)
+    const belongs = conversation?.kind === 'channel'
+      ? this.store.channelMembers(conversationId).some((bot) => bot.id === botId)
+      : conversation?.botId === botId
+    if (!belongs) throw new Error('This bot does not belong to the conversation.')
+    const message = this.store.insertMessage({
+      conversationId, botId, role: 'assistant', blocks: [image],
+    })
+    this.emit({ e: 'message.created', message })
   }
 
   interrupt(conversationId: string): boolean {
@@ -389,6 +402,7 @@ export class SessionManager {
           }),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
+            attachImage: (image) => this.attachImage(bot.id, conversationId, image),
             routines: routineTools(this.store, bot.id, conversationId, () => this.routinesChanged(bot.id)),
             memory: memoryTools(this.store, bot.id, (owner) => this.memoryChanged(owner, 'bot')),
             // Only offered where there is a screen to hand over.

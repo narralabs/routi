@@ -35,6 +35,9 @@ interface WarmSession {
   /** Events for the turn currently in flight. */
   turn: PushQueue<ProviderEvent> | null
   sessionId: string | null
+  /** SDK indexes restart per model response; Routi indexes span the whole user turn. */
+  blockIndexes: Map<number, number>
+  nextBlockIndex: number
   pump: Promise<void>
   /** Set while a resume is unproven: an error before any output means it failed. */
   resuming: boolean
@@ -54,7 +57,10 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
    * environment exactly as it spends a plan, so the two modes differ only in whether a
    * key comes along — the same shape as Codex.
    */
-  constructor(private readonly opts: { cwd: string; mcpBaseUrl: string; apiKey?: string; configDir?: string }) {}
+  constructor(
+    private readonly opts: { cwd: string; mcpBaseUrl: string; apiKey?: string; configDir?: string },
+    private readonly runQuery: typeof query = query,
+  ) {}
 
   /** A profile's own Claude login lives in its own config dir; the default keeps the CLI's. */
   private get env(): Record<string, string | undefined> | undefined {
@@ -74,7 +80,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
    */
   private async withProbe<T>(fn: (q: Query) => Promise<T>): Promise<T> {
     const input = new PushQueue<SDKUserMessage>()
-    const q = query({
+    const q = this.runQuery({
       prompt: input,
       options: {
         cwd: this.opts.cwd,
@@ -127,7 +133,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
     const input = new PushQueue<SDKUserMessage>()
     // A bot with a screen gets hands; one without still gets its notes and routines.
     const withDesktop = req.hasSurface === true
-    const q = query({
+    const q = this.runQuery({
       prompt: input,
       options: {
         cwd: this.opts.cwd,
@@ -182,6 +188,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
     const session: WarmSession = {
       q, input, turn: null, sessionId: resumeId, pump: Promise.resolve(),
       resuming: resumeId !== null, fresh: true,
+      blockIndexes: new Map(), nextBlockIndex: 0,
     }
     // One consumer drains the query for the life of the session and routes each event
     // to whichever turn is in flight.
@@ -219,14 +226,25 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
       case 'stream_event': {
         const ev = msg.event
         switch (ev.type) {
+          case 'message_start':
+            // A tool round-trip starts another model response, not another Routi
+            // message. Append its blocks instead of replacing the previous response.
+            session.blockIndexes.clear()
+            return null
           case 'content_block_start': {
             const block = anthropicBlockToRouti(ev.content_block)
-            return block ? { type: 'block_start', index: ev.index, block } : null
+            if (!block) return null
+            const index = session.nextBlockIndex++
+            session.blockIndexes.set(ev.index, index)
+            return { type: 'block_start', index, block }
           }
-          case 'content_block_delta':
-            if (ev.delta.type === 'text_delta') return { type: 'text_delta', index: ev.index, text: ev.delta.text }
-            if (ev.delta.type === 'thinking_delta') return { type: 'thinking_delta', index: ev.index, text: ev.delta.thinking }
+          case 'content_block_delta': {
+            const index = session.blockIndexes.get(ev.index)
+            if (index === undefined) return null
+            if (ev.delta.type === 'text_delta') return { type: 'text_delta', index, text: ev.delta.text }
+            if (ev.delta.type === 'thinking_delta') return { type: 'thinking_delta', index, text: ev.delta.thinking }
             return null
+          }
           default:
             return null
         }
@@ -288,6 +306,8 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
 
       const turn = new PushQueue<ProviderEvent>()
       session.turn = turn
+      session.blockIndexes.clear()
+      session.nextBlockIndex = 0
       const onAbort = () => {
         void session.q.interrupt().catch(() => {})
       }

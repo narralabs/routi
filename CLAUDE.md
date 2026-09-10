@@ -128,7 +128,7 @@ Three layers, and the distinction matters when something "forgets":
 Routi's tool server is mounted for every bot; `ToolOptions.screen` decides whether the
 nine desktop verbs are in it. Notes and routines are answered in `runDesktopTool`
 before the desktop is touched, so saving one never starts a container.
-`pnpm --filter routid spike:memory` proves all three layers against the real CLI.
+`pnpm --filter routid test:live:claude-memory` proves all three layers against the real CLI.
 
 ### The desktop on a phone
 

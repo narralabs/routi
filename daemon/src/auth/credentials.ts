@@ -6,8 +6,6 @@ import { promisify } from 'node:util'
 const run = promisify(execFile)
 
 const SERVICE = 'Routi'
-/** The Keychain service name from before the rename; read from, never written to. */
-const OLD_SERVICE = 'Krog'
 
 /** Keychain account name per provider, so two keys can coexist. */
 const ACCOUNTS: Record<string, string> = {
@@ -60,22 +58,15 @@ export class Credentials {
 
   async getApiKey(provider = 'anthropic', profileId = 'default'): Promise<string | null> {
     if (this.useKeychain) {
-      const found = await this.readKeychain(SERVICE, provider, profileId)
-      if (found !== null) return found
-      // A key stored under the old name is adopted: written under the new one, so the
-      // next read finds it there, and left in place under the old.
-      if (profileId !== 'default') return null
-      const old = await this.readKeychain(OLD_SERVICE, provider, profileId)
-      if (old !== null) await this.setApiKey(old, provider, profileId)
-      return old
+      return this.readKeychain(provider, profileId)
     }
     return this.readFallback()[this.account(provider, profileId)] ?? null
   }
 
-  private async readKeychain(service: string, provider: string, profileId: string): Promise<string | null> {
+  private async readKeychain(provider: string, profileId: string): Promise<string | null> {
     try {
       const { stdout } = await run('security', [
-        'find-generic-password', '-s', service, '-a', this.account(provider, profileId), '-w',
+        'find-generic-password', '-s', SERVICE, '-a', this.account(provider, profileId), '-w',
       ])
       const key = stdout.trim()
       return key.length > 0 ? key : null

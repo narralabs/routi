@@ -116,13 +116,12 @@ rm -f "$rw"
 [ -n "$identity" ] && codesign --sign "$identity" --timestamp "$dmg" >/dev/null
 
 if [ -n "$identity" ]; then
-  # The credentials profile: the current name, or the one from before the rename.
   profile=""
   # ROUTI_PACKAGE_NO_NOTARIZE=1 skips the wait on Apple, for a build that only ever
   # runs on this Mac — rehearsing the app's self-update against a local feed, say.
-  [ -n "${ROUTI_PACKAGE_NO_NOTARIZE:-}" ] || for candidate in routi-notary krog-notary; do
-    if xcrun notarytool history --keychain-profile "$candidate" >/dev/null 2>&1; then profile="$candidate"; break; fi
-  done
+  if [ -z "${ROUTI_PACKAGE_NO_NOTARIZE:-}" ] && xcrun notarytool history --keychain-profile routi-notary >/dev/null 2>&1; then
+    profile="routi-notary"
+  fi
   if [ -n "$profile" ]; then
     echo "Notarizing (this waits on Apple; usually a minute or two)"
     result="$(xcrun notarytool submit "$dmg" --keychain-profile "$profile" --wait 2>&1)"

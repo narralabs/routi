@@ -58,13 +58,11 @@ fi
 
 say "Removing stored API keys"
 n=0
-for service in Routi Krog; do
-  if [ "$dry" = 1 ]; then
-    security find-generic-password -s "$service" >/dev/null 2>&1 && echo "  would: remove Keychain items for $service"
-  else
-    while security delete-generic-password -s "$service" >/dev/null 2>&1; do n=$((n + 1)); done
-  fi
-done
+if [ "$dry" = 1 ]; then
+  security find-generic-password -s Routi >/dev/null 2>&1 && echo "  would: remove Keychain items for Routi"
+else
+  while security delete-generic-password -s Routi >/dev/null 2>&1; do n=$((n + 1)); done
+fi
 [ "$dry" = 1 ] || echo "Removed $n Keychain item(s)."
 
 say "Removing the core"
@@ -75,7 +73,7 @@ did "Removed ~/.routi/core, ~/.routi/node and the logs."
 
 if [ "$purge" = 1 ]; then
   say "Removing your bots and the app"
-  for path in "$HOME/.routi" "$HOME/.krog" "/Applications/Routi Bot.app"; do
+  for path in "$HOME/.routi" "/Applications/Routi Bot.app"; do
     [ -e "$path" ] && do_ rm -rf "$path"
   done
   do_ defaults delete com.narralabs.routi 2>/dev/null || true

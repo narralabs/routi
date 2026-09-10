@@ -42,7 +42,7 @@ one needs no protocol change and no app release — `bot.provider` is a plain st
 | `daemon/src/providers/types.ts` | `ProviderAdapter` — the whole contract: `listModels`, `accountInfo`, `stream`, `release`, `dispose`, plus `supportsSurface`. `sessionKey(req)` is `conversationId:botId`, because a room has several bots and they must not share one warm session. |
 | `daemon/src/auth/manager.ts` | Which credential each provider uses, and swapping the live adapter when that changes. `applyMode()` runs at boot and after every change; `applyProvider(id)` installs one. Modes are stored per provider as the setting `authMode.<id>`. |
 | `daemon/src/auth/credentials.ts` | API keys in the login Keychain, one account name per provider id. A provider with no entry in `ACCOUNTS` cannot store a key. |
-| `daemon/src/server/mcp-http.ts` | The desktop verbs as an MCP server over HTTP, at `/mcp/:botId/:conversationId`. This is how a harness we do not control gets Routi's tools. |
+| `daemon/src/server/mcp-http.ts` | The shared MCP server for Claude Code, Codex, and Grok, at `/mcp/:botId/:conversationId`. Owns HTTP tool discovery and execution for all harnesses. |
 | `apple/Routi/Views/Settings/Providers.swift` | The roster: id, display name, one-line summary (who runs the bot, what pays), brand mark, tint, whether it is wired up. `ProviderConnectPane` is the one "account or API key" pane, for every provider. |
 
 ### The three shapes an adapter comes in
@@ -202,6 +202,16 @@ answer in the same place: approve Routi's own tools (the user granted that by gi
 bot a screen), refuse everything else — a bot here is not meant to run commands on the
 Mac hosting the core. Never `--always-approve` / `--dangerously-*`: that says yes to the
 shell too.
+
+### Shared MCP tools
+
+Claude Code, Codex, and Grok all connect to the daemon's HTTP MCP endpoint at
+`/mcp/:botId/:conversationId`. Keep tool definitions and execution provider-neutral in
+`surfaces/tools.ts`; `server/mcp-http.ts` resolves memory, routines, and the screen
+from the URL. Claude still uses its Agent SDK for chat, with an HTTP MCP config named
+`desktop` to preserve `mcp__desktop__*` tool names and the explicit allowlist.
+There is no SDK-specific in-process server or standalone stdio tool server.
+See ENGINEERING.md › Shared HTTP MCP server for the transport contract and tests.
 
 ### Codex integration
 

@@ -5,8 +5,7 @@ import { PushQueue } from './push-queue.js'
 import { replayTranscript } from './replay.js'
 import { sessionKey } from './types.js'
 import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
-import type { DesktopPool } from '../surfaces/pool.js'
-import { desktopToolServer, toolNames } from '../surfaces/tools.js'
+import { desktopToolSpecs } from '../surfaces/tools.js'
 import { managedClaudeIfPresent } from '../auth/claude-cli.js'
 
 /**
@@ -55,7 +54,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
    * environment exactly as it spends a plan, so the two modes differ only in whether a
    * key comes along — the same shape as Codex.
    */
-  constructor(private readonly opts: { cwd: string; desktops?: DesktopPool; apiKey?: string; configDir?: string }) {}
+  constructor(private readonly opts: { cwd: string; mcpBaseUrl: string; apiKey?: string; configDir?: string }) {}
 
   /** A profile's own Claude login lives in its own config dir; the default keeps the CLI's. */
   private get env(): Record<string, string | undefined> | undefined {
@@ -127,10 +126,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
 
     const input = new PushQueue<SDKUserMessage>()
     // A bot with a screen gets hands; one without still gets its notes and routines.
-    // Resolved per request rather than held on the adapter: one adapter serves every
-    // bot, and each bot drives its own desktop.
-    const desktop = req.hasSurface === true ? this.opts.desktops?.for(req.botId) : undefined
-    const withDesktop = desktop !== undefined
+    const withDesktop = req.hasSurface === true
     const q = query({
       prompt: input,
       options: {
@@ -140,15 +136,21 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         ...(managedClaudeIfPresent() ? { pathToClaudeCodeExecutable: managedClaudeIfPresent() } : {}),
         model: req.model,
         effort: req.effort,
-        // A chat bot, not a coding agent: no built-in tools, no claude_code preset.
+        // Use the bot identity rather than the claude_code preset.
         // Composed once by the session manager, so every runtime says the same things.
         systemPrompt: { type: 'custom', prompt: req.systemPrompt },
         // Routi's own tools for every bot; the screen verbs only where there is one.
         // Pre-approved: the user granted the screen by giving the bot one, and the rest
         // touch nothing but Routi's database. A permission prompt per click would make
         // any real task unusable.
-        mcpServers: { desktop: desktopToolServer(desktop ?? null, req.toolContext, { screen: withDesktop }) },
-        allowedTools: toolNames(req.toolContext, { screen: withDesktop }),
+        mcpServers: {
+          desktop: {
+            type: 'http',
+            url: `${this.opts.mcpBaseUrl}/mcp/${encodeURIComponent(req.botId)}/${encodeURIComponent(req.conversationId)}`,
+          },
+        },
+        allowedTools: desktopToolSpecs(req.toolContext, { screen: withDesktop })
+          .map((spec) => `mcp__desktop__${spec.name}`),
         // No built-in tools on a screenless bot: it is a chat bot, not a coding agent.
         // (A bot with a screen keeps the SDK's default set, as it always has.)
         ...(withDesktop ? {} : { tools: [] }),

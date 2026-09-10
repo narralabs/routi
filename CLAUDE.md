@@ -203,6 +203,17 @@ bot a screen), refuse everything else — a bot here is not meant to run command
 Mac hosting the core. Never `--always-approve` / `--dangerously-*`: that says yes to the
 shell too.
 
+### Codex integration
+
+Keep `@openai/codex`: it supplies the executable used for login and
+`codex app-server`. Routi talks to app-server over JSON-RPC through
+`providers/codex-app-server.ts` and `providers/json-rpc-stdio.ts`; it does not use
+`@openai/codex-sdk`. The TypeScript SDK previously installed (0.153.4) could set an
+approval policy but could not answer approval requests during a turn. That control
+is why this integration uses app-server. Claude Code still uses its Agent SDK.
+The code map and tradeoffs are in
+[ENGINEERING.md](docs/ENGINEERING.md#codex-integration-app-server-not-the-typescript-sdk).
+
 ### Grok specifics (verified against grok 1.0.13)
 
 - Transport is `grok agent stdio`, speaking ACP: `initialize` → `session/new` →

@@ -7,11 +7,10 @@ const run = promisify(execFile)
 /**
  * The Codex this daemon ships, rather than whichever one is on PATH.
  *
- * `@openai/codex` is a dependency, versioned with the SDK that drives it — this machine
- * once had the SDK spawning a Homebrew Codex twenty versions apart, which is the kind
- * of gap where a config key one side sends is simply not understood by the other. It
- * also means nobody installs Codex to use a ChatGPT plan here: the binary is present,
- * and `login` on it stores the credential where any Codex would find it.
+ * `@openai/codex` supplies the executable for both sign-in and `codex app-server`,
+ * which Routi drives directly over JSON-RPC. Using the same binary keeps login and
+ * turns on the same version. The TypeScript Codex SDK is not used; see
+ * docs/ENGINEERING.md under "Codex integration: app-server, not the TypeScript SDK".
  */
 export function codexBinary(): string {
   const configured = process.env['ROUTI_CODEX_BIN']
@@ -36,7 +35,7 @@ export interface CodexAuthStatus {
  * The same shape as `ClaudeCli` and for the same reason: a subscription is not
  * something an API key can stand in for, and the only sanctioned way to spend one
  * from a program is through the vendor's own signed-in CLI. Routi never sees or stores
- * the credential — it asks the CLI whether one exists and lets the SDK use it.
+ * the credential — it asks the CLI whether one exists and lets app-server use it.
  *
  * `codex login status` prints a line like "Logged in using ChatGPT" — on stderr, not
  * stdout, and with a zero exit code either way. There is no `--json`, so this reads

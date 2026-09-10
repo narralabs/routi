@@ -24,7 +24,6 @@
     "@anthropic-ai/sdk": "^0.124.0",
     "@routi/protocol": "workspace:^",
     "@openai/codex": "^0.153.4",
-    "@openai/codex-sdk": "^0.153.4",
     "better-sqlite3": "^13.0.3",
     "openai": "^7.10.0",
     "ws": "^8.21.3",

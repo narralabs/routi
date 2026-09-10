@@ -232,7 +232,7 @@ The code map and tradeoffs are in
   `session/prompt` itself resolves with the stop reason and usage.
 - MCP over HTTP is accepted in `session/new` (`mcpCapabilities.http`), which is how the
   desktop reaches it. Grok hides MCP tools behind its own `search_tool` / `use_tool`, so
-  the call that arrives is `use_tool` with `rawInput.tool_name = "routi__screenshot"`.
+  the call that arrives is `use_tool` with `rawInput.tool_name = "routi__desktop_screenshot"`.
 - Reasoning effort cannot be set. `session/set_mode`, `_meta` hints on `session/new`
   and `session/prompt`, and the CLI's own `--reasoning-effort` were each measured and
   each left the session on the model's default.

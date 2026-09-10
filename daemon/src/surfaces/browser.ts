@@ -146,6 +146,37 @@ export class Browser {
     }
   }
 
+  /** Capture page pixels through CDP, without desktop or browser window chrome. */
+  async screenshot(fullPage = false): Promise<{ dataUrl: string; width: number; height: number }> {
+    if (this.desktop.cdpPort === null) {
+      throw new Error('Browser screenshots require Routi’s managed Chromium. Use desktop_screenshot for this screen.')
+    }
+    return this.withSession(async (cdp) => {
+      const metrics = await cdp.send<{
+        cssContentSize: { x: number; y: number; width: number; height: number }
+        cssVisualViewport: { pageX: number; pageY: number; clientWidth: number; clientHeight: number }
+      }>('Page.getLayoutMetrics')
+      const view = metrics.cssVisualViewport
+      const area = fullPage ? metrics.cssContentSize : {
+        x: view.pageX, y: view.pageY, width: view.clientWidth, height: view.clientHeight,
+      }
+      const width = Math.ceil(area.width)
+      const height = Math.ceil(area.height)
+      // Bound allocation; never silently crop a requested full-page image.
+      if (!Number.isFinite(width * height) || width <= 0 || height <= 0 ||
+          width > 16_384 || height > 16_384 || width * height > 32_000_000) {
+        throw new Error('This page is too large to capture in one image. Request a visible-page screenshot instead.')
+      }
+      const { data } = await cdp.send<{ data: string }>('Page.captureScreenshot', {
+        format: 'jpeg', quality: 90, fromSurface: true,
+        captureBeyondViewport: fullPage,
+        clip: { x: area.x, y: area.y, width, height, scale: 1 },
+      })
+      if (!data) throw new Error('The browser returned an empty screenshot.')
+      return { dataUrl: `data:image/jpeg;base64,${data}`, width, height }
+    })
+  }
+
   /** Navigates and waits for the load to settle enough to be worth reading. */
   async open(url: string): Promise<string> {
     return this.withSession(async (cdp) => {

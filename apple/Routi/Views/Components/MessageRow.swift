@@ -370,6 +370,8 @@ enum ToolLabel {
      */
     private static let known: [String: (title: String, icon: String)] = [
         "screenshot": ("Looking at the screen", "eye"),
+        "desktop_screenshot": ("Capturing the desktop", "desktopcomputer"),
+        "browser_screenshot": ("Capturing the webpage", "globe"),
         "read_page": ("Reading the page", "doc.text.magnifyingglass"),
         "open_url": ("Opening a page", "safari"),
         "click": ("Clicking", "cursorarrow.click"),

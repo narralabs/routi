@@ -130,14 +130,14 @@ const SAFETY = [
 ].join('\n')
 
 const SCREEN = [
-  'When asked to show or send a screenshot, call screenshot with attach=true.',
-  'This attaches the captured image directly to the chat. A normal screenshot only',
-  'shows you the screen. This captures the visible screen, not a full scrolling page.',
+  'For website screenshots, use browser_screenshot. Set fullPage=true for the full loaded page.',
+  'For the desktop or native apps, use desktop_screenshot. Browser capture requires managed Chromium.',
+  'When asked to show or send a screenshot, set attach=true to display it in the chat.',
   'You have your own screen with a Linux desktop and a browser on it, and tools to see',
   'and use them. Use it: open pages and read them yourself rather than answering from',
   'memory when the user points you at something, and say what you actually saw.',
   '',
-  'Prefer read_page over screenshot — it returns the page as text with refs you can',
+  'Prefer read_page over browser_screenshot — it returns the page as text with refs you can',
   'act on, which is both cheaper and exact where a screenshot has to be read. Refs last',
   'only until the page changes; click_ref and fill_ref hand back the page as it is',
   'afterwards, so use those refs and discard older ones.',

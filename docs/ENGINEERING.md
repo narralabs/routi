@@ -220,7 +220,8 @@ CLI / xAI API — and both can be connected at once, so the bot picker offers ea
 Nobody installs a vendor CLI to use a plan. Claude Code arrives as a platform package the
 Agent SDK depends on (`@anthropic-ai/claude-agent-sdk-darwin-arm64` — the whole package
 is the native `claude` binary, pinned to the SDK's version), so it is in `node_modules`
-after `pnpm install`; Codex is a dependency versioned with the SDK that drives it.
+after `pnpm install`; `@openai/codex` supplies the Codex executable that Routi drives
+directly through its app-server interface.
 Sign-in runs on exactly those binaries — `managedClaudePath()` resolves the platform
 package the way the SDK does — never on a `claude` the Mac happens to have, which
 signed in on one version while turns ran on another. Nothing is fetched at run time;
@@ -239,6 +240,41 @@ Two consequences of the Keychain holding the login: the core must run as the use
 signed in, and the login keychain must be unlocked — which an auto-login Mac's is after
 boot. A locked keychain is the likeliest cause of a core that starts but cannot reach
 Claude.
+
+### Codex integration: app-server, not the TypeScript SDK
+
+Routi depends on `@openai/codex` for the executable. It does not use
+`@openai/codex-sdk`, the TypeScript wrapper, so that package is not a dependency.
+Claude Code uses `@anthropic-ai/claude-agent-sdk`; the two integrations deliberately
+use different interfaces to meet the same product needs.
+
+The Codex path is:
+
+```text
+SessionManager -> OpenAiSubscriptionAdapter -> CodexAppServer -> codex app-server
+                                             JSON-RPC over stdin/stdout
+```
+
+`auth/codex-cli.ts` resolves the executable used for sign-in and turns.
+`providers/openai-subscription.ts` manages threads and translates streamed events;
+`providers/codex-app-server.ts` handles initialization and approval responses, using
+the shared child-process transport in `providers/json-rpc-stdio.ts`. Routi's tools
+are supplied through the local HTTP MCP endpoint in `server/mcp-http.ts`.
+
+The reason is interactive approvals. The previously installed TypeScript SDK
+(0.153.4) exposes an approval policy but no callback for answering approval requests
+during a turn. The earlier integration encountered tool requests it could not
+approve. The app-server connection lets Routi receive and answer those requests:
+the current handler accepts MCP elicitation from the `routi` server and denies
+command/file approval requests. Threads use `on-request` approval policy and a
+`read-only` sandbox.
+
+OpenAI documents [app-server](https://learn.chatgpt.com/docs/app-server) for custom
+clients with approvals and streamed events, and the
+[TypeScript SDK](https://learn.chatgpt.com/docs/codex-sdk) for programmatic automation.
+The tradeoff is that Routi owns process lifecycle, JSON-RPC routing, timeouts, and
+error recovery. Reconsider the SDK only after verifying that its supported interface
+can preserve Routi's tool approvals, streaming, cancellation, and session behavior.
 
 ### Profiles
 

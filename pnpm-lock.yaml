@@ -16,15 +16,12 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.124.0
         version: 0.124.0(zod@4.5.4)
-      '@routi/protocol':
-        specifier: workspace:^
-        version: link:../protocol
       '@openai/codex':
         specifier: ^0.153.4
         version: 0.153.4
-      '@openai/codex-sdk':
-        specifier: ^0.153.4
-        version: 0.153.4
+      '@routi/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
@@ -298,10 +295,6 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
-
-  '@openai/codex-sdk@0.153.4':
-    resolution: {integrity: sha512-z0rN8WMQxwEHYHpDJyKHZwNNUtM/1pdnxmKopIJ3qMCZyyDestaIhSGDZ0v0RSjm+REujcFyNd95oWs78zWgRg==}
-    engines: {node: '>=18'}
 
   '@openai/codex@0.153.4':
     resolution: {integrity: sha512-wbHDmit7S/YvBGVX1DQmk13xtWblZ2cApeJ/pB7xDZ10Cna+DZc5ij7f0F4OxdsXN4FW1oLT48OpogUI1+8Y2w==}
@@ -1063,10 +1056,6 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@4.5.4)
     transitivePeerDependencies:
       - supports-color
-
-  '@openai/codex-sdk@0.153.4':
-    dependencies:
-      '@openai/codex': 0.153.4
 
   '@openai/codex@0.153.4':
     optionalDependencies:

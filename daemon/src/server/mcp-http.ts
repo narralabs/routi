@@ -1,3 +1,4 @@
+import type { ImageBlock } from '@routi/protocol'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Store } from '../db/store.js'
 import { memoryTools, type MemoryOwner } from '../sessions/memory-tools.js'
@@ -21,6 +22,7 @@ export class McpHttp {
     private readonly onMemoryChanged: (owner: MemoryOwner) => void,
     /** Told when a bot saves or removes a routine. */
     private readonly onRoutinesChanged: (botId: string) => void,
+    private readonly onImageAttached?: (botId: string, conversationId: string, image: ImageBlock) => void,
   ) {}
 
   /** True when this request is ours to answer. */
@@ -40,6 +42,9 @@ export class McpHttp {
   private contextFor(botId: string, conversationId: string) {
     const bot = this.store.getBot(botId)
     return {
+      ...(this.onImageAttached ? {
+        attachImage: (image: ImageBlock) => this.onImageAttached!(botId, conversationId, image),
+      } : {}),
       routines: routineTools(this.store, botId, conversationId, () => this.onRoutinesChanged(botId)),
       memory: memoryTools(this.store, botId, (owner) => this.onMemoryChanged(owner)),
       ...(bot && bot.surfaceMode !== 'none'

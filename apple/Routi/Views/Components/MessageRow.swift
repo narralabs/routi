@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// One turn. Blocks render as siblings so a tool card can sit between two
 /// paragraphs, exactly as the daemon streamed them.
@@ -220,27 +221,84 @@ struct ToolCard: View {
 
 private struct ImageBlockView: View {
     let payload: Block.ImagePayload
+    @State private var showingPreview = false
+    @State private var saving = false
+    @State private var saveError: String?
 
     var body: some View {
         if let image = decoded {
-            image
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: 380)
-                .clipShape(.rect(cornerRadius: 13, style: .continuous))
+            Button { showingPreview = true } label: {
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 380)
+                    .clipShape(.rect(cornerRadius: 13, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open attached image")
+            .accessibilityIdentifier("chatImageAttachment")
+            .sheet(isPresented: $showingPreview) {
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("Attached image").font(.headline)
+                        Spacer()
+                        Button("Save Image", systemImage: "square.and.arrow.down") { saving = true }
+                        Button("Done") { showingPreview = false }
+                            .keyboardShortcut(.cancelAction)
+                    }
+                    image.resizable().aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityLabel("Attached image preview")
+                }
+                .padding()
+                #if os(macOS)
+                .frame(minWidth: 600, idealWidth: 900, minHeight: 450, idealHeight: 650)
+                #endif
+                .fileExporter(
+                    isPresented: $saving,
+                    document: ChatImageDocument(data: imageData ?? Data()),
+                    contentType: UTType(mimeType: payload.mediaType) ?? .image,
+                    defaultFilename: "Screenshot.\(UTType(mimeType: payload.mediaType)?.preferredFilenameExtension ?? "jpg")"
+                ) { result in
+                    if case .failure(let error) = result { saveError = error.localizedDescription }
+                }
+                .alert("Couldn’t save image", isPresented: Binding(
+                    get: { saveError != nil }, set: { if !$0 { saveError = nil } }
+                )) {
+                    Button("OK") { saveError = nil }
+                } message: {
+                    Text(saveError ?? "")
+                }
+            }
         }
     }
 
-    private var decoded: Image? {
+    private var imageData: Data? {
         guard let dataURL = payload.dataURL,
-              let base64 = dataURL.split(separator: ",").last,
-              let data = Data(base64Encoded: String(base64))
-        else { return nil }
+              let comma = dataURL.firstIndex(of: ",") else { return nil }
+        return Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...]))
+    }
+
+    private var decoded: Image? {
+        guard let data = imageData else { return nil }
         #if os(macOS)
         return NSImage(data: data).map { Image(nsImage: $0) }
         #else
         return UIImage(data: data).map { Image(uiImage: $0) }
         #endif
+    }
+}
+
+private struct ChatImageDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.image] }
+    var data: Data
+
+    init(data: Data) { self.data = data }
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 }
 

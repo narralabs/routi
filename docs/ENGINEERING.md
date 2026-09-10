@@ -282,6 +282,21 @@ credentials or Docker. `pnpm --filter routid test:live:claude-memory` is the liv
 for remembering through HTTP, resuming a session, and recovering from an invalid
 session ID; it uses the signed-in account and a temporary database/server.
 
+### Inline screenshot attachments
+
+The shared `screenshot` tool accepts `attach: true`. It captures the visible screen,
+returns the image to the agent, and saves a separate assistant image message through
+`SessionManager.attachImage`. The message uses the existing image block format and
+is broadcast immediately; later provider text cannot overwrite it. A normal capture
+without `attach` remains a tool result for the agent and does not add a chat image.
+The same callback is supplied to HTTP MCP and direct API tool contexts.
+
+The app shows the image inline. Clicking it opens a larger preview with Save Image.
+Images currently use JPEG data URLs stored with the message, so reopening a
+conversation reloads the attachment without depending on a temporary file. Attachment
+routing validates that the bot belongs to the conversation. This is a visible-screen
+capture, not a full-page stitching feature or a generic local-file upload tool.
+
 ### Codex integration: app-server, not the TypeScript SDK
 
 Routi depends on `@openai/codex` for the executable. It does not use

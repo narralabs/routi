@@ -1,3 +1,4 @@
+import type { ImageBlock } from '@routi/protocol'
 import { Browser } from './browser.js'
 import type { Surface } from './pool.js'
 
@@ -208,8 +209,11 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
       name: 'screenshot',
       description:
         'Look at the desktop. Returns a picture of the current screen. Use it before ' +
-        'acting to find what you need, and again afterwards to confirm what happened.',
-      parameters: object({}),
+        'acting to find what you need, and again afterwards to confirm what happened. ' +
+        'Set attach=true when the user asks for a screenshot: saves the image in this ' +
+        'conversation so they can see and open it. Captures the visible screen only, ' +
+        'not a full scrolling page.',
+      parameters: object({ attach: { type: 'boolean', description: 'Attach this capture to the chat. Default false.' } }),
     },
     {
       name: 'open_url',
@@ -264,6 +268,8 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
  * be saved, not how routines are stored or when they fire.
  */
 export interface ToolContext {
+  /** Saves an image as a visible attachment in the calling conversation. */
+  attachImage?: (image: ImageBlock) => void
   /** Hands the screen to the person and waits for them. */
   handover?: (reason: string) => Promise<'done' | 'skipped' | 'timeout'>
   routines?: {
@@ -401,14 +407,20 @@ export async function runDesktopTool(
       }
 
       case 'screenshot': {
+        if (args['attach'] === true && !ctx.attachImage) {
+          return { ok: false, output: 'Image attachments are unavailable in this context.', summary: 'Attachment unavailable' }
+        }
         const frame = await desktop.captureFrame(7)
         if (!frame) return { ok: false, output: 'Could not capture the screen.', summary: 'Screenshot failed' }
         const size = await desktop.status()
+        const imageDataUrl = `data:image/jpeg;base64,${frame.jpeg.toString('base64')}`
+        const attached = args['attach'] === true
+        if (attached) ctx.attachImage!({ type: 'image', mediaType: 'image/jpeg', dataUrl: imageDataUrl })
         return {
           ok: true,
-          output: `Screen is ${size.width}x${size.height} pixels.`,
-          summary: 'Looked at the screen',
-          imageDataUrl: `data:image/jpeg;base64,${frame.jpeg.toString('base64')}`,
+          output: `Screen is ${size.width}x${size.height} pixels.${attached ? ' Screenshot attached to the conversation; the user can open it.' : ''}`,
+          summary: attached ? 'Attached screenshot' : 'Looked at the screen',
+          imageDataUrl,
         }
       }
 

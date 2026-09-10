@@ -130,6 +130,9 @@ const SAFETY = [
 ].join('\n')
 
 const SCREEN = [
+  'When asked to show or send a screenshot, call screenshot with attach=true.',
+  'This attaches the captured image directly to the chat. A normal screenshot only',
+  'shows you the screen. This captures the visible screen, not a full scrolling page.',
   'You have your own screen with a Linux desktop and a browser on it, and tools to see',
   'and use them. Use it: open pages and read them yourself rather than answering from',
   'memory when the user points you at something, and say what you actually saw.',

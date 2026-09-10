@@ -1,6 +1,6 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { existsSync, mkdirSync, renameSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { openDb } from './db/schema.js'
 import { Store } from './db/store.js'
 import { AuthManager } from './auth/manager.js'
@@ -15,33 +15,19 @@ import { bindableAddress, machineName, tailscaleReport } from './server/tailscal
 
 const DATA_DIR = process.env['ROUTI_DATA_DIR'] ?? join(homedir(), '.routi')
 
-/**
- * The product was called Krog until September 2026. A Mac that ran it then has its
- * bots in ~/.krog; moving the directory the first time the renamed daemon starts is
- * what keeps them. Only the default location moves — an explicit data dir is left to
- * whoever set it.
- */
-function adoptOldDataDir(): void {
-  if (process.env['ROUTI_DATA_DIR']) return
-  const old = join(homedir(), '.krog')
-  if (existsSync(DATA_DIR) || !existsSync(old)) return
-  renameSync(old, DATA_DIR)
-  console.log(`moved ${old} to ${DATA_DIR}`)
-}
 const PORT = Number(process.env['ROUTI_PORT'] ?? 7171)
 // Default to loopback. M2 moves this to the Tailscale interface rather than 0.0.0.0 —
 // binding to every interface would expose the daemon on whatever café Wi-Fi is around.
 const HOST = process.env['ROUTI_HOST'] ?? '127.0.0.1'
 
 async function main(): Promise<void> {
-  adoptOldDataDir()
   mkdirSync(DATA_DIR, { recursive: true })
   // Agent sessions are stored per working directory; give routid its own so it never
   // mixes with the user's project histories.
   const sessionCwd = join(DATA_DIR, 'sessions')
   mkdirSync(sessionCwd, { recursive: true })
 
-  const db = openDb(join(DATA_DIR, existsSync(join(DATA_DIR, 'krog.db')) ? 'krog.db' : 'routi.db'))
+  const db = openDb(join(DATA_DIR, 'routi.db'))
   const store = new Store(db)
   // Turns that were running when the last process ended cannot be resumed; what they
   // left is cleared before a client can load it.

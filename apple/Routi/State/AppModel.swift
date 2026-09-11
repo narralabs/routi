@@ -1263,6 +1263,9 @@ final class AppModel {
             guard let id = event.payload["conversationId"] as? String,
                   let busy = event.payload["busy"] as? Bool else { return }
             if busy {
+                // A new attempt replaces the previous failure. If this attempt
+                // fails too, its error event supplies the new message.
+                conversationErrors[id] = nil
                 busyConversations.insert(id)
                 if let name = event.payload["routineName"] as? String { busyRoutineNames[id] = name }
             } else {

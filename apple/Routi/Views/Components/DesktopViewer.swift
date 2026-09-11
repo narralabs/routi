@@ -14,9 +14,8 @@ struct VNCView: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ view: WKWebView, context: Context) {
-        if view.url != url { view.load(URLRequest(url: url)) }
-    }
+    // DesktopViewer keys this view by URL, so navigation is only started once.
+    func updateNSView(_ view: WKWebView, context: Context) {}
 
     static func dismantleNSView(_ view: WKWebView, coordinator: ()) {
         view.evaluateJavaScript("window.disconnectVNC?.()")
@@ -68,7 +67,6 @@ struct VNCView: UIViewRepresentable {
 
     func updateUIView(_ view: WKWebView, context: Context) {
         context.coordinator.onCursor = onCursor
-        if view.url != url { view.load(URLRequest(url: url)) }
     }
 
     static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
@@ -92,9 +90,11 @@ struct DesktopViewer: View {
     @State private var error: String?
     @State private var retry = 0
 
+    private var isVisible: Bool { scenePhase != .background }
+
     var body: some View {
         Group {
-            if let url, scenePhase == .active {
+            if let url, isVisible {
                 #if os(macOS)
                 VNCView(url: url).id(url)
                 #else
@@ -111,9 +111,9 @@ struct DesktopViewer: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.black)
-        .task(id: "\(botID)-\(model.connection)-\(scenePhase)-\(retry)") {
+        .task(id: "\(botID)-\(model.connection)-\(isVisible)-\(retry)") {
             url = nil; error = nil
-            guard scenePhase == .active else { return }
+            guard isVisible else { return }
             do {
                 let resolved = try await model.desktopViewerURL(botId: botID)
                 guard !Task.isCancelled else { return }

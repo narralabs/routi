@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { createVncService } from './vnc.js'
+import { createVncBridge } from './vnc-bridge.js'
 import { desktopViewers } from './vnc-desktop.js'
 import { providerKey } from '../providers/types.js'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
@@ -20,7 +20,7 @@ interface Client {
 
 export class RoutiServer {
   private readonly vncBackend = desktopViewers()
-  private readonly vnc: ReturnType<typeof createVncService>
+  private readonly vnc: ReturnType<typeof createVncBridge>
   private readonly http: Server
   private readonly wss: WebSocketServer
   private readonly clients = new Set<Client>()
@@ -29,7 +29,7 @@ export class RoutiServer {
   private readonly handle: (req: IncomingMessage, res: ServerResponse) => void
 
   constructor(private readonly ctx: RpcContext) {
-    this.vnc = createVncService({
+    this.vnc = createVncBridge({
       token: randomBytes(24).toString('hex'),
       ...this.vncBackend,
       displayFor: async (botId) => {
@@ -47,7 +47,7 @@ export class RoutiServer {
     )
 
     this.handle = (req, res) => {
-      if (req.url?.startsWith('/vnc/')) { this.vnc.http.emit('request', req, res); return }
+      if (req.url?.startsWith('/vnc/')) { this.vnc.handle(req, res); return }
       // Tools over HTTP, for harnesses that sandbox the processes they launch. Those
       // harnesses run on this Mac, so the tools answer only this Mac: a phone on the
       // tailnet may talk to its bots, not drive their screens directly.
@@ -76,7 +76,7 @@ export class RoutiServer {
 
   private adopt(server: Server): void {
     server.on('upgrade', (req, socket, head) => {
-      if (req.url?.startsWith('/vnc/')) { this.vnc.http.emit('upgrade', req, socket, head); return }
+      if (req.url?.startsWith('/vnc/')) { this.vnc.upgrade(req, socket, head); return }
       this.wss.handleUpgrade(req, socket, head, (ws) => this.wss.emit('connection', ws, req))
     })
   }

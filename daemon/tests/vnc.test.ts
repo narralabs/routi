@@ -1,4 +1,5 @@
 import test from 'node:test'
+import { createServer } from 'node:http'
 import { runInNewContext } from 'node:vm'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
@@ -6,14 +7,28 @@ import { once } from 'node:events'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { VncViewers } from '../src/server/vnc-lifecycle.js'
 import { WebSocket } from 'ws'
-import { createVncService } from '../src/server/vnc.js'
+import { createVncBridge } from '../src/server/vnc-bridge.js'
+
+// Tests own their listener; production mounts these handlers on RoutiServer.
+function createTestServer(options: Parameters<typeof createVncBridge>[0]) {
+  const bridge = createVncBridge(options)
+  const http = createServer(bridge.handle)
+  http.on('upgrade', bridge.upgrade)
+  return {
+    http,
+    async close() {
+      await bridge.close()
+      await new Promise<void>(resolve => http.close(() => resolve()))
+    },
+  }
+}
 
 const bot = '00000000-0000-0000-0000-000000000001'
 
 test('VNC service serves local modules, routes one display, and closes its child on disconnect', async () => {
   const displays: string[] = []
   let child: ReturnType<typeof spawn> | undefined
-  const server = createVncService({
+  const server = createTestServer({
     token: 'test-capability',
     displayFor: async (id) => { assert.equal(id, bot); return ':104' },
     acquireDisplay: async (display) => ({
@@ -57,7 +72,7 @@ test('VNC service serves local modules, routes one display, and closes its child
 })
 
 test('VNC service rejects a missing desktop without starting VNC', async () => {
-  const server = createVncService({
+  const server = createTestServer({
     token: 'test-capability',
     displayFor: async () => { throw new Error('not running') },
     acquireDisplay: async () => { throw new Error('must not start') },
@@ -163,7 +178,7 @@ for (const mode of ['force-quit', 'unresponsive', 'disconnect-during-startup'] a
     let released = 0
     let acquired = 0
     let finishStart: (() => void) | undefined
-    const server = createVncService({
+    const server = createTestServer({
       token: 'test-capability', heartbeatMs: 25,
       displayFor: async () => ':101',
       acquireDisplay: async () => {
@@ -201,7 +216,7 @@ for (const mode of ['force-quit', 'unresponsive', 'disconnect-during-startup'] a
 
 
 test('viewer forwards cursor shapes and reconnects without retaining stale connections', async () => {
-  const server = createVncService({
+  const server = createTestServer({
     token: 'cursor-test',
     displayFor: async () => { throw new Error('must not access Docker') },
     acquireDisplay: async () => { throw new Error('must not start VNC') },
@@ -216,6 +231,7 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     assert.ok(script)
     const messages: unknown[] = []
     let originalUpdates = 0
+    let focuses = 0
     const timers: Array<() => void> = []
     const documentEvents = new Map<string, () => void>()
     class RFB {
@@ -224,6 +240,7 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
       events = new Map<string, () => void>()
       addEventListener(name: string, callback: () => void) { this.events.set(name, callback) }
       disconnect() { this.events.get('disconnect')?.() }
+      focus() { focuses++ }
     }
     let instance!: RFB
     const context = {
@@ -262,6 +279,12 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     assert.notEqual(instance, second)
     runInNewContext(script.replace(/^import .*;$/m, ''), { ...context, window: { addEventListener() {} } })
     assert.equal(instance._updateCursor, RFB.prototype._updateCursor, 'Mac has no native cursor hook')
+    instance.events.get('connect')!()
+    assert.equal(focuses, 1)
+    context.location.search = '?viewOnly=1'
+    runInNewContext(script.replace(/^import .*;$/m, ''), { ...context, window: { addEventListener() {} } })
+    instance.events.get('connect')!()
+    assert.equal(focuses, 1, 'sidebar preview must not steal keyboard focus')
   } finally { await server.close() }
 })
 

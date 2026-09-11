@@ -1,6 +1,7 @@
 /** Capability-protected VNC transport, mounted on the core HTTP listeners. */
 import { type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { createServer } from 'node:http'
+import type { IncomingMessage, RequestListener } from 'node:http'
+import type { Duplex } from 'node:stream'
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
@@ -9,7 +10,7 @@ import { WebSocketServer, createWebSocketStream } from 'ws'
 const assets = dirname(dirname(createRequire(import.meta.url).resolve('@novnc/novnc')))
 const botID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i
 
-export function createVncService(options: {
+export function createVncBridge(options: {
   token: string
   displayFor: (bot: string) => Promise<string>
   acquireDisplay: (display: string) => Promise<{
@@ -30,7 +31,7 @@ export function createVncService(options: {
     }
   }, options.heartbeatMs ?? 15_000)
   heartbeat.unref()
-  const http = createServer((req, res) => {
+  const handle: RequestListener = (req, res) => {
     void (async () => {
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('Referrer-Policy', 'no-referrer')
@@ -53,9 +54,9 @@ export function createVncService(options: {
         res.writeHead(200, { 'Content-Type': 'text/javascript' }).end(body)
       } catch { res.writeHead(404).end() }
     })().catch(() => { if (!res.headersSent) res.writeHead(500); res.end() })
-  })
+  }
 
-  http.on('upgrade', (req, socket, head) => {
+  const upgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     void (async () => {
       const origin = req.headers.origin
       const validOrigin = typeof origin === 'string' && ['http:', 'https:'].includes(new URL(origin).protocol) && new URL(origin).host === req.headers.host
@@ -111,16 +112,16 @@ export function createVncService(options: {
         void setup.finally(() => pending.delete(setup))
       })
     })().catch(() => socket.destroy())
-  })
+  }
   return {
-    http,
+    handle,
+    upgrade,
     prefix,
     async close() {
       closing = true
       clearInterval(heartbeat)
       for (const ws of wss.clients) ws.terminate()
       await new Promise<void>((done) => wss.close(() => done()))
-      if (http.listening) await new Promise<void>((done) => http.close(() => done()))
       await Promise.allSettled(pending)
     },
   }
@@ -162,7 +163,11 @@ rfb.scaleViewport = true;
 rfb.resizeSession = false;
 rfb.qualityLevel = 6;
 rfb.compressionLevel = 2;
-rfb.addEventListener('connect', () => { status.hidden = true; rfb.focus(); });
+rfb.addEventListener('connect', () => {
+  if (rfb !== connection) return;
+  status.hidden = true;
+  if (!connection.viewOnly) connection.focus();
+});
 rfb.addEventListener('disconnect', () => {
   if (rfb !== connection) return;
   window.webkit?.messageHandlers?.cursor?.postMessage(null);

@@ -155,26 +155,6 @@ const handlers: Record<RpcMethod, Handler> = {
 
   'auth.status': async (p, ctx) => ({ auth: await ctx.auth.status((p as { profileId: string }).profileId) }),
 
-  'auth.loginWithClaude': async (_p, ctx) => {
-    try {
-      return { auth: await ctx.auth.loginWithClaude() }
-    } catch (err) {
-      throw new RpcError('login_failed', err instanceof Error ? err.message : String(err))
-    }
-  },
-
-  'auth.setApiKey': async (p, ctx) => {
-    const { key } = p as { key: string }
-    try {
-      return { auth: await ctx.auth.setApiKey(key) }
-    } catch (err) {
-      // Most likely a bad key: the manager probes before committing.
-      throw new RpcError('invalid_key', err instanceof Error ? err.message : String(err))
-    }
-  },
-
-  'auth.signOut': async (_p, ctx) => ({ auth: await ctx.auth.signOut() }),
-
   'auth.providerLogin': async (p, ctx) => {
     const { provider, profileId } = p as { provider: string; profileId: string }
     try {

@@ -78,13 +78,8 @@ export const RpcMethods = {
   'messages.interrupt': { params: z.object({ conversationId: z.string() }), result: z.object({ ok: z.literal(true) }) },
 
   'auth.status': { params: z.object({ profileId: z.string().default('default') }), result: z.object({ auth: AuthStatus }) },
-  /** Opens the browser sign-in on the machine running routid. Long-running. */
-  'auth.loginWithClaude': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
-  'auth.setApiKey': { params: z.object({ key: z.string().min(1) }), result: z.object({ auth: AuthStatus }) },
-  'auth.signOut': { params: z.object({}), result: z.object({ auth: AuthStatus }) },
 
-  // Providers configured after onboarding. `provider` names which one, so a third
-  // vendor needs no new methods.
+  // Authentication names the provider and profile explicitly.
   'auth.providerLogin': {
     params: z.object({ provider: z.string(), profileId: z.string().default('default') }),
     result: z.object({ auth: AuthStatus }),

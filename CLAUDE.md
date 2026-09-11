@@ -66,8 +66,8 @@ can be connected at once — a plan for the everyday bots, a key for one that ne
 model. `HARNESS_PROVIDERS` in `manager.ts` is the list. The app names entries by what runs
 the bot ("Claude Code", "Anthropic API"), never by vendor alone. Anthropic was one id
 with a mode until 0.1.11; `migrateAnthropicProvider()` moves a plan and its bots onto
-`anthropic-claude` at boot, and the old `auth.loginWithClaude` / `auth.setApiKey` /
-`auth.signOut` RPCs remain as aliases onto the pair.
+`anthropic-claude` at boot. Authentication uses `auth.providerLogin`,
+`auth.providerSetApiKey`, and `auth.providerSignOut`, with an explicit provider and profile.
 
 ### Profiles
 

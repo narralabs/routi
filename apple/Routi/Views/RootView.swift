@@ -61,6 +61,9 @@ struct RootView: View {
             // Straight to the desktop, for looking at it without tapping there.
             if ProcessInfo.processInfo.arguments.contains("-showScreen") {
                 try? await Task.sleep(for: .seconds(3))
+                if let botID = UserDefaults.standard.string(forKey: "previewBotID") {
+                    await model.select(bot: botID)
+                }
                 model.isShowingScreen = true
             }
             #endif

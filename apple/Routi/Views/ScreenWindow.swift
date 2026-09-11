@@ -8,6 +8,22 @@ import SwiftUI
 struct ScreenWindow: View {
     @Environment(AppModel.self) private var model
     @State private var frameViewer = UUID()
+    @State private var useVNC = true
+
+    private var vncURL: URL? {
+        #if os(macOS) && DEBUG
+        guard model.selectedBot?.surfaceMode == .container,
+              let botID = model.selectedBot?.id,
+              let base = UserDefaults.standard.string(forKey: "vncPreviewURL"),
+              let url = URL(string: base), url.scheme == "http", url.host == "127.0.0.1"
+        else { return nil }
+        return url.appendingPathComponent(botID)
+        #else
+        return nil
+        #endif
+    }
+
+    private var showingVNC: Bool { useVNC && vncURL != nil }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,22 +42,43 @@ struct ScreenWindow: View {
                         .disabled(model.isBusy)
                 }
             } else {
-            ScreenView(
-                frame: model.surfaceFrame,
-                size: CGSize(width: model.surface.width, height: model.surface.height),
-                isInteractive: true,
-                onInput: { input in Task { await model.sendSurfaceInput(input) } },
-                onPaste: { Task { await model.pasteIntoSurface() } },
-                onCopy: { Task { await model.copyFromSurface() } }
-            )
+                desktopViewer
             }
         }
         .background(.black.opacity(0.92))
-        // A full-size view earns a faster refresh than the thumbnail did. It registers
-        // as its own viewer, so leaving drops back to the panel's rate rather than
-        // stopping the stream the panel is still using.
-        .onAppear { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
+        .onAppear { updateFramePolling() }
+        .task(id: model.selectedBot?.id) { await model.refreshSurface() }
+        .onChange(of: showingVNC) { _, _ in updateFramePolling() }
         .onDisappear { model.endFrames(frameViewer) }
+    }
+
+    private func updateFramePolling() {
+        if showingVNC { model.endFrames(frameViewer) }
+        else { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
+    }
+
+    @ViewBuilder
+    private var desktopViewer: some View {
+        #if os(macOS) && DEBUG
+        if showingVNC, let url = vncURL {
+            VNCPreview(url: url)
+        } else {
+            jpegViewer
+        }
+        #else
+        jpegViewer
+        #endif
+    }
+
+    private var jpegViewer: some View {
+        ScreenView(
+            frame: model.surfaceFrame,
+            size: CGSize(width: model.surface.width, height: model.surface.height),
+            isInteractive: true,
+            onInput: { input in Task { await model.sendSurfaceInput(input) } },
+            onPaste: { Task { await model.pasteIntoSurface() } },
+            onCopy: { Task { await model.copyFromSurface() } }
+        )
     }
 
     private var header: some View {
@@ -51,6 +88,17 @@ struct ScreenWindow: View {
                 .font(.system(size: 13, weight: .semibold))
 
             Spacer()
+
+            if vncURL != nil {
+                Picker("Viewer", selection: $useVNC) {
+                    Text("JPEG").tag(false)
+                    Text("VNC").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 130)
+                Button("Paste") { Task { await model.pasteIntoSurface() } }
+            }
 
             Text("Click and type to drive it")
                 .font(.system(size: 11))

@@ -51,6 +51,15 @@ struct DetailRail: View {
     @ViewBuilder
     private var surfacePanel: some View {
         VStack(spacing: 8) {
+            if bot.surfaceMode == .none {
+                placeholder(icon: "display", title: "Desktop access is off") {
+                    Text("Enable a desktop so this bot can browse and take screenshots.")
+                        .font(.system(size: 11))
+                        .multilineTextAlignment(.center)
+                    Button("Enable desktop") { Task { await model.enableDesktop() } }
+                        .disabled(model.isBusy)
+                }
+            } else {
             switch model.surface.state {
             case .running:
                 ScreenView(
@@ -109,6 +118,7 @@ struct DetailRail: View {
                         .controlSize(.small)
                         .padding(.top, 4)
                 }
+            }
             }
         }
     }

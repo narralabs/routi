@@ -74,18 +74,27 @@ const handlers: Record<RpcMethod, Handler> = {
   'bots.update': async (p, ctx) => {
     const { id, patch } = p as { id: string; patch: Record<string, unknown> }
     const before = ctx.store.getBot(id)
+    const screenChanged = before && patch['surfaceMode'] !== undefined && patch['surfaceMode'] !== before.surfaceMode
+    const affected = screenChanged ? ctx.store.listConversations().filter((c) =>
+      c.botId === id || (c.kind === 'channel' && ctx.store.channelMembers(c.id).some((b) => b.id === id)),
+    ) : []
+    if (affected.some((c) => ctx.sessions.isBusy(c.id))) {
+      throw new RpcError('busy', 'Wait for the bot to finish before changing its screen access.')
+    }
     const bot = ctx.store.updateBot(id, patch)
     if (!bot || !before) throw new RpcError('not_found', `No such bot: ${id}`)
     // A changed description means a stale system prompt in every warm session, so
     // those are dropped — keyed per conversation and bot, so each is named. Model and
     // effort are applied per turn by every adapter and need no drop; dropping for
     // them would cost a harness bot its thread, which is its memory of the chat.
-    if (bot.systemPrompt !== before.systemPrompt) {
+    if (bot.systemPrompt !== before.systemPrompt || screenChanged) {
       const adapter = ctx.providers.get(providerKey(bot.profileId, bot.provider))
-      for (const conversation of ctx.store.listConversations(bot.id)) {
+      for (const conversation of screenChanged ? affected : ctx.store.listConversations(bot.id)) {
         adapter?.release(`${conversation.id}:${bot.id}`)
+        if (screenChanged) ctx.store.clearProviderSession(conversation.id, bot.id)
       }
     }
+    if (screenChanged && bot.surfaceMode === 'container') ctx.desktops.warm(bot.id)
     return { bot }
   },
 
@@ -227,24 +236,24 @@ const handlers: Record<RpcMethod, Handler> = {
   },
 
   'surface.status': async (p, ctx) => {
-    const desktop = ctx.desktops.for((p as { botId: string }).botId)
+    const desktop = screenFor((p as { botId: string }).botId, ctx)
     return { surface: { ...(await desktop.status()), heldBy: desktop.holder } }
   },
 
   'surface.start': async (p, ctx) => {
-    const desktop = ctx.desktops.for((p as { botId: string }).botId)
+    const desktop = screenFor((p as { botId: string }).botId, ctx)
     return { surface: { ...(await desktop.start()), heldBy: desktop.holder } }
   },
 
   'surface.stop': async (p, ctx) => {
-    const desktop = ctx.desktops.for((p as { botId: string }).botId)
+    const desktop = screenFor((p as { botId: string }).botId, ctx)
     await desktop.stop()
     return { surface: { ...(await desktop.status()), heldBy: desktop.holder } }
   },
 
   'surface.frame': async (p, ctx) => {
     const { botId, quality } = p as { botId: string; quality: number }
-    const desktop = ctx.desktops.for(botId)
+    const desktop = screenFor(botId, ctx)
     const status = await desktop.status()
     const frame = await desktop.captureFrame(quality)
     return {
@@ -328,13 +337,13 @@ const handlers: Record<RpcMethod, Handler> = {
 
   'surface.clipboard': async (p, ctx) => {
     const { botId } = p as { botId: string }
-    return { text: await ctx.desktops.for(botId).readClipboard() }
+    return { text: await screenFor(botId, ctx).readClipboard() }
   },
 
   'surface.input': async (p, ctx) => {
     const { botId, input } = p as { botId: string; input: DesktopInput }
     try {
-      await ctx.desktops.for(botId).send(input)
+      await screenFor(botId, ctx).send(input)
       return { ok: true as const }
     } catch (err) {
       throw new RpcError('surface_input_failed', err instanceof Error ? err.message : String(err))
@@ -420,4 +429,12 @@ async function describeDesktopHost(ctx: RpcContext) {
     }
   }
   return { ...host, screens }
+}
+
+/** Opening a viewer must not create access the bot itself does not have. */
+function screenFor(botId: string, ctx: RpcContext) {
+  const bot = ctx.store.getBot(botId)
+  if (!bot) throw new RpcError('not_found', `No such bot: ${botId}`)
+  if (bot.surfaceMode === 'none') throw new RpcError('no_screen', 'This bot has no screen access. Enable its desktop first.')
+  return ctx.desktops.for(botId)
 }

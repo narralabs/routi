@@ -521,6 +521,10 @@ export class Store {
     return r ? { provider: r.provider, sessionId: r.session_id } : null
   }
 
+  clearProviderSession(conversationId: string, botId: string): void {
+    this.db.prepare('DELETE FROM provider_sessions WHERE conversation_id = ? AND bot_id = ?').run(conversationId, botId)
+  }
+
   setProviderSession(conversationId: string, botId: string, provider: string, sessionId: string): void {
     this.db
       .prepare(

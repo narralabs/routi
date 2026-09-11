@@ -16,6 +16,16 @@ struct ScreenWindow: View {
                 HandoverBanner(handover: handover)
             }
             Divider()
+            if model.selectedBot?.surfaceMode == SurfaceMode.none {
+                ContentUnavailableView {
+                    Label("Desktop access is off", systemImage: "display")
+                } description: {
+                    Text("Enable a desktop so this bot can browse and take screenshots.")
+                } actions: {
+                    Button("Enable desktop") { Task { await model.enableDesktop() } }
+                        .disabled(model.isBusy)
+                }
+            } else {
             ScreenView(
                 frame: model.surfaceFrame,
                 size: CGSize(width: model.surface.width, height: model.surface.height),
@@ -24,6 +34,7 @@ struct ScreenWindow: View {
                 onPaste: { Task { await model.pasteIntoSurface() } },
                 onCopy: { Task { await model.copyFromSurface() } }
             )
+            }
         }
         .background(.black.opacity(0.92))
         // A full-size view earns a faster refresh than the thumbnail did. It registers

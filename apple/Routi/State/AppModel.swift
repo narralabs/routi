@@ -674,7 +674,17 @@ final class AppModel {
 
     /// Every desktop call names its bot: a desktop belongs to one bot, so there is no
     /// "the" desktop to ask about.
-    private var surfaceBotID: String? { selectedBot?.id }
+    private var surfaceBotID: String? {
+        guard let bot = selectedBot, bot.surfaceMode != .none else { return nil }
+        return bot.id
+    }
+
+    func enableDesktop() async {
+        guard let bot = selectedBot else { return }
+        await updateBot(bot.id, patch: ["surfaceMode": "container"])
+        await refreshSurface()
+        await startSurface()
+    }
 
     func refreshSurface() async {
         guard let botID = surfaceBotID else { return }

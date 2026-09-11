@@ -116,9 +116,8 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
   async *stream(req: ChatRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {
     const model = req.model
     const desktop = req.hasSurface === true ? this.desktops?.for(req.botId) : undefined
-    const specs = desktopToolSpecs(req.toolContext ?? {})
+    const specs = desktopToolSpecs(req.toolContext ?? {}, { screen: desktop !== undefined })
     const tools = specs
-      .filter((spec) => desktop || !spec.name.startsWith('mcp__') )
       .map((spec) => ({
         type: 'function' as const,
         function: { name: spec.name, description: spec.description, parameters: spec.parameters },
@@ -208,9 +207,7 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
             block: { type: 'tool_use', id: call.id, name: call.name, input: args, status: 'running' },
           }
 
-          const result = desktop
-            ? await runDesktopTool(desktop, call.name, args, req.toolContext ?? {})
-            : { ok: false, output: 'This bot has no screen.', summary: 'No screen', imageDataUrl: undefined }
+          const result = await runDesktopTool(desktop ?? null, call.name, args, req.toolContext ?? {})
 
           yield {
             type: 'block_end',

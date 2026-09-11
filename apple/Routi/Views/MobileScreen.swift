@@ -502,7 +502,6 @@ private struct TouchLayer: UIViewRepresentable {
         private var dragStart: CGPoint?
         private var pressing = false
         private var scrollRemainder: CGFloat = 0
-        private var lastMove = Date.distantPast
         /// The move to send next, and whether one is away. Latest wins.
         private var pendingMove: CGPoint?
         private var moveInFlight = false

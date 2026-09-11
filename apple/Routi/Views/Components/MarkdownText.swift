@@ -13,7 +13,6 @@ import SwiftUI
 /// anything unrecognised falls through as a paragraph rather than being mangled.
 struct MarkdownText: View {
     let text: String
-    var textColor: AnyShapeStyle = AnyShapeStyle(.primary)
 
     /**
      * Runs of ordinary prose become one Text, not one per block.

@@ -50,7 +50,6 @@ final class AppModel {
     /// Local notifications for bots the person is not watching.
     let notifier = Notifier()
     var errorMessage: String?
-    var isLoadingMessages = false
     /// True while a profile's bots are on their way: after a switch, and on the first
     /// load. An empty list in that moment is not "no bots", and must not say so.
     var isLoadingBots = true
@@ -732,15 +731,6 @@ final class AppModel {
         }
     }
 
-    func stopSurface() async {
-        guard let botID = surfaceBotID else { return }
-        surfaceFrame = nil
-        guard let status = try? await client.rpc(
-            "surface.stop", ["botId": botID], field: "surface", as: SurfaceStatus.self, timeout: 60
-        ) else { return }
-        surface = status
-    }
-
     /// Everyone currently showing the screen, and how often each needs a frame.
     ///
     /// Registered rather than started and stopped, because the two views hand over in
@@ -1011,7 +1001,6 @@ final class AppModel {
         messages = []
         routines = []
         memories = []
-        isLoadingMessages = true
         client.subscribe(conversation.id)
         await loadMessages(conversation.id)
         await greetIfSilent(conversation.id)
@@ -1126,10 +1115,8 @@ final class AppModel {
             )
             guard selectedConversationID == conversationID else { return } // selection moved on
             messages = list
-            isLoadingMessages = false
             errorMessage = nil
         } catch {
-            isLoadingMessages = false
             errorMessage = error.localizedDescription
         }
     }

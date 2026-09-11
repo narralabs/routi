@@ -82,7 +82,7 @@ final class AppModel {
     var handovers: [String: Handover] = [:]
     /// Where the desktop's own pointer is, in its pixels. Absent until a frame says.
     var surfacePointer: CGPoint?
-    @ObservationIgnored private var frameTask: Task<Void, Never>?
+    @ObservationIgnored private var hostFrameTask: Task<Void, Never>?
 
     // Onboarding
     var auth: AuthStatus = .unknown
@@ -731,7 +731,7 @@ final class AppModel {
         }
     }
 
-    /// Everyone currently showing the screen, and how often each needs a frame.
+    /// Host-screen viewers only; container desktops use independent VNC connections.
     ///
     /// Registered rather than started and stopped, because the two views hand over in
     /// an order nobody controls: SwiftUI runs the arriving view's `onAppear` before the
@@ -739,32 +739,41 @@ final class AppModel {
     /// stream the full-window view had just started — leaving the expanded desktop
     /// frozen on a single frame, which looked for all the world like broken input.
     /// With viewers counted, a handover in either order leaves one watcher standing.
-    private var frameViewers: [UUID: Duration] = [:]
+    private var hostFrameViewers: [UUID: Duration] = [:]
+
+    /// Resolve the VNC path against the same endpoint used for chat.
+    func desktopViewerURL(botId: String) async throws -> URL {
+        let result = try await client.rpc("surface.viewer", ["botId": botId])
+        guard let path = result["path"] as? String, let url = client.httpURL(path: path) else {
+            throw URLError(.badURL)
+        }
+        return url
+    }
 
     /// Pull rather than push, and only while something is watching: a preview nobody
     /// is looking at should cost nothing, and the client asks again only once it has
     /// drawn the previous frame, so a slow link degrades to a lower rate instead of
     /// queueing frames it will never show.
-    func beginFrames(_ viewer: UUID, interval: Duration = .milliseconds(500)) {
-        frameViewers[viewer] = interval
-        restartFrames()
+    func beginHostFrames(_ viewer: UUID, interval: Duration = .milliseconds(500)) {
+        hostFrameViewers[viewer] = interval
+        restartHostFrames()
     }
 
-    func endFrames(_ viewer: UUID) {
-        frameViewers.removeValue(forKey: viewer)
-        restartFrames()
+    func endHostFrames(_ viewer: UUID) {
+        hostFrameViewers.removeValue(forKey: viewer)
+        restartHostFrames()
     }
 
-    private func restartFrames() {
-        frameTask?.cancel()
-        frameTask = nil
+    private func restartHostFrames() {
+        hostFrameTask?.cancel()
+        hostFrameTask = nil
         // The fastest watcher sets the pace; the others simply see fresher frames.
-        guard let interval = frameViewers.values.min() else { return }
+        guard let interval = hostFrameViewers.values.min() else { return }
 
-        frameTask = Task { [weak self] in
+        hostFrameTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                if self.surface.state == .running,
+                if self.selectedBot?.surfaceMode == .host, self.surface.state == .running,
                    let botID = self.surfaceBotID,
                    let result = try? await self.client.rpc("surface.frame", ["botId": botID, "quality": 6]),
                    // A frame that was in flight when the selection moved on belongs to
@@ -991,7 +1000,7 @@ final class AppModel {
             surfaceFrame = nil
             surfacePointer = nil
             selectedBotID = botID
-            restartFrames()
+            restartHostFrames()
         }
         selectedConversationID = conversation.id
         messages = []

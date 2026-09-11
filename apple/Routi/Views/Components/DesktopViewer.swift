@@ -1,10 +1,9 @@
-#if DEBUG
 import SwiftUI
 import WebKit
 
-/// Opt-in local experiment. No effect in Release or without -vncPreviewURL.
+/// VNC display; native mobile gestures remain outside the web view.
 #if os(macOS)
-struct VNCPreview: NSViewRepresentable {
+struct VNCView: NSViewRepresentable {
     let url: URL
 
     func makeNSView(context: Context) -> WKWebView {
@@ -30,7 +29,7 @@ struct VNCCursor {
     let hotspot: CGPoint
 }
 
-struct VNCPreview: UIViewRepresentable {
+struct VNCView: UIViewRepresentable {
     let url: URL
     var onCursor: (VNCCursor?) -> Void
 
@@ -79,4 +78,49 @@ struct VNCPreview: UIViewRepresentable {
     }
 }
 #endif
-#endif
+
+/// Resolves a fresh capability through the core whenever it reconnects.
+struct DesktopViewer: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
+    let botID: String
+    var interactive = true
+    #if !os(macOS)
+    var onCursor: (VNCCursor?) -> Void = { _ in }
+    #endif
+    @State private var url: URL?
+    @State private var error: String?
+    @State private var retry = 0
+
+    var body: some View {
+        Group {
+            if let url, scenePhase == .active {
+                #if os(macOS)
+                VNCView(url: url).id(url)
+                #else
+                VNCView(url: url, onCursor: onCursor).id(url)
+                #endif
+            } else if let error {
+                VStack(spacing: 8) {
+                    Text(error).font(.caption).multilineTextAlignment(.center)
+                    Button("Retry") { retry += 1 }
+                }.padding()
+            } else {
+                ProgressView().tint(.white)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.black)
+        .task(id: "\(botID)-\(model.connection)-\(scenePhase)-\(retry)") {
+            url = nil; error = nil
+            guard scenePhase == .active else { return }
+            do {
+                let resolved = try await model.desktopViewerURL(botId: botID)
+                guard !Task.isCancelled else { return }
+                url = interactive ? resolved : resolved.appending(queryItems: [URLQueryItem(name: "viewOnly", value: "1")])
+            } catch {
+                if !Task.isCancelled { self.error = error.localizedDescription }
+            }
+        }
+    }
+}

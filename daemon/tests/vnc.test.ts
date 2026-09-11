@@ -4,16 +4,16 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { VncViewers } from '../scripts/experiments/vnc-lifecycle.js'
+import { VncViewers } from '../src/server/vnc-lifecycle.js'
 import { WebSocket } from 'ws'
-import { createVncPreview } from '../scripts/experiments/vnc-preview.js'
+import { createVncService } from '../src/server/vnc.js'
 
 const bot = '00000000-0000-0000-0000-000000000001'
 
-test('VNC experiment serves local modules, routes one display, and closes its child on disconnect', async () => {
+test('VNC service serves local modules, routes one display, and closes its child on disconnect', async () => {
   const displays: string[] = []
   let child: ReturnType<typeof spawn> | undefined
-  const server = createVncPreview({
+  const server = createVncService({
     token: 'test-capability',
     displayFor: async (id) => { assert.equal(id, bot); return ':104' },
     acquireDisplay: async (display) => ({
@@ -33,16 +33,16 @@ test('VNC experiment serves local modules, routes one display, and closes its ch
   const origin = `http://127.0.0.1:${address.port}`
   try {
     assert.equal((await fetch(`${origin}/wrong/viewer/${bot}`)).status, 404)
-    assert.equal((await fetch(`${origin}/test-capability/viewer/${bot}`)).status, 200)
-    const module = await fetch(`${origin}/test-capability/assets/core/rfb.js`)
+    assert.equal((await fetch(`${origin}/vnc/test-capability/viewer/${bot}`)).status, 200)
+    const module = await fetch(`${origin}/vnc/test-capability/assets/core/rfb.js`)
     assert.equal(module.status, 200)
     assert.match(await module.text(), /class RFB/)
-    assert.equal((await fetch(`${origin}/test-capability/assets/package.json`)).status, 404)
-    const denied = new WebSocket(`${origin.replace('http', 'ws')}/test-capability/connect/${bot}`, { origin: 'https://example.com' })
+    assert.equal((await fetch(`${origin}/vnc/test-capability/assets/package.json`)).status, 404)
+    const denied = new WebSocket(`${origin.replace('http', 'ws')}/vnc/test-capability/connect/${bot}`, { origin: 'https://example.com' })
     const [error] = await once(denied, 'error')
     assert.match(String(error), /403/)
     assert.deepEqual(displays, [])
-    const ws = new WebSocket(`${origin.replace('http', 'ws')}/test-capability/connect/${bot}`, { origin })
+    const ws = new WebSocket(`${origin.replace('http', 'ws')}/vnc/test-capability/connect/${bot}`, { origin })
     await once(ws, 'open')
     const received = once(ws, 'message')
     const bytes = Buffer.from([0, 255, 3, 128, 13, 10])
@@ -56,8 +56,8 @@ test('VNC experiment serves local modules, routes one display, and closes its ch
   } finally { await server.close() }
 })
 
-test('VNC experiment rejects a missing desktop without starting VNC', async () => {
-  const server = createVncPreview({
+test('VNC service rejects a missing desktop without starting VNC', async () => {
+  const server = createVncService({
     token: 'test-capability',
     displayFor: async () => { throw new Error('not running') },
     acquireDisplay: async () => { throw new Error('must not start') },
@@ -68,7 +68,7 @@ test('VNC experiment rejects a missing desktop without starting VNC', async () =
   assert.ok(address && typeof address === 'object')
   const origin = `http://127.0.0.1:${address.port}`
   try {
-    const ws = new WebSocket(`${origin.replace('http', 'ws')}/test-capability/connect/${bot}`, { origin })
+    const ws = new WebSocket(`${origin.replace('http', 'ws')}/vnc/test-capability/connect/${bot}`, { origin })
     ws.on('error', () => {})
     await once(ws, 'close')
   } finally { await server.close() }
@@ -163,7 +163,7 @@ for (const mode of ['force-quit', 'unresponsive', 'disconnect-during-startup'] a
     let released = 0
     let acquired = 0
     let finishStart: (() => void) | undefined
-    const server = createVncPreview({
+    const server = createVncService({
       token: 'test-capability', heartbeatMs: 25,
       displayFor: async () => ':101',
       acquireDisplay: async () => {
@@ -180,7 +180,7 @@ for (const mode of ['force-quit', 'unresponsive', 'disconnect-during-startup'] a
     const address = server.http.address()
     assert.ok(address && typeof address === 'object')
     const origin = `http://127.0.0.1:${address.port}`
-    const ws = new WebSocket(`${origin.replace('http', 'ws')}/test-capability/connect/${bot}`, {
+    const ws = new WebSocket(`${origin.replace('http', 'ws')}/vnc/test-capability/connect/${bot}`, {
       origin, autoPong: mode !== 'unresponsive',
     })
     ws.on('error', () => {})
@@ -200,8 +200,8 @@ for (const mode of ['force-quit', 'unresponsive', 'disconnect-during-startup'] a
 }
 
 
-test('mobile cursor bridge forwards shapes and hotspots, with fallback for invisible cursors', async () => {
-  const server = createVncPreview({
+test('viewer forwards cursor shapes and reconnects without retaining stale connections', async () => {
+  const server = createVncService({
     token: 'cursor-test',
     displayFor: async () => { throw new Error('must not access Docker') },
     acquireDisplay: async () => { throw new Error('must not start VNC') },
@@ -211,21 +211,28 @@ test('mobile cursor bridge forwards shapes and hotspots, with fallback for invis
   try {
     const address = server.http.address()
     assert.ok(address && typeof address === 'object')
-    const html = await (await fetch(`http://127.0.0.1:${address.port}/cursor-test/viewer/${bot}`)).text()
+    const html = await (await fetch(`http://127.0.0.1:${address.port}/vnc/cursor-test/viewer/${bot}`)).text()
     const script = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1]
     assert.ok(script)
     const messages: unknown[] = []
     let originalUpdates = 0
+    const timers: Array<() => void> = []
+    const documentEvents = new Map<string, () => void>()
     class RFB {
       constructor() { instance = this }
       _updateCursor(..._args: unknown[]) { originalUpdates++ }
-      addEventListener() {}
+      events = new Map<string, () => void>()
+      addEventListener(name: string, callback: () => void) { this.events.set(name, callback) }
+      disconnect() { this.events.get('disconnect')?.() }
     }
     let instance!: RFB
     const context = {
-      RFB, location: { host: 'localhost' }, Uint8ClampedArray,
+      RFB, location: { host: 'localhost', protocol: 'http:', search: '' }, Uint8ClampedArray, URLSearchParams,
+      clearTimeout() {}, setTimeout(callback: () => void) { timers.push(callback) },
       ImageData: class { constructor(..._args: unknown[]) {} },
       document: {
+        hidden: false,
+        addEventListener(name: string, callback: () => void) { documentEvents.set(name, callback) },
         querySelector: () => ({}),
         createElement: () => ({ getContext: () => ({ putImageData() {} }), toDataURL: () => 'data:image/png;base64,cursor' }),
       },
@@ -239,7 +246,67 @@ test('mobile cursor bridge forwards shapes and hotspots, with fallback for invis
     instance._updateCursor(new Uint8Array([0, 0, 0, 255]), 0, 0, 257, 1)
     assert.deepEqual(messages.slice(1), [null, null, null])
     assert.equal(originalUpdates, 4, 'preserve noVNC cursor processing')
+    const first = instance
+    first.disconnect()
+    assert.equal(timers.length, 1)
+    timers[0]!()
+    assert.notEqual(instance, first)
+    first.disconnect()
+    assert.equal(timers.length, 1, 'late close from old connection must not start another viewer')
+    context.document.hidden = true
+    documentEvents.get('visibilitychange')!()
+    assert.equal(timers.length, 1, 'hidden viewer must not reconnect')
+    context.document.hidden = false
+    const second = instance
+    documentEvents.get('visibilitychange')!()
+    assert.notEqual(instance, second)
     runInNewContext(script.replace(/^import .*;$/m, ''), { ...context, window: { addEventListener() {} } })
     assert.equal(instance._updateCursor, RFB.prototype._updateCursor, 'Mac has no native cursor hook')
   } finally { await server.close() }
+})
+
+
+test('the normal core listener resolves and serves VNC without starting Docker', async () => {
+  const { RoutiServer } = await import('../src/server/ws.js')
+  const { openDb } = await import('../src/db/schema.js')
+  const { Store } = await import('../src/db/store.js')
+  const db = openDb(':memory:')
+  const store = new Store(db)
+  store.ensureDefaultProfile()
+  const { bot: desktop } = store.createBot({ name: 'Viewer', surfaceMode: 'container' })
+  const server = new RoutiServer({ store, desktops: { for: () => ({}) } } as unknown as import('../src/server/rpc.js').RpcContext)
+  await server.listen(0, '127.0.0.1')
+  const address = server['http'].address()
+  assert.ok(address && typeof address === 'object')
+  const origin = `http://127.0.0.1:${address.port}`
+  const ws = new WebSocket(origin.replace('http:', 'ws:'))
+  try {
+    await once(ws, 'open')
+    const reply = once(ws, 'message')
+    ws.send(JSON.stringify({ t: 'rpc', id: 'viewer', method: 'surface.viewer', params: { botId: desktop.id } }))
+    const result = JSON.parse(String((await reply)[0]))
+    assert.equal(result.t, 'rpc_ok')
+    assert.match(result.result.path, /^\/vnc\/[a-f0-9]+\/viewer\//)
+    const page = await fetch(origin + result.result.path + '?viewOnly=1')
+    assert.equal(page.status, 200)
+    assert.match(await page.text(), /Reconnecting/)
+    assert.equal((await fetch(origin + '/vnc/invalid/viewer/' + desktop.id)).status, 404)
+  } finally { ws.terminate(); await server.close(); db.close() }
+})
+
+
+test('a stopped VNC server is invalidated before a viewer reconnects', async () => {
+  let starts = 0
+  let stops = 0
+  const viewers = new VncViewers({ start: async () => ++starts, stop: async () => { stops++ } })
+  try {
+    const stale = await viewers.acquire(':101')
+    await viewers.invalidate(':101')
+    const fresh = await viewers.acquire(':101')
+    assert.equal(fresh.server, 2)
+    stale.release()
+    assert.equal(stops, 1, 'late disconnect from old server cannot stop its replacement')
+    fresh.release()
+  } finally { await viewers.close() }
+  assert.equal(stops, 2)
 })

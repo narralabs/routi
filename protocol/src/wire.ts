@@ -116,12 +116,13 @@ export const RpcMethods = {
   'desktop.status': { params: z.object({}), result: z.object({ desktop: DesktopHostStatus }) },
   /** Builds the image if needed and starts the machine. Minutes, the first time. */
   'desktop.prepare': { params: z.object({}), result: z.object({ desktop: DesktopHostStatus }) },
+  /** Resolve a capability URL path on the same core HTTP endpoint. */
+  'surface.viewer': { params: z.object({ botId: z.string().uuid() }), result: z.object({ path: z.string() }) },
   'surface.status': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },
   'surface.start': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },
   'surface.stop': { params: z.object({ botId: z.string() }), result: z.object({ surface: SurfaceStatus }) },
   /**
-   * One frame, pulled. The client asks at whatever rate it can draw, so an idle
-   * window costs nothing and no stream runs with nobody watching.
+   * Host-screen capture only. Container viewers use surface.viewer and VNC.
    */
   'surface.frame': {
     params: z.object({ botId: z.string(), quality: z.number().int().min(1).max(10).default(6) }),

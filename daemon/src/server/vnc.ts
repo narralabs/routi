@@ -1,20 +1,15 @@
-/** Local, opt-in VNC experiment. Never started by routid or CI. See docs/VNC_EXPERIMENT.md. */
-import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { promisify } from 'node:util'
-import { randomBytes } from 'node:crypto'
+/** Capability-protected VNC transport, mounted on the core HTTP listeners. */
+import { type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import { WebSocketServer, createWebSocketStream } from 'ws'
-import { VncViewers } from './vnc-lifecycle.js'
 
-const run = promisify(execFile)
 const assets = dirname(dirname(createRequire(import.meta.url).resolve('@novnc/novnc')))
 const botID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i
 
-export function createVncPreview(options: {
+export function createVncService(options: {
   token: string
   displayFor: (bot: string) => Promise<string>
   acquireDisplay: (display: string) => Promise<{
@@ -23,7 +18,7 @@ export function createVncPreview(options: {
   }>
   heartbeatMs?: number
 }) {
-  const prefix = `/${options.token}`
+  const prefix = `/vnc/${options.token}`
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024, perMessageDeflate: false })
   let closing = false
   const alive = new Set<import('ws').WebSocket>()
@@ -40,7 +35,7 @@ export function createVncPreview(options: {
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('Referrer-Policy', 'no-referrer')
       res.setHeader('X-Content-Type-Options', 'nosniff')
-      const path = req.url ?? ''
+      const path = (req.url ?? '').split('?')[0]!
       if (req.method !== 'GET') { res.writeHead(405).end(); return }
       if (path.startsWith(`${prefix}/viewer/`) && botID.test(path.slice(`${prefix}/viewer/`.length))) {
         const bot = path.slice(`${prefix}/viewer/`.length)
@@ -62,11 +57,11 @@ export function createVncPreview(options: {
 
   http.on('upgrade', (req, socket, head) => {
     void (async () => {
-      const address = http.address()
-      const origin = typeof address === 'object' && address ? `http://127.0.0.1:${address.port}` : ''
+      const origin = req.headers.origin
+      const validOrigin = typeof origin === 'string' && ['http:', 'https:'].includes(new URL(origin).protocol) && new URL(origin).host === req.headers.host
       const path = req.url ?? ''
       const bot = path.startsWith(`${prefix}/connect/`) ? path.slice(`${prefix}/connect/`.length) : ''
-      if (!botID.test(bot) || req.headers.origin !== origin || req.headers.host !== origin.slice(7)) {
+      if (!botID.test(bot) || !validOrigin) {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return
       }
       if (closing) { socket.destroy(); return }
@@ -119,12 +114,13 @@ export function createVncPreview(options: {
   })
   return {
     http,
+    prefix,
     async close() {
       closing = true
       clearInterval(heartbeat)
       for (const ws of wss.clients) ws.terminate()
       await new Promise<void>((done) => wss.close(() => done()))
-      await new Promise<void>((done) => http.close(() => done()))
+      if (http.listening) await new Promise<void>((done) => http.close(() => done()))
       await Promise.allSettled(pending)
     },
   }
@@ -137,7 +133,14 @@ function viewerHTML(prefix: string, bot: string) {
 <body><div id="status">Connecting to desktop…</div><div id="screen"></div><script type="module">
 import RFB from '${prefix}/assets/core/rfb.js';
 const status = document.querySelector('#status');
-const rfb = new RFB(document.querySelector('#screen'), 'ws://' + location.host + '${prefix}/connect/${bot}');
+let rfb, retry, stopped = false;
+function connect() {
+  clearTimeout(retry);
+  if (stopped || document.hidden) return;
+  const previous = rfb; rfb = null; previous?.disconnect();
+  status.hidden = false; status.textContent = 'Connecting to desktop…';
+  const connection = new RFB(document.querySelector('#screen'), (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '${prefix}/connect/${bot}');
+  rfb = connection;
 // noVNC 1.7.0 has no public cursor event. Keep this private hook isolated here.
 // Only the native mobile viewer registers this handler; Mac behavior is unchanged.
 if (window.webkit?.messageHandlers?.cursor && typeof rfb._updateCursor === 'function') {
@@ -154,70 +157,27 @@ if (window.webkit?.messageHandlers?.cursor && typeof rfb._updateCursor === 'func
     window.webkit.messageHandlers.cursor.postMessage({png: canvas.toDataURL('image/png').split(',')[1], hotx, hoty});
   };
 }
+rfb.viewOnly = new URLSearchParams(location.search).get('viewOnly') === '1';
 rfb.scaleViewport = true;
 rfb.resizeSession = false;
 rfb.qualityLevel = 6;
 rfb.compressionLevel = 2;
 rfb.addEventListener('connect', () => { status.hidden = true; rfb.focus(); });
-rfb.addEventListener('disconnect', () => { status.hidden = false; status.textContent = 'Desktop disconnected. Switch to JPEG or reopen VNC to retry.'; });
+rfb.addEventListener('disconnect', () => {
+  if (rfb !== connection) return;
+  window.webkit?.messageHandlers?.cursor?.postMessage(null);
+  status.hidden = false; status.textContent = 'Desktop disconnected. Reconnecting…';
+  if (!stopped && !document.hidden) retry = setTimeout(connect, 2000);
+});
 rfb.addEventListener('securityfailure', () => { status.hidden = false; status.textContent = 'VNC connection rejected.'; });
-window.addEventListener('pagehide', () => rfb.disconnect());
-window.disconnectVNC = () => rfb.disconnect();
+}
+window.disconnectVNC = () => { stopped = true; clearTimeout(retry); rfb?.disconnect(); };
+window.addEventListener('pagehide', window.disconnectVNC);
+document.addEventListener('visibilitychange', () => {
+  clearTimeout(retry);
+  if (document.hidden) rfb?.disconnect(); else connect();
+});
+connect();
 </script></body></html>`
 }
 
-async function main() {
-  const docker = process.env['ROUTI_DOCKER_BIN'] ?? 'docker'
-  const container = process.env['ROUTI_VNC_CONTAINER'] ?? 'routi-desktop'
-  const port = Number(process.env['ROUTI_VNC_PORT'] ?? 7173)
-  const token = randomBytes(24).toString('hex')
-  const logPrefix = `/tmp/routi-vnc-${token}`
-  const viewers = new VncViewers({
-    async start(display: string) {
-      const number = Number(display.slice(1))
-      const log = `${logPrefix}-${number}.log`
-      // XFixes supplies the real cursor shape. Do not use -noxfixes or a fixed arrow.
-      await run(docker, ['exec', '-e', `DISPLAY=${display}`, container,
-        'x11vnc', '-display', display, '-localhost', '-rfbport', String(15900 + number - 99),
-        '-nopw', '-quiet', '-noxdamage', '-noxrecord', '-shared', '-forever', '-bg', '-o', log],
-        { timeout: 10000 })
-      return log
-    },
-    async stop(_display: string, log: string) {
-      // This random log identifies only this bridge's server, not the X desktop.
-      await run(docker, ['exec', container, 'pkill', '-KILL', '-f', `^x11vnc .*${log}$`], { timeout: 5000 })
-        .catch((error) => { if (error.code !== 1) throw error })
-      await run(docker, ['exec', container, 'rm', '-f', log], { timeout: 5000 })
-    },
-  })
-  const server = createVncPreview({
-    token,
-    async displayFor(bot) {
-      const { stdout } = await run(docker, ['exec', container, 'screenctl', 'live', bot], { timeout: 5000 })
-      const number = Number(stdout.trim())
-      if (!Number.isInteger(number) || number < 99 || number > 148) throw new Error('Desktop is not running')
-      return `:${number}`
-    },
-    async acquireDisplay(display) {
-      const lease = await viewers.acquire(display)
-      return {
-        release: lease.release,
-        // VNC stays on container loopback; no published Docker ports.
-        open: () => spawn(docker, ['exec', '-i', container, 'socat', 'STDIO',
-          `TCP:127.0.0.1:${15900 + Number(display.slice(1)) - 99}`]),
-      }
-    },
-  })
-  server.http.once('error', (error) => { console.error(error.message); process.exitCode = 1 })
-  server.http.listen(port, '127.0.0.1', () => {
-    console.log(`VNC_PREVIEW_URL=http://127.0.0.1:${port}/${token}/viewer`)
-  })
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => {
-    void (async () => {
-      await server.close()
-      await viewers.close()
-    })()
-  })
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) void main()

@@ -13,7 +13,6 @@ import UIKit
 struct MobileScreen: View {
     @Environment(AppModel.self) private var model
     @State private var frameViewer = UUID()
-    @State private var useVNC = true
     /// Relative pointing, like a trackpad, is the default: the pointer starts in the
     /// middle and a finger anywhere on the screen moves it by its travel. Measured
     /// against how a hand actually uses a phone, and how Grok Bot's app behaves.
@@ -31,29 +30,16 @@ struct MobileScreen: View {
     #if DEBUG
     /// What the desktop was last sent, for the UI tests to read back.
     @State private var inputLog: [String] = []
-    @State private var vncCursor: VNCCursor?
     #endif
+    @State private var vncCursor: VNCCursor?
 
     private var bot: Bot? { model.selectedBot }
 
-    private var vncURL: URL? {
-        #if DEBUG
-        guard bot?.surfaceMode == .container,
-              let botID = bot?.id,
-              let base = UserDefaults.standard.string(forKey: "vncPreviewURL"),
-              let url = URL(string: base), url.scheme == "http", url.host == "127.0.0.1"
-        else { return nil }
-        return url.appendingPathComponent(botID)
-        #else
-        return nil
-        #endif
-    }
-
-    private var showingVNC: Bool { useVNC && vncURL != nil }
+    private var showingVNC: Bool { bot?.surfaceMode == .container }
 
     private func updateFramePolling() {
-        if showingVNC { model.endFrames(frameViewer) }
-        else { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
+        if showingVNC { model.endHostFrames(frameViewer) }
+        else { model.beginHostFrames(frameViewer, interval: .milliseconds(120)) }
     }
 
     var body: some View {
@@ -79,7 +65,7 @@ struct MobileScreen: View {
         .statusBarHidden(false)
         .onAppear { updateFramePolling() }
         .onChange(of: showingVNC) { updateFramePolling() }
-        .onDisappear { model.endFrames(frameViewer) }
+        .onDisappear { model.endHostFrames(frameViewer) }
         .onChange(of: model.surfaceFrame, initial: true) { _, data in
             frameImage = data.flatMap(UIImage.init(data:))
         }
@@ -114,12 +100,6 @@ struct MobileScreen: View {
             Spacer()
             RoundButton(systemName: "questionmark") { showingHelp = true }
             Menu {
-                if vncURL != nil {
-                    Picker("Viewer", selection: $useVNC) {
-                        Text("VNC").tag(true)
-                        Text("JPEG").tag(false)
-                    }
-                }
                 Toggle(isOn: $trackpadMode) { Label("Trackpad mode", systemImage: "cursorarrow.rays") }
                 Toggle(isOn: Binding(get: { !trackpadMode }, set: { trackpadMode = !$0 })) {
                     Label("Tap where you touch", systemImage: "hand.tap")
@@ -241,7 +221,6 @@ struct MobileScreen: View {
 
     @ViewBuilder
     private var mobileCursor: some View {
-        #if DEBUG
         if showingVNC, let cursor = vncCursor {
             let scale = 26 / max(cursor.image.size.width, cursor.image.size.height)
             Image(uiImage: cursor.image).resizable()
@@ -251,26 +230,17 @@ struct MobileScreen: View {
         } else {
             RemoteCursor(size: 26)
         }
-        #else
-        RemoteCursor(size: 26)
-        #endif
     }
 
     @ViewBuilder
     private var framebuffer: some View {
-        #if DEBUG
-        if showingVNC, let url = vncURL {
-            // VNC supplies pixels; TouchLayer owns the whole pane and input.
-            VNCPreview(url: url, onCursor: { vncCursor = $0 })
-                .id(url)
+        if showingVNC, let bot {
+            DesktopViewer(botID: bot.id, onCursor: { vncCursor = $0 })
                 .allowsHitTesting(false)
                 .onDisappear { vncCursor = nil }
         } else {
             jpegFrame
         }
-        #else
-        jpegFrame
-        #endif
     }
 
     private var jpegFrame: some View {

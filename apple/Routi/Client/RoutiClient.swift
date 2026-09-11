@@ -58,6 +58,11 @@ final class RoutiClient: NSObject {
         self.session = URLSession(configuration: .default)
     }
 
+    func httpURL(path: String) -> URL? {
+        guard path.hasPrefix("/vnc/") else { return nil }
+        return URL(string: "http://\(host):\(port)\(path)")
+    }
+
     func updateEndpoint(host: String, port: Int) {
         // The same address typed again is a request to try it again, not a no-op —
         // onboarding's Connect button would otherwise sit through its whole wait.

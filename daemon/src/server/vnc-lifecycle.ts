@@ -57,6 +57,11 @@ export class VncViewers<T> {
     return entry.stopping
   }
 
+  async invalidate(display: string) {
+    const entry = this.displays.get(display)
+    if (entry) await this.stop(display, entry)
+  }
+
   async close() {
     this.closed = true
     await Promise.allSettled([...this.displays].map(([display, entry]) => this.stop(display, entry)))

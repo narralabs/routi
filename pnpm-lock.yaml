@@ -16,6 +16,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.124.0
         version: 0.124.0(zod@4.5.4)
+      '@novnc/novnc':
+        specifier: 1.7.0
+        version: 1.7.0
       '@openai/codex':
         specifier: ^0.153.4
         version: 0.153.4
@@ -38,9 +41,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@4.5.4)
-      '@novnc/novnc':
-        specifier: 1.7.0
-        version: 1.7.0
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0

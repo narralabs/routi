@@ -8,22 +8,7 @@ import SwiftUI
 struct ScreenWindow: View {
     @Environment(AppModel.self) private var model
     @State private var frameViewer = UUID()
-    @State private var useVNC = true
-
-    private var vncURL: URL? {
-        #if os(macOS) && DEBUG
-        guard model.selectedBot?.surfaceMode == .container,
-              let botID = model.selectedBot?.id,
-              let base = UserDefaults.standard.string(forKey: "vncPreviewURL"),
-              let url = URL(string: base), url.scheme == "http", url.host == "127.0.0.1"
-        else { return nil }
-        return url.appendingPathComponent(botID)
-        #else
-        return nil
-        #endif
-    }
-
-    private var showingVNC: Bool { useVNC && vncURL != nil }
+    private var showingVNC: Bool { model.selectedBot?.surfaceMode == .container }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,27 +32,26 @@ struct ScreenWindow: View {
         }
         .background(.black.opacity(0.92))
         .onAppear { updateFramePolling() }
-        .task(id: model.selectedBot?.id) { await model.refreshSurface() }
+        .task(id: model.selectedBot?.id) {
+            await model.refreshSurface()
+            await model.startSurface()
+        }
         .onChange(of: showingVNC) { _, _ in updateFramePolling() }
-        .onDisappear { model.endFrames(frameViewer) }
+        .onDisappear { model.endHostFrames(frameViewer) }
     }
 
     private func updateFramePolling() {
-        if showingVNC { model.endFrames(frameViewer) }
-        else { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
+        if showingVNC { model.endHostFrames(frameViewer) }
+        else { model.beginHostFrames(frameViewer, interval: .milliseconds(120)) }
     }
 
     @ViewBuilder
     private var desktopViewer: some View {
-        #if os(macOS) && DEBUG
-        if showingVNC, let url = vncURL {
-            VNCPreview(url: url)
+        if showingVNC, let bot = model.selectedBot {
+            DesktopViewer(botID: bot.id)
         } else {
             jpegViewer
         }
-        #else
-        jpegViewer
-        #endif
     }
 
     private var jpegViewer: some View {
@@ -88,17 +72,8 @@ struct ScreenWindow: View {
                 .font(.system(size: 13, weight: .semibold))
 
             Spacer()
-
-            if vncURL != nil {
-                Picker("Viewer", selection: $useVNC) {
-                    Text("JPEG").tag(false)
-                    Text("VNC").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 130)
-                Button("Paste") { Task { await model.pasteIntoSurface() } }
-            }
+            Button("Paste") { Task { await model.pasteIntoSurface() } }
+                .controlSize(.small)
 
             Text("Click and type to drive it")
                 .font(.system(size: 11))

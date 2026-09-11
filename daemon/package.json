@@ -27,11 +27,11 @@
     "better-sqlite3": "^13.0.3",
     "openai": "^7.10.0",
     "ws": "^8.21.3",
-    "zod": "^4.5.4"
+    "zod": "^4.5.4",
+    "@novnc/novnc": "1.7.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@novnc/novnc": "1.7.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.4.1",
     "@types/ws": "^8.18.1",

@@ -476,7 +476,22 @@ applies them per turn (Codex takes them on `turn/start`, not `thread/start`), so
 keeps its session — a harness bot's session is its memory of the chat — and answers the
 next message on the new model. Only a changed description drops the warm sessions,
 since that is a stale system prompt. Codex's models come from `model/list` at run time,
-not a hardcoded pair; `default` names the plan's current default.
+not a hardcoded pair; `default` names the plan's current default. Each model-list
+request and turn reads all pages of the authenticated runtime's visible catalog,
+without a second indefinite cache in Routi. Saved selections absent from that list
+are marked unavailable in the app and rejected before starting a model turn. The
+person chooses a replacement; Routi does not silently rewrite their bot. Default
+is sent as the resolved model even for warm threads, so it can replace a previously
+selected model. The runtime catalog is not a guarantee that a subsequent request
+will succeed: account restrictions and provider errors still reach the chat.
+
+Codex reports failed turns through `turn/completed` with `status: "failed"` and
+`error`, not only a separate failure event. The adapter preserves that error and
+distinguishes interrupted turns from success. Retry notifications keep the turn
+running. Terminal error notifications are retained until completion, so the prior
+turn finishes before queued work starts. `daemon/tests/codex-chat.test.ts` uses a
+synthetic app-server transport through the real adapter and session manager; no
+account credentials or model tokens are used.
 
 **Messages are block arrays, never strings.** One assistant turn interleaves prose,
 screenshots and tool cards, and deltas are addressed by block index, which is what lets a

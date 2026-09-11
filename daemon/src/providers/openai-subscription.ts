@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { codexBinary } from '../auth/codex-cli.js'
-import { CodexAppServer, type AppServerEvent } from './codex-app-server.js'
+import { CodexAppServer, type AppServerEvent, type CodexAppServerOptions } from './codex-app-server.js'
 import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
 import { replayTranscript } from './replay.js'
 import { sessionKey } from './types.js'
@@ -24,6 +24,7 @@ import type { ChatRequest, ProviderAdapter, ProviderEvent } from './types.js'
 /** What `model/list` returns, as much of it as this reads. */
 interface CodexModel {
   id: string
+  model?: string
   displayName?: string
   description?: string
   hidden?: boolean
@@ -62,17 +63,17 @@ function toModelInfo(models: CodexModel[]): ModelInfo[] {
       id: 'default',
       displayName: preferred ? `Default (${preferred.displayName ?? preferred.id})` : 'Default',
       description: "Whatever your ChatGPT plan's default is, which keeps working when OpenAI ships something new.",
-      ...(preferred ? { resolvedModel: preferred.id } : {}),
+      ...(preferred ? { resolvedModel: preferred.model ?? preferred.id } : {}),
       effortLevels: efforts(preferred),
       defaultEffort: defaultEffort(preferred),
     },
   ]
   for (const m of visible) {
     list.push({
-      id: m.id,
+      id: m.model ?? m.id,
       displayName: m.displayName ?? m.id,
       description: m.description ?? '',
-      resolvedModel: m.id,
+      resolvedModel: m.model ?? m.id,
       effortLevels: efforts(m),
       defaultEffort: defaultEffort(m),
     })
@@ -127,11 +128,13 @@ function isolatedCodexHome(dataDir: string, linkLogin = true): string {
   return home
 }
 
+type AppServer = Pick<CodexAppServer, 'ready' | 'request' | 'dispose'>
+
 export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   readonly id = 'openai'
   readonly supportsSurface = true
 
-  private server: CodexAppServer | null = null
+  private server: AppServer | null = null
   private readonly env: Record<string, string>
   /** Conversation to Codex thread, so a reply continues where the last one stopped. */
   private readonly threads = new Map<string, string>()
@@ -141,6 +144,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
 
   constructor(
     private readonly opts: { cwd: string; dataDir: string; mcpBaseUrl: string; apiKey?: string; ownLogin?: boolean },
+    private readonly createServer: (opts: CodexAppServerOptions) => AppServer = (opts) => new CodexAppServer(opts),
   ) {
     const home = isolatedCodexHome(opts.dataDir, !opts.ownLogin)
     // Given in full because supplying env stops the child inheriting process.env —
@@ -155,14 +159,22 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     }
   }
 
-  private modelCache: ModelInfo[] | null = null
-
   async listModels(): Promise<ModelInfo[]> {
-    if (this.modelCache) return this.modelCache
+    // Ask the authenticated runtime each time; a daemon can outlive model availability.
     const server = await this.serverFor({ conversationId: 'models', botId: 'models' } as ChatRequest, () => {})
-    const answer = (await server.request('model/list', {}, 30_000)) as { data?: CodexModel[] }
-    this.modelCache = toModelInfo(answer.data ?? [])
-    return this.modelCache
+    const models: CodexModel[] = []
+    let cursor: string | null = null
+    const seen = new Set<string>()
+    do {
+      const answer = await server.request('model/list', { includeHidden: false, cursor }, 30_000) as {
+        data: CodexModel[]; nextCursor?: string | null
+      }
+      models.push(...answer.data)
+      cursor = answer.nextCursor ?? null
+      if (cursor && seen.has(cursor)) throw new Error('Codex returned a repeated model-list cursor.')
+      if (cursor) seen.add(cursor)
+    } while (cursor)
+    return toModelInfo(models)
   }
 
   async accountInfo(): Promise<AccountInfo> {
@@ -177,6 +189,16 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
       .trim()
     if (!prompt) {
       yield { type: 'done', stopReason: 'end_turn', meta: {} }
+      return
+    }
+
+    const models = await this.listModels()
+    const selected = models.find((model) => model.id === (req.model || 'default'))
+    if (!selected?.resolvedModel) {
+      yield {
+        type: 'error', code: 'model_unavailable',
+        message: `The model "${req.model || 'default'}" is no longer available for this Codex connection. Choose a supported model from the model menu, then send your message again.`,
+      }
       return
     }
 
@@ -199,8 +221,10 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
     const open = new Map<string, { at: number; kind: string }>()
     const meta: Record<string, unknown> = {}
     let finished = false
+    let terminalError: string | null = null
 
     const server = await this.serverFor(req, (event) => {
+      if (finished) return
       const item = (event.params['item'] ?? {}) as Record<string, any>
 
       switch (event.method) {
@@ -242,9 +266,22 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
           const turn = (event.params['turn'] ?? {}) as Record<string, any>
           if (turn['usage']) meta['usage'] = turn['usage']
           finished = true
-          push({ type: 'done', stopReason: 'end_turn', meta })
+          if (turn['status'] === 'failed' || turn['error'] || terminalError) {
+            push({ type: 'error', code: 'turn_failed', message: turn['error']?.message ?? terminalError ?? 'The Codex turn failed.' })
+          } else {
+            push({ type: 'done', stopReason: turn['status'] === 'interrupted' ? 'interrupted' : 'end_turn', meta })
+          }
           break
         }
+
+        case 'error':
+          // Completion follows even a terminal error. Keep this turn active until
+          // then so its completion cannot accidentally finish the next queued turn.
+          if (event.params['willRetry'] !== true) {
+            const error = (event.params['error'] ?? {}) as Record<string, unknown>
+            terminalError = String(error['message'] ?? 'The Codex turn failed.')
+          }
+          break
 
         case 'turn/failed': {
           finished = true
@@ -267,7 +304,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
         input: [{ type: 'text', text }],
         // Per turn rather than per thread: the schema puts them here, and a bot
         // switched mid-conversation keeps its thread and answers on the new model.
-        ...(req.model && req.model !== 'default' ? { model: req.model } : {}),
+        model: selected.resolvedModel,
         ...(req.effort ? { effort: normaliseEffort(req.effort) } : {}),
       })
       .catch((err: unknown) => {
@@ -300,10 +337,10 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
   private async serverFor(
     req: ChatRequest,
     onEvent: (event: AppServerEvent) => void,
-  ): Promise<CodexAppServer> {
+  ): Promise<AppServer> {
     this.listeners.set(sessionKey(req), onEvent)
 
-    this.server ??= new CodexAppServer({
+    this.server ??= this.createServer({
       binary: codexBinary(),
       env: this.env,
       // Fanned out by thread: one process serves every conversation, and a turn's
@@ -321,7 +358,7 @@ export class OpenAiSubscriptionAdapter implements ProviderAdapter {
 
   private async threadFor(
     req: ChatRequest,
-    server: CodexAppServer,
+    server: AppServer,
   ): Promise<{ threadId: string; created: boolean }> {
     const existing = this.threads.get(sessionKey(req))
     if (existing) return { threadId: existing, created: false }

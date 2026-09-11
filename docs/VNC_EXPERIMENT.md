@@ -1,6 +1,6 @@
 # Local VNC viewer experiment
 
-This is an opt-in Mac Debug experiment, not a replacement for the released viewer.
+This is an opt-in Mac and iOS simulator Debug experiment, not a replacement for the released viewer.
 The build uses its own app identifier so it can coexist with the regular app.
 The daemon and Docker image are unchanged. Agent screenshot tools are unchanged.
 
@@ -41,7 +41,7 @@ Do not point the app and bridge at different desktop hosts.
 ## Connection
 
 ```text
-Mac WKWebView + locally served noVNC
+Mac / iOS simulator WKWebView + locally served noVNC
   → binary WebSocket to the temporary localhost bridge
   → docker exec -i → socat → container-loopback TCP → x11vnc
   → the bot's existing X display
@@ -137,5 +137,47 @@ The lifecycle update passes all 37 offline tests. A real local viewer process wa
 SIGKILLed while connected through the bridge to Docker display :99: its VNC server
 was gone after the 30-second grace period, while the existing Mac viewer's server
 on :101 remained running. A read-only RFB check also received a cursor-image update
-from the XFixes-enabled server. Visual cursor-shape verification remains a manual
-check in the Mac preview.
+from the XFixes-enabled server. The user also confirmed hand and I-beam cursor changes in the Mac preview.
+
+
+## iOS simulator preview
+
+The Debug mobile desktop also accepts `-vncPreviewURL` and defaults to VNC when
+that option is present for a container bot. Its ellipsis menu switches between
+VNC and JPEG. Both retain the native full-pane TouchLayer, default trackpad mode,
+26-point pointer, zoom and pan. The VNC web view only supplies pixels and cannot
+receive input, so gestures are not sent twice. Pointer, keyboard and clipboard
+input still use daemon RPCs.
+JPEG polling stops while VNC is selected. Closing the view disconnects its socket.
+
+For a simulator build, temporarily enable `supportedDestinations: [macOS, iOS]`
+in `apple/project.yml`, regenerate with XcodeGen, and build the Routi scheme with
+`-sdk iphonesimulator CODE_SIGNING_ALLOWED=NO`. Restore the local destination
+configuration after building. Install the Debug app with `xcrun simctl install`
+and launch with the same preview arguments above, including the local daemon host,
+port, preview URL and bot ID. No Apple signing account is needed for the simulator.
+
+Validated: iPhone 17 Pro simulator on iOS 26.5 builds, launches, connects to the
+existing dev daemon and renders Codex Probe's desktop over VNC. Touch, keyboard
+and paste behavior still need hands-on mobile testing. The simulator shares the
+Mac's loopback network; this local-only bridge does not yet support a physical
+phone. Remote authenticated routing remains production follow-up work.
+
+
+### Mobile cursor shapes
+
+The mobile overlay now receives the VNC cursor bitmap and hotspot through a
+WKScriptMessageHandler, displaying it at 26 points and aligning the hotspot with
+the native pointer position. The existing arrow remains the fallback for missing,
+empty or invalid cursor images. Input and full-pane trackpad gestures are unchanged.
+Only shape changes cross this bridge; pointer movement does not transfer images.
+
+noVNC 1.7.0 has no public cursor-change event. The preview HTML wraps its private
+`_updateCursor` method only when the mobile message handler exists. Keep this hook
+under review when upgrading the pinned noVNC dependency; the Mac path is unchanged.
+The message handler is removed when the mobile web view is dismantled.
+
+Validated in the iPhone simulator: the received arrow changes to an I-beam over
+browser text. Mac and simulator builds and all 38 offline bridge/core tests pass. The cursor
+bridge test covers bitmap/hotspot forwarding, invalid/empty-image fallback and
+the unchanged Mac path.

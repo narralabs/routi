@@ -1,4 +1,5 @@
 import test from 'node:test'
+import { runInNewContext } from 'node:vm'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
@@ -197,3 +198,48 @@ for (const mode of ['force-quit', 'unresponsive', 'disconnect-during-startup'] a
     } finally { ws.terminate(); finishStart?.(); await server.close() }
   })
 }
+
+
+test('mobile cursor bridge forwards shapes and hotspots, with fallback for invisible cursors', async () => {
+  const server = createVncPreview({
+    token: 'cursor-test',
+    displayFor: async () => { throw new Error('must not access Docker') },
+    acquireDisplay: async () => { throw new Error('must not start VNC') },
+  })
+  server.http.listen(0, '127.0.0.1')
+  await once(server.http, 'listening')
+  try {
+    const address = server.http.address()
+    assert.ok(address && typeof address === 'object')
+    const html = await (await fetch(`http://127.0.0.1:${address.port}/cursor-test/viewer/${bot}`)).text()
+    const script = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1]
+    assert.ok(script)
+    const messages: unknown[] = []
+    let originalUpdates = 0
+    class RFB {
+      constructor() { instance = this }
+      _updateCursor(..._args: unknown[]) { originalUpdates++ }
+      addEventListener() {}
+    }
+    let instance!: RFB
+    const context = {
+      RFB, location: { host: 'localhost' }, Uint8ClampedArray,
+      ImageData: class { constructor(..._args: unknown[]) {} },
+      document: {
+        querySelector: () => ({}),
+        createElement: () => ({ getContext: () => ({ putImageData() {} }), toDataURL: () => 'data:image/png;base64,cursor' }),
+      },
+      window: { webkit: { messageHandlers: { cursor: { postMessage: (message: unknown) => messages.push(message) } } }, addEventListener() {} },
+    }
+    runInNewContext(script.replace(/^import .*;$/m, ''), context)
+    instance._updateCursor(new Uint8Array([0, 0, 0, 255, 0, 0, 0, 255]), 1, 0, 2, 1)
+    assert.equal(JSON.stringify(messages[0]), JSON.stringify({ png: 'cursor', hotx: 1, hoty: 0 }))
+    instance._updateCursor(new Uint8Array(4), 0, 0, 1, 1)
+    instance._updateCursor(new Uint8Array(), 0, 0, 0, 0)
+    instance._updateCursor(new Uint8Array([0, 0, 0, 255]), 0, 0, 257, 1)
+    assert.deepEqual(messages.slice(1), [null, null, null])
+    assert.equal(originalUpdates, 4, 'preserve noVNC cursor processing')
+    runInNewContext(script.replace(/^import .*;$/m, ''), { ...context, window: { addEventListener() {} } })
+    assert.equal(instance._updateCursor, RFB.prototype._updateCursor, 'Mac has no native cursor hook')
+  } finally { await server.close() }
+})

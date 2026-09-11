@@ -13,6 +13,7 @@ import UIKit
 struct MobileScreen: View {
     @Environment(AppModel.self) private var model
     @State private var frameViewer = UUID()
+    @State private var useVNC = true
     /// Relative pointing, like a trackpad, is the default: the pointer starts in the
     /// middle and a finger anywhere on the screen moves it by its travel. Measured
     /// against how a hand actually uses a phone, and how Grok Bot's app behaves.
@@ -30,9 +31,30 @@ struct MobileScreen: View {
     #if DEBUG
     /// What the desktop was last sent, for the UI tests to read back.
     @State private var inputLog: [String] = []
+    @State private var vncCursor: VNCCursor?
     #endif
 
     private var bot: Bot? { model.selectedBot }
+
+    private var vncURL: URL? {
+        #if DEBUG
+        guard bot?.surfaceMode == .container,
+              let botID = bot?.id,
+              let base = UserDefaults.standard.string(forKey: "vncPreviewURL"),
+              let url = URL(string: base), url.scheme == "http", url.host == "127.0.0.1"
+        else { return nil }
+        return url.appendingPathComponent(botID)
+        #else
+        return nil
+        #endif
+    }
+
+    private var showingVNC: Bool { useVNC && vncURL != nil }
+
+    private func updateFramePolling() {
+        if showingVNC { model.endFrames(frameViewer) }
+        else { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,7 +77,8 @@ struct MobileScreen: View {
         #endif
         .preferredColorScheme(.dark)
         .statusBarHidden(false)
-        .onAppear { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
+        .onAppear { updateFramePolling() }
+        .onChange(of: showingVNC) { updateFramePolling() }
         .onDisappear { model.endFrames(frameViewer) }
         .onChange(of: model.surfaceFrame, initial: true) { _, data in
             frameImage = data.flatMap(UIImage.init(data:))
@@ -91,6 +114,12 @@ struct MobileScreen: View {
             Spacer()
             RoundButton(systemName: "questionmark") { showingHelp = true }
             Menu {
+                if vncURL != nil {
+                    Picker("Viewer", selection: $useVNC) {
+                        Text("VNC").tag(true)
+                        Text("JPEG").tag(false)
+                    }
+                }
                 Toggle(isOn: $trackpadMode) { Label("Trackpad mode", systemImage: "cursorarrow.rays") }
                 Toggle(isOn: Binding(get: { !trackpadMode }, set: { trackpadMode = !$0 })) {
                     Label("Tap where you touch", systemImage: "hand.tap")
@@ -198,29 +227,67 @@ struct MobileScreen: View {
 
     @ViewBuilder
     private func picture(size: CGSize, fitted: CGSize) -> some View {
-                Group {
-                    if let image = frameImage {
-                        Image(uiImage: image).resizable().interpolation(.medium)
-                    } else {
-                        ZStack {
-                            Color.black
-                            VStack(spacing: 10) {
-                                ProgressView().tint(.white)
-                                Text(model.surface.state == .running ? "Waiting for a frame…" : "Starting the desktop…")
-                                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
-                            }
-                        }
+        framebuffer
+            .frame(width: fitted.width, height: fitted.height)
+            .overlay(alignment: .topLeading) {
+                if let pointer = pointerToDraw, fitted.width > 0, size.width > 0 {
+                    let scale = fitted.width / size.width
+                    mobileCursor
+                        .offset(x: pointer.x * scale, y: pointer.y * scale)
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var mobileCursor: some View {
+        #if DEBUG
+        if showingVNC, let cursor = vncCursor {
+            let scale = 26 / max(cursor.image.size.width, cursor.image.size.height)
+            Image(uiImage: cursor.image).resizable()
+                .frame(width: cursor.image.size.width * scale, height: cursor.image.size.height * scale)
+                .offset(x: -cursor.hotspot.x * scale, y: -cursor.hotspot.y * scale)
+                .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+        } else {
+            RemoteCursor(size: 26)
+        }
+        #else
+        RemoteCursor(size: 26)
+        #endif
+    }
+
+    @ViewBuilder
+    private var framebuffer: some View {
+        #if DEBUG
+        if showingVNC, let url = vncURL {
+            // VNC supplies pixels; TouchLayer owns the whole pane and input.
+            VNCPreview(url: url, onCursor: { vncCursor = $0 })
+                .id(url)
+                .allowsHitTesting(false)
+                .onDisappear { vncCursor = nil }
+        } else {
+            jpegFrame
+        }
+        #else
+        jpegFrame
+        #endif
+    }
+
+    private var jpegFrame: some View {
+        Group {
+            if let image = frameImage {
+                Image(uiImage: image).resizable().interpolation(.medium)
+            } else {
+                ZStack {
+                    Color.black
+                    VStack(spacing: 10) {
+                        ProgressView().tint(.white)
+                        Text(model.surface.state == .running ? "Waiting for a frame…" : "Starting the desktop…")
+                            .font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
                     }
                 }
-                .frame(width: fitted.width, height: fitted.height)
-                .overlay(alignment: .topLeading) {
-                    if let pointer = pointerToDraw, fitted.width > 0, size.width > 0 {
-                        let scale = fitted.width / size.width
-                        RemoteCursor(size: 26)
-                            .offset(x: pointer.x * scale, y: pointer.y * scale)
-                            .allowsHitTesting(false)
-                    }
-                }
+            }
+        }
     }
 
     /// The pointer the finger last put somewhere wins over the frame's, which lags it;

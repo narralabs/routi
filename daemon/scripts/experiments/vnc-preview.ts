@@ -138,6 +138,22 @@ function viewerHTML(prefix: string, bot: string) {
 import RFB from '${prefix}/assets/core/rfb.js';
 const status = document.querySelector('#status');
 const rfb = new RFB(document.querySelector('#screen'), 'ws://' + location.host + '${prefix}/connect/${bot}');
+// noVNC 1.7.0 has no public cursor event. Keep this private hook isolated here.
+// Only the native mobile viewer registers this handler; Mac behavior is unchanged.
+if (window.webkit?.messageHandlers?.cursor && typeof rfb._updateCursor === 'function') {
+  const updateCursor = rfb._updateCursor.bind(rfb);
+  rfb._updateCursor = (rgba, hotx, hoty, w, h) => {
+    updateCursor(rgba, hotx, hoty, w, h);
+    if (!w || !h || w > 256 || h > 256 || !rgba.some((v, i) => i % 4 === 3 && v)) {
+      window.webkit.messageHandlers.cursor.postMessage(null);
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba), w, h), 0, 0);
+    window.webkit.messageHandlers.cursor.postMessage({png: canvas.toDataURL('image/png').split(',')[1], hotx, hoty});
+  };
+}
 rfb.scaleViewport = true;
 rfb.resizeSession = false;
 rfb.qualityLevel = 6;

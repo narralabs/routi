@@ -842,7 +842,6 @@ final class AppModel {
     func setApiKey(_ key: String) async throws {
         _ = try await providerSetApiKey("anthropic", key: key)
         authKnown = true
-        await refreshAll()
     }
 
     func models(for provider: String) -> [ModelInfo] {
@@ -891,9 +890,7 @@ final class AppModel {
 
     /// Connects a provider and reports what the check actually proved.
     ///
-    /// The provider's own models are reloaded here rather than left to the next general
-    /// refresh: a key that has just been accepted should put its models in the picker
-    /// immediately, and waiting made a provider look like it offered only one.
+    /// Refreshes app state, including configured providers' models, before returning.
     @discardableResult
     func providerSetApiKey(_ provider: String, key: String) async throws -> String? {
         let result = try await client.rpc(
@@ -906,7 +903,6 @@ final class AppModel {
             auth = decoded
             if currentProfileID == Profile.defaultID { coreConfigured = decoded.configured }
         }
-        await loadModels(for: provider)
         await refreshAll()
         return result["verified"] as? String
     }

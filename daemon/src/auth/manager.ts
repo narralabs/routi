@@ -517,23 +517,6 @@ export class AuthManager {
     }
   }
 
-  /** The onboarding sign-in: Claude Code, by its provider id. Kept for older clients. */
-  async loginWithClaude(): Promise<AuthStatus> {
-    return this.providerLogin('anthropic-claude')
-  }
-
-  /** The onboarding key: the direct API, by its provider id. Kept for older clients. */
-  async setApiKey(key: string): Promise<AuthStatus> {
-    const { verified: _verified, ...status } = await this.providerSetApiKey('anthropic', key)
-    return status
-  }
-
-  /** Disconnects both Anthropic ids — what "sign out of Claude" meant when it was one. */
-  async signOut(): Promise<AuthStatus> {
-    for (const id of ANTHROPIC_IDS) await this.providerSignOut(id)
-    return this.status()
-  }
-
   /** Installs every configured provider of every profile. Called at boot and on change. */
   async applyMode(): Promise<void> {
     // The migrations predate profiles, so they concern the default one only.

@@ -194,6 +194,7 @@ struct ChatView: View {
     private var configLine: some View {
         let models = model.models(for: bot.provider)
         let current = models.first { $0.id == bot.model }
+        let unavailable = bot.provider == "openai-codex" && !models.isEmpty && current == nil
         let efforts = (current?.effortLevels ?? []).compactMap(Effort.init(rawValue:))
         // The level in force gets the mark: the one chosen, or failing that the
         // provider's default — an unmarked list read as "none of these", which is never
@@ -203,9 +204,18 @@ struct ChatView: View {
             Spacer()
             Menu {
                 Section("Model") {
+                    if unavailable {
+                        Text("\(bot.model) is unavailable. Choose another model.")
+                    }
                     ForEach(models) { info in
                         Button {
-                            Task { await model.updateBot(bot.id, patch: ["model": info.id]) }
+                            Task {
+                                var patch: [String: Any] = ["model": info.id]
+                                if let effort = bot.effort, !info.effortLevels.contains(effort) {
+                                    patch["effort"] = NSNull()
+                                }
+                                await model.updateBot(bot.id, patch: patch)
+                            }
                         } label: {
                             let title = info.presentedName(in: models)
                             if info.id == bot.model {
@@ -234,6 +244,7 @@ struct ChatView: View {
                 }
             } label: {
                 HStack(spacing: 3) {
+                    if unavailable { Image(systemName: "exclamationmark.triangle") }
                     Text(BotConfig(bot: bot, models: models).summary)
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .semibold))
                 }
@@ -244,7 +255,7 @@ struct ChatView: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .disabled(models.isEmpty)
-            .task { await model.loadModels(for: bot.provider) }
+            .task(id: bot.id) { await model.loadModels(for: bot.provider) }
         }
         .padding(.horizontal, 8)
         .padding(.top, 6)
@@ -476,6 +487,9 @@ struct BotConfig {
     /// came to describe itself as running Opus.
     var modelName: String {
         let info = models.first { $0.id == bot.model }
+        if bot.provider == "openai-codex", !models.isEmpty, info == nil {
+            return "\(bot.model) (unavailable)"
+        }
         // A model that reads differently as a statement than as a menu item says so.
         if let status = info?.statusName, !status.isEmpty { return status }
         if let resolved = info?.resolvedModel {
@@ -550,4 +564,3 @@ private struct ScrollViewBridge: NSViewRepresentable {
     }
 }
 #endif
-

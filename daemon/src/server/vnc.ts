@@ -180,4 +180,3 @@ document.addEventListener('visibilitychange', () => {
 connect();
 </script></body></html>`
 }
-

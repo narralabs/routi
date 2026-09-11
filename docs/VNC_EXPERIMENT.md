@@ -49,8 +49,10 @@ Mac WKWebView + locally served noVNC
 
 The image already includes x11vnc and socat. The bridge looks up the bot's display
 with `screenctl live`; it never allocates, restarts, or deletes desktops. Each viewed display gets one x11vnc server, reused across viewer connections.
-Closing a viewer ends its connection; stopping the experiment bridge removes the
-VNC servers it started. The X displays and bots survive both operations. VNC ports
+Closing a viewer releases its connection. The last viewer leaving starts a
+30-second grace period, after which that display's VNC server stops. Reconnecting
+during the grace period reuses the server. Stopping the experiment bridge removes
+all VNC servers it started. The X displays and bots survive both operations. VNC ports
 15900–15949 are bound only inside the container, never published to the Mac or LAN.
 Run only one experiment bridge against a given container. Stop it with Ctrl-C when finished.
 
@@ -102,5 +104,38 @@ Keyboard shortcuts did not produce the expected result during computer-use check
 including after isolating the app identifier. Treat keyboard input as unresolved
 until a physical test confirms it or a follow-up fixes it. This is a viewing
 experiment, not input feature parity. Clipboard transport and performance have
-not been benchmarked. X RECORD and XFixes optimizations are disabled in this
-prototype while checking compatibility with the existing Xvfb desktops.
+not been benchmarked. X RECORD remains disabled for compatibility. XFixes is enabled: x11vnc reads
+the desktop cursor image and noVNC renders the received shape, including I-beams,
+hands, resize cursors, and custom application cursors.
+
+## Viewer lifecycle and force quits
+
+Viewer accounting belongs to the bridge, not a SwiftUI onDisappear callback.
+Each WebSocket holds one idempotent lease on its display. A second device watching
+the same desktop adds a lease to the existing server. One device leaving does not
+interrupt the other. An app force quit normally closes its socket immediately and
+releases the lease without needing a JavaScript page-unload message.
+
+The bridge pings every 15 seconds. A connection missing its response is terminated
+at the next check (within roughly 30 seconds), which also releases its lease.
+An otherwise idle VNC server then exits after the 30-second grace period. This
+covers sleep/network loss as well as orderly close. It does not stop the bot,
+browser, X display, or container.
+
+Startup, stop, and reconnect are serialized per display. A viewer that disappears
+while Docker is starting VNC still releases its lease once startup completes.
+Offline tests cover two devices, separate displays, grace-period reconnect,
+startup failure/retry, reconnect during shutdown, socket termination, missing
+pongs, and disconnect during startup. No tests require model credentials.
+
+The experiment bridge itself being SIGKILLed is a separate case: it cannot run its
+own shutdown hooks. This experiment does not yet provide an external supervisor
+or orphan reconciliation for that case; it must be addressed before production
+integration into routid.
+
+The lifecycle update passes all 37 offline tests. A real local viewer process was
+SIGKILLed while connected through the bridge to Docker display :99: its VNC server
+was gone after the 30-second grace period, while the existing Mac viewer's server
+on :101 remained running. A read-only RFB check also received a cursor-image update
+from the XFixes-enabled server. Visual cursor-shape verification remains a manual
+check in the Mac preview.

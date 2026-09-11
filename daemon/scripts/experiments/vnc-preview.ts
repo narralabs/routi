@@ -8,6 +8,7 @@ import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, createWebSocketStream } from 'ws'
+import { VncViewers } from './vnc-lifecycle.js'
 
 const run = promisify(execFile)
 const assets = dirname(dirname(createRequire(import.meta.url).resolve('@novnc/novnc')))
@@ -16,10 +17,24 @@ const botID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i
 export function createVncPreview(options: {
   token: string
   displayFor: (bot: string) => Promise<string>
-  openDisplay: (display: string) => ChildProcessWithoutNullStreams
+  acquireDisplay: (display: string) => Promise<{
+    open: () => ChildProcessWithoutNullStreams
+    release: () => void
+  }>
+  heartbeatMs?: number
 }) {
   const prefix = `/${options.token}`
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024, perMessageDeflate: false })
+  let closing = false
+  const alive = new Set<import('ws').WebSocket>()
+  const pending = new Set<Promise<void>>()
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!alive.delete(ws)) { ws.terminate(); continue }
+      ws.ping()
+    }
+  }, options.heartbeatMs ?? 15_000)
+  heartbeat.unref()
   const http = createServer((req, res) => {
     void (async () => {
       res.setHeader('Cache-Control', 'no-store')
@@ -54,34 +69,63 @@ export function createVncPreview(options: {
       if (!botID.test(bot) || req.headers.origin !== origin || req.headers.host !== origin.slice(7)) {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return
       }
-      let display: string
-      try { display = await options.displayFor(bot) }
-      catch { socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n'); return }
-      if (socket.destroyed) return
+      if (closing) { socket.destroy(); return }
       wss.handleUpgrade(req, socket, head, (ws) => {
-        const child = options.openDisplay(display)
-        const stream = createWebSocketStream(ws)
-        // Node streams apply backpressure in both directions; do not discard RFB rectangles.
-        stream.pipe(child.stdin)
-        child.stdout.pipe(stream)
-        child.stderr.resume()
-        const cleanup = () => { child.stdin.destroy(); child.kill(); stream.destroy() }
+        alive.add(ws)
+        ws.on('pong', () => alive.add(ws))
+        let disposed = false
+        let release: (() => void) | undefined
+        let child: ChildProcessWithoutNullStreams | undefined
+        let stream: ReturnType<typeof createWebSocketStream> | undefined
+        const cleanup = () => {
+          if (disposed) return
+          disposed = true
+          alive.delete(ws)
+          release?.()
+          child?.stdin.destroy()
+          child?.kill()
+          stream?.destroy()
+          ws.terminate()
+        }
         ws.on('close', cleanup)
         ws.on('error', cleanup)
-        stream.on('error', cleanup)
-        child.stdin.on('error', cleanup)
-        child.stdout.on('error', cleanup)
-        child.on('error', cleanup)
-        child.on('close', () => { ws.close(); stream.destroy() })
+        // Stop ws from buffering client data while Docker starts the display server.
+        ws.pause()
+        const setup = (async () => {
+          try {
+            const display = await options.displayFor(bot)
+            if (disposed || closing) { cleanup(); return }
+            const lease = await options.acquireDisplay(display)
+            release = lease.release
+            if (disposed || closing) { lease.release(); cleanup(); return }
+            child = lease.open()
+            stream = createWebSocketStream(ws)
+            stream.on('error', cleanup)
+            child.stdin.on('error', cleanup)
+            child.stdout.on('error', cleanup)
+            child.on('error', cleanup)
+            child.on('close', cleanup)
+            child.stderr.resume()
+            // Backpressure preserves RFB update ordering instead of dropping rectangles.
+            stream.pipe(child.stdin)
+            child.stdout.pipe(stream)
+            ws.resume()
+          } catch { cleanup() }
+        })()
+        pending.add(setup)
+        void setup.finally(() => pending.delete(setup))
       })
     })().catch(() => socket.destroy())
   })
   return {
     http,
     async close() {
+      closing = true
+      clearInterval(heartbeat)
       for (const ws of wss.clients) ws.terminate()
       await new Promise<void>((done) => wss.close(() => done()))
       await new Promise<void>((done) => http.close(() => done()))
+      await Promise.allSettled(pending)
     },
   }
 }
@@ -111,30 +155,42 @@ async function main() {
   const container = process.env['ROUTI_VNC_CONTAINER'] ?? 'routi-desktop'
   const port = Number(process.env['ROUTI_VNC_PORT'] ?? 7173)
   const token = randomBytes(24).toString('hex')
-  const displays = new Map<string, Promise<void>>()
   const logPrefix = `/tmp/routi-vnc-${token}`
+  const viewers = new VncViewers({
+    async start(display: string) {
+      const number = Number(display.slice(1))
+      const log = `${logPrefix}-${number}.log`
+      // XFixes supplies the real cursor shape. Do not use -noxfixes or a fixed arrow.
+      await run(docker, ['exec', '-e', `DISPLAY=${display}`, container,
+        'x11vnc', '-display', display, '-localhost', '-rfbport', String(15900 + number - 99),
+        '-nopw', '-quiet', '-noxdamage', '-noxrecord', '-shared', '-forever', '-bg', '-o', log],
+        { timeout: 10000 })
+      return log
+    },
+    async stop(_display: string, log: string) {
+      // This random log identifies only this bridge's server, not the X desktop.
+      await run(docker, ['exec', container, 'pkill', '-KILL', '-f', `^x11vnc .*${log}$`], { timeout: 5000 })
+        .catch((error) => { if (error.code !== 1) throw error })
+      await run(docker, ['exec', container, 'rm', '-f', log], { timeout: 5000 })
+    },
+  })
   const server = createVncPreview({
     token,
     async displayFor(bot) {
       const { stdout } = await run(docker, ['exec', container, 'screenctl', 'live', bot], { timeout: 5000 })
       const number = Number(stdout.trim())
       if (!Number.isInteger(number) || number < 99 || number > 148) throw new Error('Desktop is not running')
-      const display = `:${number}`
-      if (!displays.has(display)) {
-        const starting = run(docker, ['exec', '-e', `DISPLAY=${display}`, container,
-          'x11vnc', '-display', display, '-localhost', '-rfbport', String(15900 + number - 99),
-          '-nopw', '-quiet', '-noxdamage', '-noxrecord', '-noxfixes', '-shared', '-forever', '-bg', '-o', `${logPrefix}-${number}.log`],
-          { timeout: 10000 }).then(() => {})
-        displays.set(display, starting)
-        starting.catch(() => displays.delete(display))
-      }
-      await displays.get(display)
-      return display
+      return `:${number}`
     },
-    // VNC stays on container loopback. Docker's pipe carries the TCP connection
-    // without publishing a port or changing the existing container.
-    openDisplay: (display) => spawn(docker, ['exec', '-i', container, 'socat', 'STDIO',
-      `TCP:127.0.0.1:${15900 + Number(display.slice(1)) - 99}`]),
+    async acquireDisplay(display) {
+      const lease = await viewers.acquire(display)
+      return {
+        release: lease.release,
+        // VNC stays on container loopback; no published Docker ports.
+        open: () => spawn(docker, ['exec', '-i', container, 'socat', 'STDIO',
+          `TCP:127.0.0.1:${15900 + Number(display.slice(1)) - 99}`]),
+      }
+    },
   })
   server.http.once('error', (error) => { console.error(error.message); process.exitCode = 1 })
   server.http.listen(port, '127.0.0.1', () => {
@@ -143,12 +199,7 @@ async function main() {
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => {
     void (async () => {
       await server.close()
-      await Promise.allSettled(displays.values())
-      // Only servers created by this bridge invocation, identified by a random log prefix.
-      await run(docker, ['exec', container, 'pkill', '-KILL', '-f', `^x11vnc .*${logPrefix}-`]).catch(() => {})
-      for (const display of displays.keys()) {
-        await run(docker, ['exec', container, 'rm', '-f', `${logPrefix}-${display.slice(1)}.log`]).catch(() => {})
-      }
+      await viewers.close()
     })()
   })
 }

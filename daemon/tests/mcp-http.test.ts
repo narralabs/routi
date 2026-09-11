@@ -82,20 +82,22 @@ test('HTTP MCP preserves images, screen gating, and execution errors', async (t)
   const f = await setup(t)
   const screen = await f.connect(f.screen)
   const names = (await screen.listTools()).tools.map((tool) => tool.name)
-  assert.ok(names.includes('screenshot'))
+  assert.ok(names.includes('desktop_screenshot'))
+  assert.ok(names.includes('browser_screenshot'))
+  assert.ok(!names.includes('screenshot'))
   assert.ok(names.includes('ask_to_take_over'))
-  const image = await screen.callTool({ name: 'screenshot', arguments: {} })
+  const image = await screen.callTool({ name: 'desktop_screenshot', arguments: {} })
   assert.equal(image.isError, false)
   assert.deepEqual(image.content, [
     { type: 'image', data: Buffer.from('test-image').toString('base64'), mimeType: 'image/jpeg' },
     { type: 'text', text: 'Screen is 800x600 pixels.' },
   ])
   f.surface.captureFrame = async () => { throw new Error('Capture failed') }
-  const failure = await screen.callTool({ name: 'screenshot', arguments: {} })
+  const failure = await screen.callTool({ name: 'desktop_screenshot', arguments: {} })
   assert.equal(failure.isError, true)
   assert.match(JSON.stringify(failure.content), /Capture failed/)
   const plain = await f.connect()
-  assert.equal((await plain.callTool({ name: 'screenshot', arguments: {} })).isError, true)
+  assert.equal((await plain.callTool({ name: 'desktop_screenshot', arguments: {} })).isError, true)
   assert.equal((await plain.callTool({ name: 'create_routine', arguments: {
     name: 'Bad', prompt: 'Bad schedule', schedule: { kind: 'interval', minutes: 1 },
   } })).isError, true)
@@ -124,9 +126,9 @@ test('HTTP MCP acknowledges notifications and declines unsupported event streams
 test('requested screenshots are saved and broadcast inline, while navigation captures remain private', async (t) => {
   const f = await setup(t)
   const client = await f.connect(f.screen)
-  await client.callTool({ name: 'screenshot', arguments: {} })
+  await client.callTool({ name: 'desktop_screenshot', arguments: {} })
   assert.equal(f.store.listMessages(f.screen.conversation.id).length, 0)
-  const result = await client.callTool({ name: 'screenshot', arguments: { attach: true } })
+  const result = await client.callTool({ name: 'desktop_screenshot', arguments: { attach: true } })
   assert.equal(result.isError, false)
   assert.match(JSON.stringify(result.content), /attached to the conversation/)
   const messages = f.store.listMessages(f.screen.conversation.id)
@@ -142,9 +144,9 @@ test('requested screenshots are saved and broadcast inline, while navigation cap
 
   // A URL cannot use one bot's screen to post into another bot's conversation.
   const wrong = await f.connect({ ...f.screen, conversation: f.first.conversation })
-  assert.equal((await wrong.callTool({ name: 'screenshot', arguments: { attach: true } })).isError, true)
+  assert.equal((await wrong.callTool({ name: 'desktop_screenshot', arguments: { attach: true } })).isError, true)
   assert.deepEqual(f.store.listMessages(f.first.conversation.id), [])
   f.surface.captureFrame = async () => { throw new Error('Capture unavailable') }
-  assert.equal((await client.callTool({ name: 'screenshot', arguments: { attach: true } })).isError, true)
+  assert.equal((await client.callTool({ name: 'desktop_screenshot', arguments: { attach: true } })).isError, true)
   assert.equal(f.store.listMessages(f.screen.conversation.id).length, 1)
 })

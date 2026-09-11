@@ -284,8 +284,8 @@ session ID; it uses the signed-in account and a temporary database/server.
 
 ### Inline screenshot attachments
 
-The shared `screenshot` tool accepts `attach: true`. It captures the visible screen,
-returns the image to the agent, and saves a separate assistant image message through
+The shared `desktop_screenshot` and `browser_screenshot` tools accept `attach: true`,
+return the image to the agent, and save a separate assistant image message through
 `SessionManager.attachImage`. The message uses the existing image block format and
 is broadcast immediately; later provider text cannot overwrite it. A normal capture
 without `attach` remains a tool result for the agent and does not add a chat image.
@@ -295,7 +295,13 @@ The app shows the image inline. Clicking it opens a larger preview with Save Ima
 Images currently use JPEG data URLs stored with the message, so reopening a
 conversation reloads the attachment without depending on a temporary file. Attachment
 routing validates that the bot belongs to the conversation. This is a visible-screen
-capture, not a full-page stitching feature or a generic local-file upload tool.
+capture for `desktop_screenshot`. `browser_screenshot` captures webpage content through
+Chromium CDP, excluding browser controls. Set `fullPage: true` for the complete loaded
+page, or leave it false for the current viewport. It does not scroll or stitch tiles;
+lazy-loaded and virtualized content must already be loaded. Oversized pages fail
+explicitly rather than returning a silently cropped image. Browser capture requires
+the managed Chromium connection; host screens can use `desktop_screenshot`.
+These tools do not upload arbitrary local files.
 
 ### Codex integration: app-server, not the TypeScript SDK
 
@@ -372,7 +378,7 @@ installed core follows the desktop it ships with rather than keeping the first o
 ever built. Screens on the old machine are lost in that swap and remade on demand.
 
 **Bots drive it themselves.** A bot with a screen gets the desktop as tools — `read_page`
-and `click_ref` for the page's accessibility tree, `screenshot` and `click` for pixels,
+and `click_ref` for the page's accessibility tree, `desktop_screenshot` and `click` for pixels,
 `type_text`, `press_key`, `scroll`, and `ask_to_take_over` for the moments only a person
 can do. The structured path is Chrome DevTools Protocol over the container's debugging
 port; the pixel path is the X framebuffer. The bot's standing instruction is to prefer the

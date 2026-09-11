@@ -14,8 +14,8 @@ import type { Surface } from './pool.js'
 export const TOOL_INSTRUCTIONS = [
   'A Linux desktop with Chromium, and the browser running on it.',
   '',
-  'Prefer read_page over screenshot: it returns the page as text with refs you can act',
-  'on, which is both cheaper and exact where a screenshot has to be read. Use screenshot',
+  'Prefer read_page over browser_screenshot: it returns the page as text with refs you can act',
+  'on, which is both cheaper and exact where a screenshot has to be read. Use desktop_screenshot',
   'and coordinate clicks for anything that is not a web page, or when a page will not',
   'cooperate.',
   '',
@@ -206,9 +206,22 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
       parameters: object({ ref: { type: 'string' }, text: { type: 'string' } }, ['ref', 'text']),
     },
     {
-      name: 'screenshot',
+      name: 'browser_screenshot',
       description:
-        'Look at the desktop. Returns a picture of the current screen. Use it before ' +
+        'Capture the webpage in Routi’s managed Chromium, excluding browser controls ' +
+        'and the desktop. Prefer this when asked for a website screenshot. Set fullPage=true ' +
+        'to capture the entire currently loaded page as one image; default false captures ' +
+        'the visible page. Lazy-loaded or virtualized content may need loading first. ' +
+        'Set attach=true to show the image inline in this conversation.',
+      parameters: object({
+        fullPage: { type: 'boolean', description: 'Capture the full loaded page. Default false.' },
+        attach: { type: 'boolean', description: 'Attach the capture to the chat. Default false.' },
+      }),
+    },
+    {
+      name: 'desktop_screenshot',
+      description:
+        'Capture the entire visible desktop, including windows and browser controls. Use it before ' +
         'acting to find what you need, and again afterwards to confirm what happened. ' +
         'Set attach=true when the user asks for a screenshot: saves the image in this ' +
         'conversation so they can see and open it. Captures the visible screen only, ' +
@@ -224,7 +237,7 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
       name: 'click',
       description:
         'Click a point on the screen. x and y are pixels from the top-left; take a ' +
-        'screenshot first to find them. Set right for a right-click, double for a ' +
+        'desktop_screenshot first to find them. Set right for a right-click, double for a ' +
         'double-click.',
       parameters: object(
         {
@@ -291,7 +304,7 @@ export interface DesktopToolResult {
   output: string
   /** A short line for the tool card in the transcript. */
   summary: string
-  /** Present for `screenshot`; a data URL the caller can show the model. */
+  /** Present for screenshot tools; a data URL the caller can show the model. */
   imageDataUrl?: string
 }
 
@@ -406,19 +419,32 @@ export async function runDesktopTool(
         return { ok: true, output: `${said}\n\n${await browser.snapshot(60)}`, summary: said }
       }
 
-      case 'screenshot': {
+      case 'desktop_screenshot':
+      case 'browser_screenshot': {
         if (args['attach'] === true && !ctx.attachImage) {
           return { ok: false, output: 'Image attachments are unavailable in this context.', summary: 'Attachment unavailable' }
         }
-        const frame = await desktop.captureFrame(7)
-        if (!frame) return { ok: false, output: 'Could not capture the screen.', summary: 'Screenshot failed' }
-        const size = await desktop.status()
-        const imageDataUrl = `data:image/jpeg;base64,${frame.jpeg.toString('base64')}`
+        let imageDataUrl: string
+        let width: number, height: number
+        const browser = name === 'browser_screenshot'
+        if (browser) {
+          const capture = await browserFor(desktop).screenshot(args['fullPage'] === true)
+          imageDataUrl = capture.dataUrl
+          width = capture.width
+          height = capture.height
+        } else {
+          const frame = await desktop.captureFrame(7)
+          if (!frame) return { ok: false, output: 'Could not capture the screen.', summary: 'Screenshot failed' }
+          const size = await desktop.status()
+          width = size.width
+          height = size.height
+          imageDataUrl = `data:image/jpeg;base64,${frame.jpeg.toString('base64')}`
+        }
         const attached = args['attach'] === true
         if (attached) ctx.attachImage!({ type: 'image', mediaType: 'image/jpeg', dataUrl: imageDataUrl })
         return {
           ok: true,
-          output: `Screen is ${size.width}x${size.height} pixels.${attached ? ' Screenshot attached to the conversation; the user can open it.' : ''}`,
+          output: `${browser ? (args['fullPage'] === true ? 'Full loaded page' : 'Visible page') : 'Screen'} is ${width}x${height} pixels.${attached ? ' Screenshot attached to the conversation; the user can open it.' : ''}`,
           summary: attached ? 'Attached screenshot' : 'Looked at the screen',
           imageDataUrl,
         }

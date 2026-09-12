@@ -10,6 +10,7 @@ import type { DesktopPool } from '../surfaces/pool.js'
 import type { Updater } from '../update.js'
 
 export interface RpcContext {
+  viewerPath?: (botId: string) => string
   store: Store
   sessions: SessionManager
   providers: Map<string, ProviderAdapter>
@@ -215,6 +216,15 @@ const handlers: Record<RpcMethod, Handler> = {
     return { desktop: await describeDesktopHost(ctx) }
   },
 
+  'surface.viewer': async (p, ctx) => {
+    const { botId } = p as { botId: string }
+    screenFor(botId, ctx)
+    if (ctx.store.getBot(botId)?.surfaceMode !== 'container' || !ctx.viewerPath) {
+      throw new RpcError('unsupported', 'VNC requires a container desktop')
+    }
+    return { path: ctx.viewerPath(botId) }
+  },
+
   'surface.status': async (p, ctx) => {
     const desktop = screenFor((p as { botId: string }).botId, ctx)
     return { surface: { ...(await desktop.status()), heldBy: desktop.holder } }
@@ -234,6 +244,7 @@ const handlers: Record<RpcMethod, Handler> = {
   'surface.frame': async (p, ctx) => {
     const { botId, quality } = p as { botId: string; quality: number }
     const desktop = screenFor(botId, ctx)
+    if (ctx.store.getBot(botId)?.surfaceMode !== 'host') throw new RpcError('unsupported', 'Container desktops use VNC')
     const status = await desktop.status()
     const frame = await desktop.captureFrame(quality)
     return {

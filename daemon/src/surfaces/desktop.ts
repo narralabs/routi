@@ -37,7 +37,7 @@ function sourceStamp(dir: string): string {
  * so an explicit choice still wins; the answer is not cached, so a Docker installed
  * after the core started is found on the next check.
  */
-function dockerBinary(): string {
+export function dockerBinary(): string {
   const onPath = (process.env['PATH'] ?? '')
     .split(':')
     .filter(Boolean)

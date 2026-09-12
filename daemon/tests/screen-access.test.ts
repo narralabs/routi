@@ -13,7 +13,7 @@ test('a viewer cannot allocate or drive a desktop for a bot with no screen acces
   const { bot } = store.createBot({ name: 'Chat only', surfaceMode: 'none' })
   let allocations = 0
   const ctx = { store, desktops: { for() { allocations++; throw new Error('Should not allocate') } } } as unknown as RpcContext
-  for (const method of ['surface.status', 'surface.start', 'surface.stop', 'surface.frame', 'surface.clipboard', 'surface.input']) {
+  for (const method of ['surface.viewer', 'surface.status', 'surface.start', 'surface.stop', 'surface.frame', 'surface.clipboard', 'surface.input']) {
     await assert.rejects(dispatch(method, { botId: bot.id, input: { kind: 'key', keys: ['a'] } }, ctx), /no screen access/)
   }
   assert.equal(allocations, 0)

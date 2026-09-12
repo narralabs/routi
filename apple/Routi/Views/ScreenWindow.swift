@@ -8,6 +8,7 @@ import SwiftUI
 struct ScreenWindow: View {
     @Environment(AppModel.self) private var model
     @State private var frameViewer = UUID()
+    private var showingVNC: Bool { model.selectedBot?.surfaceMode == .container }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,22 +27,42 @@ struct ScreenWindow: View {
                         .disabled(model.isBusy)
                 }
             } else {
-            ScreenView(
-                frame: model.surfaceFrame,
-                size: CGSize(width: model.surface.width, height: model.surface.height),
-                isInteractive: true,
-                onInput: { input in Task { await model.sendSurfaceInput(input) } },
-                onPaste: { Task { await model.pasteIntoSurface() } },
-                onCopy: { Task { await model.copyFromSurface() } }
-            )
+                desktopViewer
             }
         }
         .background(.black.opacity(0.92))
-        // A full-size view earns a faster refresh than the thumbnail did. It registers
-        // as its own viewer, so leaving drops back to the panel's rate rather than
-        // stopping the stream the panel is still using.
-        .onAppear { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
-        .onDisappear { model.endFrames(frameViewer) }
+        .onAppear { updateFramePolling() }
+        .task(id: model.selectedBot?.id) {
+            await model.refreshSurface()
+            await model.startSurface()
+        }
+        .onChange(of: showingVNC) { _, _ in updateFramePolling() }
+        .onDisappear { model.endHostFrames(frameViewer) }
+    }
+
+    private func updateFramePolling() {
+        if showingVNC { model.endHostFrames(frameViewer) }
+        else { model.beginHostFrames(frameViewer, interval: .milliseconds(120)) }
+    }
+
+    @ViewBuilder
+    private var desktopViewer: some View {
+        if showingVNC, let bot = model.selectedBot {
+            DesktopViewer(botID: bot.id)
+        } else {
+            jpegViewer
+        }
+    }
+
+    private var jpegViewer: some View {
+        ScreenView(
+            frame: model.surfaceFrame,
+            size: CGSize(width: model.surface.width, height: model.surface.height),
+            isInteractive: true,
+            onInput: { input in Task { await model.sendSurfaceInput(input) } },
+            onPaste: { Task { await model.pasteIntoSurface() } },
+            onCopy: { Task { await model.copyFromSurface() } }
+        )
     }
 
     private var header: some View {
@@ -51,6 +72,8 @@ struct ScreenWindow: View {
                 .font(.system(size: 13, weight: .semibold))
 
             Spacer()
+            Button("Paste") { Task { await model.pasteIntoSurface() } }
+                .controlSize(.small)
 
             Text("Click and type to drive it")
                 .font(.system(size: 11))

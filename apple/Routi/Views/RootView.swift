@@ -41,14 +41,17 @@ struct RootView: View {
             } else if !model.authKnown {
                 // Neither chat nor an error is correct until the handshake lands.
                 ConnectingView()
-            } else if model.isShowingScreen {
+            } else {
                 #if os(macOS)
-                ScreenWindow()
+                if model.isShowingScreen {
+                    ScreenWindow()
+                } else {
+                    main
+                }
                 #else
+                // Keep the cover's presenter alive when isShowingScreen changes.
                 main
                 #endif
-            } else {
-                main
             }
         }
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
@@ -61,6 +64,9 @@ struct RootView: View {
             // Straight to the desktop, for looking at it without tapping there.
             if ProcessInfo.processInfo.arguments.contains("-showScreen") {
                 try? await Task.sleep(for: .seconds(3))
+                if let botID = UserDefaults.standard.string(forKey: "previewBotID") {
+                    await model.select(bot: botID)
+                }
                 model.isShowingScreen = true
             }
             #endif

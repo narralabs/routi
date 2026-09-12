@@ -25,8 +25,8 @@ struct DetailRail: View {
             Rectangle().fill(.separator).frame(width: 0.5).ignoresSafeArea()
         }
         // Only pull frames while the rail is actually on screen.
-        .onAppear { model.beginFrames(frameViewer) }
-        .onDisappear { model.endFrames(frameViewer) }
+        .onAppear { if bot.surfaceMode == .host { model.beginHostFrames(frameViewer) } }
+        .onDisappear { model.endHostFrames(frameViewer) }
         // A bot with a screen has one running, always. The daemon starts the container
         // when the bot is created; this covers every other way the panel can arrive at
         // a bot whose desktop is not up — an older bot, a restarted Docker, a daemon
@@ -62,10 +62,13 @@ struct DetailRail: View {
             } else {
             switch model.surface.state {
             case .running:
-                ScreenView(
-                    frame: model.surfaceFrame,
-                    size: CGSize(width: model.surface.width, height: model.surface.height)
-                )
+                Group {
+                    if bot.surfaceMode == .container {
+                        DesktopViewer(botID: bot.id, interactive: false)
+                    } else {
+                        ScreenView(frame: model.surfaceFrame, size: CGSize(width: model.surface.width, height: model.surface.height))
+                    }
+                }
                 .aspectRatio(model.surface.aspectRatio, contentMode: .fit)
                 .clipShape(.rect(cornerRadius: 10, style: .continuous))
                 .overlay {

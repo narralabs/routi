@@ -31,8 +31,16 @@ struct MobileScreen: View {
     /// What the desktop was last sent, for the UI tests to read back.
     @State private var inputLog: [String] = []
     #endif
+    @State private var vncCursor: VNCCursor?
 
     private var bot: Bot? { model.selectedBot }
+
+    private var showingVNC: Bool { bot?.surfaceMode == .container }
+
+    private func updateFramePolling() {
+        if showingVNC { model.endHostFrames(frameViewer) }
+        else { model.beginHostFrames(frameViewer, interval: .milliseconds(120)) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,8 +63,9 @@ struct MobileScreen: View {
         #endif
         .preferredColorScheme(.dark)
         .statusBarHidden(false)
-        .onAppear { model.beginFrames(frameViewer, interval: .milliseconds(120)) }
-        .onDisappear { model.endFrames(frameViewer) }
+        .onAppear { updateFramePolling() }
+        .onChange(of: showingVNC) { updateFramePolling() }
+        .onDisappear { model.endHostFrames(frameViewer) }
         .onChange(of: model.surfaceFrame, initial: true) { _, data in
             frameImage = data.flatMap(UIImage.init(data:))
         }
@@ -198,29 +207,57 @@ struct MobileScreen: View {
 
     @ViewBuilder
     private func picture(size: CGSize, fitted: CGSize) -> some View {
-                Group {
-                    if let image = frameImage {
-                        Image(uiImage: image).resizable().interpolation(.medium)
-                    } else {
-                        ZStack {
-                            Color.black
-                            VStack(spacing: 10) {
-                                ProgressView().tint(.white)
-                                Text(model.surface.state == .running ? "Waiting for a frame…" : "Starting the desktop…")
-                                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
-                            }
-                        }
+        framebuffer
+            .frame(width: fitted.width, height: fitted.height)
+            .overlay(alignment: .topLeading) {
+                if let pointer = pointerToDraw, fitted.width > 0, size.width > 0 {
+                    let scale = fitted.width / size.width
+                    mobileCursor
+                        .offset(x: pointer.x * scale, y: pointer.y * scale)
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var mobileCursor: some View {
+        if showingVNC, let cursor = vncCursor {
+            let scale = 26 / max(cursor.image.size.width, cursor.image.size.height)
+            Image(uiImage: cursor.image).resizable()
+                .frame(width: cursor.image.size.width * scale, height: cursor.image.size.height * scale)
+                .offset(x: -cursor.hotspot.x * scale, y: -cursor.hotspot.y * scale)
+                .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+        } else {
+            RemoteCursor(size: 26)
+        }
+    }
+
+    @ViewBuilder
+    private var framebuffer: some View {
+        if showingVNC, let bot {
+            DesktopViewer(botID: bot.id, onCursor: { vncCursor = $0 })
+                .allowsHitTesting(false)
+                .onDisappear { vncCursor = nil }
+        } else {
+            jpegFrame
+        }
+    }
+
+    private var jpegFrame: some View {
+        Group {
+            if let image = frameImage {
+                Image(uiImage: image).resizable().interpolation(.medium)
+            } else {
+                ZStack {
+                    Color.black
+                    VStack(spacing: 10) {
+                        ProgressView().tint(.white)
+                        Text(model.surface.state == .running ? "Waiting for a frame…" : "Starting the desktop…")
+                            .font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
                     }
                 }
-                .frame(width: fitted.width, height: fitted.height)
-                .overlay(alignment: .topLeading) {
-                    if let pointer = pointerToDraw, fitted.width > 0, size.width > 0 {
-                        let scale = fitted.width / size.width
-                        RemoteCursor(size: 26)
-                            .offset(x: pointer.x * scale, y: pointer.y * scale)
-                            .allowsHitTesting(false)
-                    }
-                }
+            }
+        }
     }
 
     /// The pointer the finger last put somewhere wins over the frame's, which lags it;

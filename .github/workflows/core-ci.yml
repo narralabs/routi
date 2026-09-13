@@ -32,3 +32,11 @@ jobs:
         run: pnpm build
       - name: Run core tests
         run: pnpm test
+
+  desktop-scripts:
+    name: Test Linux desktop scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m unittest discover -s daemon/tests/container -p '*_test.py'

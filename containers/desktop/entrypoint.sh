@@ -6,5 +6,11 @@ mkdir -p /tmp/routi-screens "$HOME/Downloads"
 
 cleanup() { pkill -P $$ || true; }
 trap cleanup EXIT
+trap 'exit 0' TERM INT
 
-sleep infinity
+# Restart the watcher if it fails, without restarting the desktop container.
+while true; do
+  python3 -u /usr/local/bin/renderer-watchdog.py || true
+  sleep 5
+done &
+wait

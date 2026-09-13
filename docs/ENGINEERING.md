@@ -159,7 +159,8 @@ no toolbar, and the app's icon on the mounted volume. That look is Finder state 
 volume's `.DS_Store`, so the script lays the window out with the Finder on a writable
 image and compresses it afterwards; the backdrop is drawn by `packaging/dmg/background.py`
 (rerun it and commit the outputs after a change). The volume icon goes on after the
-Finder pass, which removes one it finds. `ROUTI_PACKAGE_NO_NOTARIZE=1` skips the wait
+Finder pass, which removes one it finds. `ROUTI_NOTARY_PROFILE` selects an existing notarization keychain profile (default:
+`routi-notary`). `ROUTI_PACKAGE_NO_NOTARIZE=1` skips the wait
 on Apple for a build that only runs here.
 
 The core publishes itself: pushing a `v*` tag runs `.github/workflows/release.yml`, which

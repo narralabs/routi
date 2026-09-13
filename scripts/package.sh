@@ -117,10 +117,11 @@ rm -f "$rw"
 
 if [ -n "$identity" ]; then
   profile=""
+  configured_profile="${ROUTI_NOTARY_PROFILE:-routi-notary}"
   # ROUTI_PACKAGE_NO_NOTARIZE=1 skips the wait on Apple, for a build that only ever
   # runs on this Mac — rehearsing the app's self-update against a local feed, say.
-  if [ -z "${ROUTI_PACKAGE_NO_NOTARIZE:-}" ] && xcrun notarytool history --keychain-profile routi-notary >/dev/null 2>&1; then
-    profile="routi-notary"
+  if [ -z "${ROUTI_PACKAGE_NO_NOTARIZE:-}" ] && xcrun notarytool history --keychain-profile "$configured_profile" >/dev/null 2>&1; then
+    profile="$configured_profile"
   fi
   if [ -n "$profile" ]; then
     echo "Notarizing (this waits on Apple; usually a minute or two)"
@@ -136,7 +137,7 @@ if [ -n "$identity" ]; then
     xcrun stapler staple "$dmg" >/dev/null
     echo "  notarized and stapled: opens anywhere with a double-click"
   else
-    echo "  signed with Developer ID but not notarized: no 'routi-notary' credentials stored"
+    echo "  signed with Developer ID but not notarized: no '$configured_profile' credentials stored"
     echo "  (xcrun notarytool store-credentials routi-notary ...) — first launch elsewhere is right-click > Open"
   fi
 fi

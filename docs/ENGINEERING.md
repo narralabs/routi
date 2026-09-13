@@ -361,6 +361,12 @@ signed in, sees none of the first's bots, and cannot be deleted until its own bo
 
 ## The desktop
 
+`containers/desktop/browser-policy.json` enables Chromium Memory Saver in balanced
+mode. Chromium can reclaim inactive tabs and reload them when needed. This reduces
+background-tab memory use; it does not cap a bot's memory or stop an active page
+from exhausting the shared container. The policy lives in
+`/etc/chromium/policies/managed/routi.json` inside the desktop image.
+
 One container, shared by every bot, with a display per bot. The value of a desktop is
 its accumulated state — a signed-in site, a browser profile, downloaded files — and a
 container per bot would discard that on every bot you create. The daemon starts it on

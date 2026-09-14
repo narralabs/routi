@@ -3,18 +3,8 @@ import Foundation
 import Observation
 import Sparkle
 
-/**
- The Mac app updating itself, the way Cursor does: a release is downloaded in the
- background and the app offers "Restart to Update"; nothing to download, nothing to
- drag. Sparkle does the work — the check against the appcast, the download, the
- signature check against `SUPublicEDKey`, the swap in place and the relaunch. This
- class is its user interface: instead of Sparkle's own windows, the state lands in
- Settings › Routi Core beside the core's update button.
-
- Debug builds do not check: a developer's build would offer to replace itself with
- the release. `-checkAppUpdate` turns it on for a debug build, and `-appcastURL <url>`
- points it at a feed of one's own, which is how the flow is tested end to end.
- */
+/// Sparkle downloads and verifies the app; RoutiUpdate coordinates installation
+/// with the core. Debug builds require -checkAppUpdate to enable Sparkle.
 @Observable
 final class AppUpdater: NSObject {
     enum Phase: Equatable {
@@ -36,9 +26,6 @@ final class AppUpdater: NSObject {
 
     @ObservationIgnored private var updater: SPUUpdater?
     @ObservationIgnored private var installReply: ((SPUUserUpdateChoice) -> Void)?
-    /// Sparkle's handler for a release it has downloaded and prepared in the
-    /// background, which it would otherwise install silently on quit.
-    @ObservationIgnored private var immediateInstall: (() -> Void)?
     @ObservationIgnored private var expectedLength: UInt64 = 0
     @ObservationIgnored private var receivedLength: UInt64 = 0
     @ObservationIgnored private let feedOverride: String?
@@ -59,7 +46,7 @@ final class AppUpdater: NSObject {
         guard isEnabled else { return }
         let updater = SPUUpdater(hostBundle: .main, applicationBundle: .main, userDriver: self, delegate: self)
         updater.automaticallyChecksForUpdates = true
-        updater.automaticallyDownloadsUpdates = true
+        updater.automaticallyDownloadsUpdates = false
         updater.updateCheckInterval = 24 * 60 * 60
         do {
             try updater.start()
@@ -78,16 +65,29 @@ final class AppUpdater: NSObject {
     /// Asks now rather than waiting for the daily check.
     func check() {
         guard let updater, updater.canCheckForUpdates else { return }
+        phase = .checking
         updater.checkForUpdates()
     }
 
-    /// Installs the downloaded release and relaunches into it.
-    func installAndRelaunch() {
-        if let install = immediateInstall {
-            install()
-            return
+    func prepareUpdate() async throws -> String? {
+        guard isEnabled else { return nil }
+        if case .ready(let version) = phase { return version }
+        check()
+        let deadline = Date().addingTimeInterval(10 * 60)
+        while Date() < deadline {
+            switch phase {
+            case .ready(let version): return version
+            case .upToDate: return nil
+            case .failed(let message): throw UpdateFailure(message: message)
+            default: try await Task.sleep(for: .milliseconds(250))
+            }
         }
-        guard let reply = installReply else { return }
+        throw UpdateFailure(message: "The app download timed out. Try Update Routi again.")
+    }
+
+    /// Installs the downloaded release and relaunches into it.
+    func installAndRelaunch() throws {
+        guard let reply = installReply else { throw UpdateFailure(message: "The app update is no longer ready. Try Update Routi again.") }
         installReply = nil
         reply(.install)
     }
@@ -95,19 +95,6 @@ final class AppUpdater: NSObject {
 
 extension AppUpdater: SPUUpdaterDelegate {
     func feedURLString(for updater: SPUUpdater) -> String? { feedOverride }
-
-    /**
-     A background download is done and prepared. Left to itself Sparkle would install
-     it on the next quit and say nothing until a later check; taking the handler is
-     what puts "Restart to Update" in front of the person now. Sparkle still installs
-     on quit if the button is never pressed.
-     */
-    func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem, immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
-        latestVersion = item.displayVersionString
-        immediateInstall = immediateInstallHandler
-        phase = .ready(item.displayVersionString)
-        return true
-    }
 }
 
 extension AppUpdater: SPUUserDriver {

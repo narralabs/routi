@@ -386,11 +386,8 @@ private struct SidebarFooter: View {
             BuildStamp()
             #endif
 
-            // A release is out. The two halves update on their own timelines, so each
-            // gets a row: the core's opens the pane with its Update button; the app's
-            // is the restart itself once its download is done, the way Cursor's is.
-            if model.coreUpdate?.available == true && !model.isUpdatingCore {
-                FooterRow(title: "Core update available") {
+            if model.coreUpdate?.available == true || model.appUpdateAvailable || model.appUpdateReady {
+                FooterRow(title: "Routi update available") {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(.system(size: 15))
                         .foregroundStyle(Color.accentColor)
@@ -398,31 +395,8 @@ private struct SidebarFooter: View {
                 } action: {
                     model.showSettings(pane: "core")
                 }
-                .accessibilityIdentifier("coreUpdateRow")
+                .accessibilityIdentifier("routiUpdateRow")
             }
-            #if os(macOS)
-            if model.appUpdateReady {
-                FooterRow(title: "Restart to update the app") {
-                    Image(systemName: "arrow.clockwise.circle.fill")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 22, height: 22)
-                } action: {
-                    model.restartToUpdate()
-                }
-                .accessibilityIdentifier("appRestartRow")
-            } else if model.appUpdateAvailable {
-                FooterRow(title: "App update available") {
-                    Image(systemName: "arrow.down.circle")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 22, height: 22)
-                } action: {
-                    model.showSettings(pane: "core")
-                }
-                .accessibilityIdentifier("appUpdateRow")
-            }
-            #endif
 
             FooterRow(title: "Plugins") {
                 Image(systemName: "puzzlepiece.extension")

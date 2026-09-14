@@ -300,60 +300,40 @@ struct GeneralPane: View {
     }
 }
 
-/// The Mac app's own update, in the same pane as the core's: downloaded on its own,
-/// installed by a relaunch. The phone has nothing here; TestFlight does that.
-private struct AppUpdateRow: View {
+private struct RoutiUpdateRow: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         #if os(macOS)
-        let updater = model.appUpdater
-        switch updater.phase {
-        case .ready(let version):
-            SettingsRow(
-                title: "App",
-                detail: "Routi Bot \(version) is downloaded and verified. Restarting installs it; this is \(model.appVersion)."
-            ) {
-                Button("Restart to Update") { model.restartToUpdate() }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("restartToUpdate")
-            }
-        case .downloading(let fraction):
-            SettingsRow(title: "App", detail: "Downloading Routi Bot \(updater.latestVersion ?? "")…") {
-                if let fraction {
-                    ProgressView(value: fraction).frame(width: 120)
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-            }
-        case .checking:
-            SettingsRow(title: "App", detail: "Checking for a newer Routi Bot…") {
+        SettingsRow(title: "Update Routi", detail: detail) {
+            if model.routiUpdate.running {
                 ProgressView().controlSize(.small)
-            }
-        case .failed(let why):
-            SettingsRow(title: "App", detail: "The app could not update itself: \(why) The disk image is the way round it.") {
-                Link("Download", destination: AppModel.dmgURL)
-            }
-        case .idle, .upToDate:
-            if model.appUpdateAvailable {
-                SettingsRow(
-                    title: "App",
-                    detail: updater.isEnabled
-                        ? "Routi Bot \(model.coreUpdate?.latest ?? "") is out; this is \(model.appVersion). It downloads on its own; checking now hurries it along."
-                        : "Routi Bot \(model.coreUpdate?.latest ?? "") is out; this is \(model.appVersion). A debug build does not update itself."
-                ) {
-                    if updater.isEnabled {
-                        Button("Check Now") { updater.check() }
-                    } else {
-                        Link("Download", destination: AppModel.dmgURL)
-                    }
-                }
+            } else {
+                Button("Update Routi") { Task { await model.updateRouti() } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.connection != .connected)
+                    .accessibilityIdentifier("updateRouti")
             }
         }
         #else
-        EmptyView()
+        if model.coreUpdate?.available == true {
+            SettingsRow(title: "Update available", detail: "Open Routi on the Mac running your core to install the update.") {
+                EmptyView()
+            }
+        }
         #endif
     }
+
+    #if os(macOS)
+    private var detail: String {
+        if model.isUpdatingCore { return model.coreUpdateStage ?? "Updating Routi Core…" }
+        if model.routiUpdate.running, case .downloading(let fraction) = model.appUpdater.phase {
+            return fraction.map { "Downloading Routi… \(Int($0 * 100))%" } ?? "Downloading Routi…"
+        }
+        if let message = model.routiUpdate.message { return message }
+        return "Updates this app and the connected core at \(model.coreEndpoint), then restarts Routi. Finish active bot tasks first."
+    }
+    #endif
 }
 
 /// Avatar, the profile's editable name, and what it holds. There is no account here:
@@ -492,7 +472,6 @@ struct ConnectionPane: View {
     @AppStorage("daemonHost") private var host = "127.0.0.1"
     @AppStorage("daemonPort") private var port = 7171
 
-    @State private var confirmingCoreUpdate = false
     @State private var draftHost = ""
     @State private var draftPort = 7171
 
@@ -531,7 +510,7 @@ struct ConnectionPane: View {
                     HStack {
                         Spacer()
                         Button("Reconnect") { apply() }
-                            .disabled(draftHost.isEmpty || (draftHost == host && draftPort == port))
+                            .disabled(model.isUpdatingRouti || draftHost.isEmpty || (draftHost == host && draftPort == port))
                     }
                 }
             }
@@ -540,34 +519,7 @@ struct ConnectionPane: View {
                 SettingsRow(title: "Version", isFirst: true) {
                     SettingsValue(text: model.coreVersion.map { "v\($0)" } ?? "—")
                 }
-                if showsCoreUpdate {
-                    SettingsRow(title: "Update", detail: coreUpdateDetail) {
-                        if model.isUpdatingCore {
-                            HStack(spacing: 8) {
-                                ProgressView().controlSize(.small)
-                                Text(model.coreUpdateStage ?? "Updating…")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                                    .frame(maxWidth: 260, alignment: .trailing)
-                            }
-                        } else if model.coreUpdate?.available == true {
-                            // With work running, the button asks first: see `workInProgress`.
-                            Button("Update Routi Core") {
-                                if model.workInProgress != nil { confirmingCoreUpdate = true } else { Task { await model.startCoreUpdate() } }
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!(model.coreUpdate?.canUpdate ?? false))
-                            .confirmationDialog("Update now?", isPresented: $confirmingCoreUpdate) {
-                                Button("Update Anyway", role: .destructive) { Task { await model.startCoreUpdate() } }
-                                Button("Wait", role: .cancel) {}
-                            } message: {
-                                Text(model.workInProgress ?? "")
-                            }
-                        }
-                    }
-                }
-                AppUpdateRow()
+                RoutiUpdateRow()
                 SettingsRow(title: "Protocol") {
                     SettingsValue(text: "v\(RoutiClient.protocolVersion)")
                 }
@@ -630,19 +582,6 @@ struct ConnectionPane: View {
             await model.checkCoreUpdate()
             await model.loadCoreAddresses()
         }
-    }
-
-    private var showsCoreUpdate: Bool {
-        model.isUpdatingCore || model.coreUpdateOutcome != nil || model.coreUpdate?.available == true
-    }
-
-    /// What the Update row says: the outcome of the last run, else the offer.
-    private var coreUpdateDetail: String? {
-        if model.isUpdatingCore { return "Bots pause while the core is rebuilt and restarted. This window reconnects by itself." }
-        if let outcome = model.coreUpdateOutcome { return outcome }
-        guard let update = model.coreUpdate, update.available, let latest = update.latest else { return nil }
-        if !update.canUpdate, let reason = update.reason { return "Routi Core \(latest) is out. \(reason)" }
-        return "Routi Core \(latest) is out; this core is \(update.current). Downloads and builds it, then restarts the core — a few minutes, during which bots pause."
     }
 
     private func apply() {

@@ -216,6 +216,14 @@ final class AppModel {
     }
 
     var account: AccountInfo? { client.account }
+    var isUpdatingRouti: Bool {
+        #if os(macOS)
+        return routiUpdate.running
+        #else
+        return isUpdatingCore
+        #endif
+    }
+    var coreEndpoint: String { client.endpoint }
     var coreVersion: String? { client.serverVersion }
 
     /// Where feedback goes: the repository's issue form, with the versions and the
@@ -297,12 +305,14 @@ final class AppModel {
     /// apart from a core that has simply not restarted yet.
     private var updatingTo: String?
     private var sawRestart = false
+    private var coreUpdateSucceeded = false
 
     var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0" }
 
     #if os(macOS)
     /// The Mac app's own updater: downloads in the background, offers a relaunch.
     let appUpdater = AppUpdater()
+    let routiUpdate = RoutiUpdate()
     #endif
 
     /// The app is behind the latest release, by the core's account of what is out.
@@ -312,17 +322,43 @@ final class AppModel {
     }
 
     #if os(macOS)
-    /// Installs the downloaded release and relaunches. Any sheet goes first: AppKit
-    /// refuses to quit an app with a modal sheet up ("App termination blocked by
-    /// modal sheet"), and Settings is where the button lives.
-    func restartToUpdate() {
-        isShowingSettings = false
-        isShowingNewProfile = false
-        isShowingScreen = false
-        Task {
-            try? await Task.sleep(for: .milliseconds(400))
-            appUpdater.installAndRelaunch()
-        }
+    func updateRouti() async {
+        let endpoint = client.endpoint
+        await routiUpdate.run(prepareApp: { [self] in
+            guard connection == .connected else { throw UpdateFailure(message: "Connect to Routi Core before updating.") }
+            guard !hasActiveWork else { throw UpdateFailure(message: "Wait for your bots to finish before updating Routi.") }
+            return try await appUpdater.prepareUpdate()
+        }, updateCore: { [self] appTarget in
+            guard client.endpoint == endpoint else { throw UpdateFailure(message: "The connected Mac changed. Start the update again.") }
+            coreUpdate = nil
+            await checkCoreUpdate(force: true)
+            guard let update = coreUpdate, let latest = update.latest else { throw UpdateFailure(message: "Could not check for a core update. Try again.") }
+            guard client.endpoint == endpoint else { throw UpdateFailure(message: "The connected Mac changed. Start the update again.") }
+            if appTarget == nil && Self.compareVersions(latest, appVersion) > 0 {
+                throw UpdateFailure(message: "The matching Mac app update is not ready. Try again shortly, or use a release build if this is a dev app.")
+            }
+            if let appTarget, Self.compareVersions(latest, appTarget) < 0 && Self.compareVersions(update.current, appTarget) < 0 {
+                throw UpdateFailure(message: "The matching core release is not available yet. Try again shortly.")
+            }
+            if update.available {
+                guard update.canUpdate else { throw UpdateFailure(message: update.reason ?? "This core cannot update itself.") }
+                guard !hasActiveWork else { throw UpdateFailure(message: "A bot started working. Wait for it to finish, then update again.") }
+                guard await startCoreUpdate() else { throw UpdateFailure(message: coreUpdateOutcome ?? "The core update failed. The app has not been restarted.") }
+            }
+            guard client.endpoint == endpoint, connection == .connected else { throw UpdateFailure(message: "Reconnect to the original core before restarting Routi.") }
+            if let appTarget, Self.compareVersions(coreVersion ?? "0", appTarget) < 0 {
+                throw UpdateFailure(message: "The core is still older than the app update. The app has not been restarted.")
+            }
+        }, installApp: { [self] in
+            guard client.endpoint == endpoint else { throw UpdateFailure(message: "The connected Mac changed. Start the update again.") }
+            isShowingSettings = false
+            isShowingPlugins = false
+            isShowingNewProfile = false
+            isShowingScreen = false
+            try await Task.sleep(for: .milliseconds(400))
+            guard client.endpoint == endpoint, connection == .connected else { throw UpdateFailure(message: "Reconnect to the original core before restarting Routi.") }
+            try appUpdater.installAndRelaunch()
+        })
     }
     #endif
 
@@ -335,7 +371,6 @@ final class AppModel {
         #endif
     }
 
-    static let dmgURL = URL(string: "https://github.com/narralabs/routi/releases/latest/download/RoutiBot.dmg")!
 
     /// Dotted versions, numerically: 0.1.10 is newer than 0.1.9.
     static func compareVersions(_ a: String, _ b: String) -> Int {
@@ -363,63 +398,49 @@ final class AppModel {
      to the old one means the script put it back; nothing within ten minutes is a
      failure to say out loud, with the installer as the way out.
      */
-    /// What an update would cut short, in a sentence — or nil when nothing is running.
-    ///
-    /// The core restarts on an update and does not wait: a turn in flight is lost
-    /// where it stood, and a routine killed mid-run is not rerun until its next time.
-    /// The app already knows every busy thread, which are routines, and every open
-    /// handover, so it says so before the button does anything — the way a restart
-    /// names the documents it would close — and leaves the choice with the person.
-    var workInProgress: String? {
-        var items: [String] = []
-        for id in busyConversations.sorted() {
-            let name = conversations[id].flatMap { conv in bots.first { $0.id == conv.botId }?.name } ?? "A bot in another profile"
-            if let routine = busyRoutineNames[id] {
-                items.append("\(name) is running “\(routine)”")
-            } else {
-                items.append("\(name) is mid-reply")
-            }
-        }
-        for handover in handovers.values where !busyConversations.contains(handover.conversationId) {
-            let name = bots.first { $0.id == handover.botId }?.name ?? "A bot in another profile"
-            items.append("\(name) is waiting for you")
-        }
-        guard !items.isEmpty else { return nil }
-        let list = items.count == 1 ? items[0] : items.dropLast().joined(separator: ", ") + " and " + items.last!
-        return list + ". Updating restarts Routi Core and stops them; a routine cut short is not rerun until its next time."
+    /// Updating the core interrupts turns and pending handovers.
+    private var hasActiveWork: Bool {
+        !busyConversations.isEmpty || !handovers.isEmpty
     }
 
-    func startCoreUpdate() async {
-        guard let target = coreUpdate?.latest, !isUpdatingCore else { return }
+    @discardableResult func startCoreUpdate() async -> Bool {
+        guard let target = coreUpdate?.latest, !isUpdatingCore else { return false }
         coreUpdateOutcome = nil
-        do {
-            let result = try await client.rpc("core.update.start")
-            guard result["ok"] as? Bool == true else {
-                coreUpdateOutcome = result["why"] as? String ?? "The update could not start."
-                return
-            }
-        } catch {
-            coreUpdateOutcome = error.localizedDescription
-            return
-        }
+        coreUpdateSucceeded = false
         isUpdatingCore = true
         updatingTo = target
         sawRestart = false
         coreUpdateStage = "Starting…"
-        Task { await watchCoreUpdate() }
+        do {
+            let result = try await client.rpc("core.update.start")
+            guard result["ok"] as? Bool == true else {
+                finishCoreUpdate(result["why"] as? String ?? "The update could not start.")
+                return false
+            }
+        } catch {
+            finishCoreUpdate(error.localizedDescription)
+            return false
+        }
+        await watchCoreUpdate()
+        return coreUpdateSucceeded
     }
 
     private func watchCoreUpdate() async {
+        let endpoint = client.endpoint
         let started = coreUpdate?.current
         let deadline = Date().addingTimeInterval(10 * 60)
         while isUpdatingCore && Date() < deadline {
             try? await Task.sleep(for: .seconds(2))
+            guard client.endpoint == endpoint else {
+                finishCoreUpdate("The connected Mac changed during the update. Check the original Mac before continuing.")
+                return
+            }
             switch connection {
             case .connected:
-                guard sawRestart, let version = coreVersion else { continue }
-                if version == updatingTo {
-                    finishCoreUpdate("Updated to Routi Core \(version).")
-                } else if version == started {
+                guard let version = coreVersion else { continue }
+                if let target = updatingTo, Self.compareVersions(version, target) >= 0 {
+                    finishCoreUpdate("Updated to Routi Core \(version).", succeeded: true)
+                } else if sawRestart && version == started {
                     finishCoreUpdate("Routi Core \(version) is back: the new one did not start, so it was put back. See ~/.routi/logs/update.log on the host Mac.")
                 }
             case .disconnected, .connecting:
@@ -433,7 +454,8 @@ final class AppModel {
         }
     }
 
-    private func finishCoreUpdate(_ outcome: String) {
+    private func finishCoreUpdate(_ outcome: String, succeeded: Bool = false) {
+        coreUpdateSucceeded = succeeded
         isUpdatingCore = false
         coreUpdateStage = nil
         updatingTo = nil

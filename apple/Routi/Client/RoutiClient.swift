@@ -41,6 +41,8 @@ final class RoutiClient: NSObject {
     /// without waiting for a follow-up round trip.
     var onAuthStatus: ((AuthStatus) -> Void)?
 
+    var endpoint: String { "\(host):\(port)" }
+
     private var host: String
     private var port: Int
     private var session: URLSession!

@@ -33,12 +33,13 @@ export class RoutiServer {
       token: randomBytes(24).toString('hex'),
       ...this.vncBackend,
       displayFor: async (botId) => {
+        ctx.desktops.assertAvailable(botId)
         const bot = ctx.store.getBot(botId)
         if (!bot || bot.surfaceMode !== 'container') throw new Error('Container desktop required')
         return this.vncBackend.displayFor(botId)
       },
     })
-    this.ctx = { ...ctx, viewerPath: botId => `${this.vnc.prefix}/viewer/${botId}` }
+    this.ctx = { ...ctx, disconnectViewer: botId => this.vnc.disconnectBot(botId), viewerPath: botId => `${this.vnc.prefix}/viewer/${botId}` }
     const mcp = new McpHttp(
       ctx.desktops, ctx.store, ctx.handovers,
       (owner) => ctx.sessions.memoryChanged(owner, 'bot'),

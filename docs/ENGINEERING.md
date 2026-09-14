@@ -560,7 +560,9 @@ access or authorizes a trade by itself.
 
 Bots receive `robinhood_list_tools` and `robinhood_call_tool` through the shared tool
 context, including direct API adapters. Discovery returns a compact index, then the schema for one requested tool;
-the model receives tool results, never OAuth credentials. Access is checked at call
+the model receives tool results, never OAuth credentials. Responses above 24,000
+UTF-8 bytes are withheld with guidance to narrow the request, never truncated or
+automatically replayed. This bounds model input, not the upstream HTTP download. Access is checked at call
 time, and disconnect removes bot grants. Calls and token refresh serialize per
 profile. Routi does not replay failed tool calls; an uncertain order outcome must be
 checked before another order is attempted. Disconnect does not cancel existing

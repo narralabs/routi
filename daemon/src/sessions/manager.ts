@@ -404,10 +404,7 @@ export class SessionManager {
           }), this.robinhood ? 'Robinhood is available through a direct MCP integration. For Robinhood account access or trading, use robinhood_list_tools and robinhood_call_tool. If access is disabled or the person asks to connect, call request_plugin_access with plugin="robinhood" and stop for the approval card. Unless the person explicitly asks to use the website, do not open a browser or request desktop takeover to connect Robinhood.' : ''].filter(Boolean).join('\n\n'),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
-            external: this.robinhood?.context(bot.id, ac.signal, true),
-            requestPluginAccess: this.robinhood ? async plugin => plugin === 'robinhood'
-              ? this.robinhood!.requestAccess(bot.id, conversationId)
-              : { ok: false, output: 'Unknown plugin.', summary: 'Unknown plugin' } : undefined,
+            ...this.robinhood?.toolContext(bot.id, conversationId, ac.signal),
             attachImage: (image) => this.attachImage(bot.id, conversationId, image),
             routines: routineTools(this.store, bot.id, conversationId, () => this.routinesChanged(bot.id)),
             memory: memoryTools(this.store, bot.id, (owner) => this.memoryChanged(owner, 'bot')),

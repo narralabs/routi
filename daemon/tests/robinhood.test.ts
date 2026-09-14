@@ -1,5 +1,5 @@
 import { mcpFailure } from '../src/plugins/mcp-error.js'
-import { McpPlugin } from '../src/plugins/mcp-plugin.js'
+import { McpPlugin, MAX_PLUGIN_OUTPUT_BYTES } from '../src/plugins/mcp-plugin.js'
 import { robinhoodDefinition } from '../src/plugins/robinhood.js'
 import assert from 'node:assert/strict'
 import { test, type TestContext } from 'node:test'
@@ -24,6 +24,7 @@ async function fixture(t: TestContext) {
   const calls: string[] = []
   let tokenCalls = 0
   let fail = false
+  let payload = ''
   let challenge = ''
   let accessToken = 'test-access'
   let url = ''
@@ -63,12 +64,12 @@ async function fixture(t: TestContext) {
       let result: unknown
       if (message.method === 'initialize') result = { protocolVersion: '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'fake-robinhood', version: '1' } }
       if (message.method === 'tools/list') result = message.params?.cursor
-        ? { tools: [{ name: 'place_order', description: 'Place an order', inputSchema: { type: 'object', properties: { symbol: { type: 'string' } } } }] }
+        ? { tools: [{ name: 'place_order', description: payload || 'Place an order', inputSchema: { type: 'object', properties: { symbol: { type: 'string' } } } }] }
         : { tools: [{ name: 'get_accounts', inputSchema: { type: 'object' } }], nextCursor: 'next' }
       if (message.method === 'tools/call') {
         calls.push(message.params.name)
         if (fail) return json({ error: 'test failure' }, 500)
-        result = { content: [{ type: 'text', text: 'fake account' }], structuredContent: { accounts: ['fake'] } }
+        result = { content: [{ type: 'text', text: payload || 'fake account' }], structuredContent: { accounts: ['fake'] } }
       }
       return json({ jsonrpc: '2.0', id: message.id, result })
     }
@@ -94,6 +95,7 @@ async function fixture(t: TestContext) {
   }
   const begin = async () => callbackFor((await plugin.connect('default')).url)
   return { plugin, store, bot, saved, clients, calls, changed, begin, callbackFor, secrets, dir, url,
+    setPayload: (value: string) => { payload = value },
     expire: () => { accessToken = 'expired-on-server' }, tokenCalls: () => tokenCalls, fail: () => { fail = true } }
 }
 
@@ -343,4 +345,34 @@ test('a second MCP plugin reuses login and discovery without sharing credentials
   assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), true)
   assert.equal((await runDesktopTool(null, 'notes_call_tool', { name: 'get_accounts', arguments: {} }, ctx)).ok, false)
   assert.equal((await runDesktopTool(null, 'robinhood_call_tool', { name: 'get_accounts', arguments: {} }, { external: f.plugin.context(f.bot.id) })).ok, true)
+})
+
+
+test('oversized schemas and results are withheld without replaying actions', async t => {
+  const f = await fixture(t)
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const conversation = f.store.listConversations(f.bot.id)[0]!
+  const ctx = f.plugin.toolContext(f.bot.id, conversation.id)
+  assert.equal((await ctx.requestPluginAccess!('unknown')).ok, false)
+  assert.equal((await ctx.requestPluginAccess!('robinhood')).ok, true)
+  assert.equal(ctx.external!.specs.length, 2)
+  // Multibyte text verifies the byte limit, not just a character count.
+  f.setPayload('界'.repeat(MAX_PLUGIN_OUTPUT_BYTES / 2))
+  const index = await runDesktopTool(null, 'robinhood_list_tools', {}, ctx)
+  assert.equal(index.ok, true)
+  assert.ok(Buffer.byteLength(index.output) < MAX_PLUGIN_OUTPUT_BYTES)
+  const schema = await runDesktopTool(null, 'robinhood_list_tools', { name: 'place_order' }, ctx)
+  assert.equal(schema.ok, false)
+  assert.match(schema.output, /withheld/)
+  const result = await runDesktopTool(null, 'robinhood_call_tool', { name: 'place_order', arguments: {} }, ctx)
+  assert.equal(result.ok, false)
+  assert.ok(Buffer.byteLength(result.output) < MAX_PLUGIN_OUTPUT_BYTES)
+  assert.doesNotMatch(result.output, /界/)
+  assert.match(result.output, /may already have completed/)
+  assert.deepEqual(f.calls, ['place_order'])
+  f.setPayload('small response')
+  const small = await runDesktopTool(null, 'robinhood_call_tool', { name: 'get_accounts', arguments: {} }, ctx)
+  assert.equal(small.ok, true)
+  assert.equal(JSON.parse(small.output).content[0].text, 'small response')
 })

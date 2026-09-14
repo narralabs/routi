@@ -44,10 +44,7 @@ export class McpHttp {
   private contextFor(botId: string, conversationId: string, signal?: AbortSignal) {
     const bot = this.store.getBot(botId)
     return {
-      external: this.robinhood?.context(botId, signal, true),
-      requestPluginAccess: this.robinhood ? async (plugin: string) => plugin === 'robinhood'
-        ? this.robinhood!.requestAccess(botId, conversationId)
-        : { ok: false, output: 'Unknown plugin.', summary: 'Unknown plugin' } : undefined,
+      ...this.robinhood?.toolContext(botId, conversationId, signal),
       ...(this.onImageAttached ? {
         attachImage: (image: ImageBlock) => this.onImageAttached!(botId, conversationId, image),
       } : {}),

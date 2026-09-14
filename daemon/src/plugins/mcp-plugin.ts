@@ -19,6 +19,7 @@ export interface McpPluginDefinition {
   callInstructions?: string
   failedCallInstructions?: string
 }
+export const MAX_PLUGIN_OUTPUT_BYTES = 24_000
 const LOGIN_TIMEOUT = 10 * 60_000
 const networkFetch: typeof fetch = (url, init) => fetch(url, {
   ...init, signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(init?.signal ? [init.signal] : [])]),
@@ -236,6 +237,15 @@ export class McpPlugin {
     })
   }
 
+  toolContext(botId: string, conversationId: string, signal?: AbortSignal): ToolContext {
+    return {
+      external: this.context(botId, signal, true),
+      requestPluginAccess: async plugin => plugin === this.definition.id
+        ? this.requestAccess(botId, conversationId)
+        : { ok: false, output: 'Unknown plugin.', summary: 'Unknown plugin' },
+    }
+  }
+
   context(botId: string, signal?: AbortSignal, includeLocked = false): ToolContext['external'] {
     if (!this.store.getBot(botId) || (!includeLocked && !this.store.pluginEnabled(this.definition.id, botId))) return undefined
     return {
@@ -246,7 +256,7 @@ export class McpPlugin {
       run: async (name, args) => {
         const bot = this.store.getBot(botId)
         if (!bot) return { ok: false, output: 'This bot was deleted.', summary: `${this.definition.name} unavailable` }
-        return this.serial(bot.profileId, async () => {
+        const result = await this.serial(bot.profileId, async () => {
           if (!this.store.getBot(botId) || !this.store.pluginEnabled(this.definition.id, botId)) return { ok: false, output: `${this.definition.name} access is disabled for this bot. Use request_plugin_access with plugin=${this.definition.id} to show an approval card.`, summary: `${this.definition.name} disconnected` }
           if (signal?.aborted) return { ok: false, output: 'Request cancelled before execution.', summary: `${this.definition.name} cancelled` }
           const client = new Client({ name: 'Routi Bot', version: '1.0.0' })
@@ -297,6 +307,12 @@ export class McpPlugin {
             return { ok: false, output: `${failure.message} Failure stage: ${stage}. ${outcome}`, summary: `${this.definition.name}: ${failure.kind}` }
           } finally { await client.close().catch(() => {}) }
         })
+        // Bound model context, including schema and error responses. Never truncate JSON.
+        if (Buffer.byteLength(result.output, 'utf8') > MAX_PLUGIN_OUTPUT_BYTES) return {
+          ok: false, summary: `${this.definition.name}: response too large`,
+          output: `The plugin response exceeded ${MAX_PLUGIN_OUTPUT_BYTES} bytes and was withheld. Request a specific tool schema or a smaller, paginated read. If this was an action, it may already have completed: check its status rather than repeating it to recover the response. Routi did not automatically replay the call.`,
+        }
+        return result
       },
     }
   }

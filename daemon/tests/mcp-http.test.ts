@@ -157,14 +157,15 @@ test('HTTP harnesses discover and execute an external plugin without a screen', 
   let grantedBot = ''
   const requests: string[] = []
   const plugin = {
-    requestAccess: async (botId: string, conversationId: string) => {
+    toolContext: (botId: string, conversationId: string) => ({
+    requestPluginAccess: async () => {
       requests.push(`${botId}:${conversationId}`)
       return { ok: true, output: 'Approval card shown; wait for approval.', summary: 'Access requested' }
     },
-    context: (botId: string) => botId === grantedBot ? {
+    external: botId === grantedBot ? {
     specs: [{ name: 'robinhood_list_tools', description: 'Discover tools', parameters: { type: 'object', properties: {} } }],
     run: async () => ({ ok: true, output: 'Robinhood tool schemas', summary: 'Discovered tools' }),
-  } : undefined } as unknown as Robinhood
+  } : undefined }) } as unknown as Robinhood
   const f = await setup(t, plugin)
   grantedBot = f.first.bot.id
   const client = await f.connect()

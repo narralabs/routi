@@ -76,12 +76,16 @@ struct SettingsScreen: View {
         }
     }
 
-    private static let sections: [(String, [Pane])] = [
+    private static var appPanes: [Pane] {
         #if os(macOS)
-        ("App", [.general]),
+        [.general]
         #else
-        ("App", [.general, .plugins]),
+        [.general, .plugins]
         #endif
+    }
+
+    private static let sections: [(String, [Pane])] = [
+        ("App", appPanes),
         ("Providers", ProviderInfo.all.map { .provider($0.id) }),
         ("Core", [.core, .screens]),
         ("About", [.about]),

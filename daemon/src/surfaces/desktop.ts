@@ -1,5 +1,6 @@
 import { execFile, spawn, type ExecFileOptions } from 'node:child_process'
 import { promisify } from 'node:util'
+import { dockerFailure } from './docker-error.js'
 
 const run = promisify(execFile)
 
@@ -214,8 +215,10 @@ class Host {
   }
 
   private async ensureOnce(): Promise<string | null> {
-    if (!(await this.dockerAvailable())) {
-      return 'Docker is not running on the Mac hosting Routi Core. Start Docker Desktop there; Settings → Screens shows the state.'
+    try {
+      await docker(['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
+    } catch (error) {
+      return dockerFailure(error)
     }
     if (!(await this.imageExists())) {
       const built = await this.buildImage()
@@ -266,15 +269,6 @@ class Host {
       return null
     } catch (err) {
       return err instanceof Error ? err.message : String(err)
-    }
-  }
-
-  private async dockerAvailable(): Promise<boolean> {
-    try {
-      await docker(['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
-      return true
-    } catch {
-      return false
     }
   }
 
@@ -500,7 +494,7 @@ export class Desktop {
     if (failure) {
       return { state: 'unavailable', width: this.width, height: this.height, detail: failure }
     }
-    return { state: this.state, width: this.width, height: this.height }
+    return { state: this.state, width: this.width, height: this.height, detail: this.detail }
   }
 
   /** Idempotent: safe to call on every attach. */

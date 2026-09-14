@@ -134,9 +134,9 @@ function viewerHTML(prefix: string, bot: string) {
 <body><div id="status">Connecting to desktop…</div><div id="screen"></div><script type="module">
 import RFB from '${prefix}/assets/core/rfb.js';
 const status = document.querySelector('#status');
-let rfb, retry, stopped = false;
+let rfb, retry, handshake, stopped = false;
 function connect() {
-  clearTimeout(retry);
+  clearTimeout(retry); clearTimeout(handshake);
   if (stopped || document.hidden) return;
   const previous = rfb; rfb = null; previous?.disconnect();
   status.hidden = false; status.textContent = 'Connecting to desktop…';
@@ -165,21 +165,28 @@ rfb.qualityLevel = 6;
 rfb.compressionLevel = 2;
 rfb.addEventListener('connect', () => {
   if (rfb !== connection) return;
+  clearTimeout(handshake);
   status.hidden = true;
   if (!connection.viewOnly) connection.focus();
 });
 rfb.addEventListener('disconnect', () => {
   if (rfb !== connection) return;
+  clearTimeout(handshake);
   window.webkit?.messageHandlers?.cursor?.postMessage(null);
   status.hidden = false; status.textContent = 'Desktop disconnected. Reconnecting…';
   if (!stopped && !document.hidden) retry = setTimeout(connect, 2000);
 });
 rfb.addEventListener('securityfailure', () => { status.hidden = false; status.textContent = 'VNC connection rejected.'; });
+handshake = setTimeout(() => {
+  if (rfb !== connection) return;
+  connection.disconnect();
+  status.hidden = false; status.textContent = 'Desktop connection timed out. Retrying…';
+}, 15000);
 }
-window.disconnectVNC = () => { stopped = true; clearTimeout(retry); rfb?.disconnect(); };
+window.disconnectVNC = () => { stopped = true; clearTimeout(retry); clearTimeout(handshake); rfb?.disconnect(); };
 window.addEventListener('pagehide', window.disconnectVNC);
 document.addEventListener('visibilitychange', () => {
-  clearTimeout(retry);
+  clearTimeout(retry); clearTimeout(handshake);
   if (document.hidden) rfb?.disconnect(); else connect();
 });
 connect();

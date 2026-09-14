@@ -90,7 +90,7 @@ struct PluginsPane: View {
                             }
                         }
                         if status.connected || status.connecting {
-                            Button(status.connected ? "Disconnect" : "Cancel login", role: .destructive) {
+                            Button(status.connected ? "Disconnect from Routi" : "Cancel login", role: .destructive) {
                                 perform { profileID in
                                     _ = try await model.robinhoodAction("disconnect", profileID: profileID)
                                     loginURL = nil
@@ -100,6 +100,8 @@ struct PluginsPane: View {
                         }
                     }
                     .disabled(busy)
+                    Text("Disconnecting removes this profile’s saved login and bot access in Routi. To revoke the authorization on Robinhood too, remove the agent connection on Robinhood’s website.")
+                        .font(.caption).foregroundStyle(.secondary)
                     if status.connecting {
                         Text("Waiting for Robinhood sign-in…")
                         if let loginURL { Link("Open sign-in again", destination: loginURL) }

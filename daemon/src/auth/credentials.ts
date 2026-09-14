@@ -9,6 +9,7 @@ const SERVICE = 'Routi'
 
 /** Keychain account name per provider, so two keys can coexist. */
 const ACCOUNTS: Record<string, string> = {
+  robinhood: 'robinhood-oauth',
   anthropic: 'anthropic-api-key',
   'anthropic-claude': 'anthropic-claude-api-key',
   openai: 'openai-api-key',
@@ -43,7 +44,7 @@ export class Credentials {
    * beside it under the same name with the profile's id appended.
    */
   private account(provider: string, profileId = 'default'): string {
-    const account = ACCOUNTS[provider]
+    const account = ACCOUNTS[provider] ?? (/^mcp:[a-z][a-z0-9_]*$/.test(provider) ? `${provider}-oauth` : undefined)
     if (!account) throw new Error(`No credential slot for provider: ${provider}`)
     return profileId === 'default' ? account : `${account}.${profileId}`
   }

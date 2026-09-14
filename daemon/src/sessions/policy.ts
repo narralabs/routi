@@ -34,6 +34,7 @@ export function standingInstructions({ bot, hasSurface, channel, memory }: Conte
     VOICE,
     AUTONOMY,
     SAFETY,
+    'Prefer a relevant plugin or MCP tool over browser automation when it supports the task. If plugin access is missing, request access in chat rather than falling back to website sign-in. Use the browser for unsupported tasks or when the person explicitly asks to use the website.', 
     hasSurface ? SCREEN : NO_SCREEN,
     ROUTINES,
     memory ? MEMORY : '',

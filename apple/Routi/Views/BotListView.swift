@@ -349,6 +349,15 @@ private struct SidebarFooter: View {
                 }
                 .buttonStyle(.plain)
                 .help("New Bot")
+                Button { model.isShowingPlugins = true } label: {
+                    Image(systemName: "puzzlepiece.extension")
+                        .font(.system(size: 16))
+                        .frame(width: 32, height: 32)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help("Plugins")
+                .accessibilityLabel("Plugins")
                 ProfileMenu {
                     Text(model.userInitials)
                         .font(.system(size: 10, weight: .semibold))
@@ -414,6 +423,15 @@ private struct SidebarFooter: View {
                 .accessibilityIdentifier("appUpdateRow")
             }
             #endif
+
+            FooterRow(title: "Plugins") {
+                Image(systemName: "puzzlepiece.extension")
+                    .font(.system(size: 15))
+                    .frame(width: 22, height: 22)
+            } action: {
+                model.isShowingPlugins = true
+            }
+            .accessibilityIdentifier("pluginsRow")
 
             // The profile row: the name opens the profile menu, which is where Settings
             // lives too, rather than the word "Settings" taking a row of its own.

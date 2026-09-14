@@ -57,6 +57,7 @@ final class AppModel {
     /// Settings replaces the whole window rather than opening a panel, so its
     /// visibility is app state, not view state — the ⌘, menu command toggles it too.
     var isShowingSettings = false
+    var isShowingPlugins = false
     /// A pane Settings should open on, asked for by whoever opened it. Read once.
     var requestedSettingsPane: String?
 
@@ -80,6 +81,7 @@ final class AppModel {
     var surfaceFrame: Data?
     /// Bots waiting on you, by bot id. A bot with one is paused until it is answered.
     var handovers: [String: Handover] = [:]
+    var pluginAccessRequests: [PluginAccessRequest] = []
     /// Where the desktop's own pointer is, in its pixels. Absent until a frame says.
     var surfacePointer: CGPoint?
     @ObservationIgnored private var hostFrameTask: Task<Void, Never>?
@@ -180,7 +182,7 @@ final class AppModel {
         // one's while the app is in the background or behind Settings or the screen.
         notifier.isWatching = { [weak self] conversationId in
             guard let self, self.selectedConversationID == conversationId else { return false }
-            guard !self.isShowingSettings, !self.isShowingScreen else { return false }
+            guard !self.isShowingSettings, !self.isShowingPlugins, !self.isShowingScreen else { return false }
             #if os(macOS)
             return NSApp.isActive
             #else
@@ -193,6 +195,24 @@ final class AppModel {
             self.isShowingScreen = false
             Task { await self.select(bot: botId) }
         }
+    }
+
+    func refreshPluginAccess() async {
+        let profileID = currentProfileID
+        guard let requests = try? await client.rpc("robinhood.access.list", ["profileId": profileID], field: "requests", as: [PluginAccessRequest].self),
+              profileID == currentProfileID else { return }
+        pluginAccessRequests = requests
+    }
+
+    func robinhoodStatus(profileID: String) async throws -> RobinhoodStatus {
+        let result = try await client.rpc("robinhood.status", ["profileId": profileID])
+        return try JSONDecoder().decode(RobinhoodStatus.self, from: JSONSerialization.data(withJSONObject: result))
+    }
+
+    func robinhoodAction(_ action: String, profileID: String, params: [String: Any] = [:]) async throws -> [String: Any] {
+        var params = params
+        params["profileId"] = profileID
+        return try await client.rpc("robinhood.\(action)", params)
     }
 
     var account: AccountInfo? { client.account }
@@ -480,6 +500,7 @@ final class AppModel {
     func switchProfile(to id: String) async {
         guard id != currentProfileID, profiles.contains(where: { $0.id == id }) else { return }
         currentProfileID = id
+        pluginAccessRequests = []
         UserDefaults.standard.set(id, forKey: "currentProfile")
         isLoadingBots = true
         clearSelection()
@@ -961,6 +982,8 @@ final class AppModel {
             await loadSharedMemories()
             await checkCoreUpdate()
 
+            await refreshPluginAccess()
+
             // A client that connects late still needs to see what is being waited on.
             if let pending = try? await client.rpc("handover.list", field: "handovers", as: [Handover].self) {
                 handovers = Dictionary(uniqueKeysWithValues: pending.map { ($0.botId, $0) })
@@ -1331,6 +1354,11 @@ final class AppModel {
                 preview: event.payload["preview"] as? String,
                 routineName: meta?["routineName"] as? String
             )
+
+        case "plugin.access.updated":
+            if event.payload["profileId"] as? String == currentProfileID {
+                Task { await refreshPluginAccess() }
+            }
 
         case "handover.requested":
             if let raw = event.payload["handover"],

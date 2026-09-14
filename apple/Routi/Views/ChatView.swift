@@ -52,6 +52,12 @@ struct ChatView: View {
         // asks the core to greet (`AppModel.select`), and the typing dots have somewhere
         // to be while it does.
         transcript
+            .task(id: model.selectedConversationID) {
+                while !Task.isCancelled {
+                    await model.refreshPluginAccess()
+                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                }
+            }
     }
 
     /**
@@ -87,6 +93,9 @@ struct ChatView: View {
                     // closed, and then the only sign was "Waiting for you" in the sidebar.
                     if let handover = model.handover(for: bot.id) {
                         HandoverCard(handover: handover).padding(.top, 12)
+                    }
+                    ForEach(model.pluginAccessRequests.filter { $0.conversationId == model.selectedConversationID }) { request in
+                        PluginAccessCard(request: request).padding(.top, 12)
                     }
                     if model.isBusy {
                         VStack(alignment: .leading, spacing: 6) {

@@ -1,3 +1,4 @@
+import type { Robinhood } from '../plugins/robinhood.js'
 import { randomUUID } from 'node:crypto'
 import type { Block, Bot, ImageBlock, Message, ServerEvent } from '@routi/protocol'
 import type { Routine, Store } from '../db/store.js'
@@ -51,6 +52,7 @@ export class SessionManager {
     private readonly emit: Emit,
     private readonly desktops?: DesktopPool,
     private readonly handovers?: Handovers,
+    private readonly robinhood?: Robinhood,
   ) {}
 
   isBusy(conversationId: string): boolean {
@@ -394,14 +396,15 @@ export class SessionManager {
           conversationId,
           // The bot's name belongs in its prompt: without it a bot introduces itself
           // as "Claude" rather than as the thing the user just named and created.
-          systemPrompt: standingInstructions({
+          systemPrompt: [standingInstructions({
             bot,
             hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
             channel,
             memory,
-          }),
+          }), this.robinhood ? 'Robinhood is available through a direct MCP integration. For Robinhood account access or trading, use robinhood_list_tools and robinhood_call_tool. If access is disabled or the person asks to connect, call request_plugin_access with plugin="robinhood" and stop for the approval card. Unless the person explicitly asks to use the website, do not open a browser or request desktop takeover to connect Robinhood.' : ''].filter(Boolean).join('\n\n'),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
+            ...this.robinhood?.toolContext(bot.id, conversationId, ac.signal),
             attachImage: (image) => this.attachImage(bot.id, conversationId, image),
             routines: routineTools(this.store, bot.id, conversationId, () => this.routinesChanged(bot.id)),
             memory: memoryTools(this.store, bot.id, (owner) => this.memoryChanged(owner, 'bot')),

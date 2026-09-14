@@ -121,6 +121,22 @@ struct RootView: View {
         )) {
             SettingsScreen()
         }
+        .sheet(isPresented: Binding(
+            get: { model.isShowingPlugins },
+            set: { model.isShowingPlugins = $0 }
+        )) {
+            NavigationStack {
+                PluginsPane()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { model.isShowingPlugins = false }
+                        }
+                    }
+            }
+            #if os(macOS)
+            .frame(width: 640, height: 560)
+            #endif
+        }
         .alert(
             "Something went wrong",
             isPresented: Binding(

@@ -5,6 +5,9 @@ export function robinhoodFailure(error: unknown, cancelled = false): { kind: str
   if (value?.code === 401 || ['UnauthorizedError', 'InvalidGrantError', 'InvalidTokenError'].includes(value?.name ?? '')) {
     return { kind: 'authentication', message: 'Robinhood authentication is no longer valid. Reconnect Robinhood in Plugins.' }
   }
+  if (value?.code === -32601 || value?.code === -32602) {
+    return { kind: 'tool_arguments', message: 'Robinhood rejected the tool name or arguments. Use robinhood_list_tools to look up the exact name and schema; reconnecting will not fix this.' }
+  }
   if (value?.name === 'TimeoutError' || value?.code === -32001) {
     return { kind: 'timeout', message: 'Robinhood did not respond before the request timed out. This does not establish that the account is disconnected.' }
   }

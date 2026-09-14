@@ -232,7 +232,7 @@ export class Robinhood {
     if (!this.store.getBot(botId) || (!includeLocked && !this.store.pluginEnabled('robinhood', botId))) return undefined
     return {
       specs: [
-        { name: 'robinhood_list_tools', description: 'Discover Robinhood account, market data, and trading tools and their argument schemas. Call before using robinhood_call_tool.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+        { name: 'robinhood_list_tools', description: 'Discover Robinhood tools. With no name, returns a compact index of exact tool names. Then pass one exact name to get its argument schema before calling robinhood_call_tool. Do not guess tool names or arguments.', parameters: { type: 'object', properties: { name: { type: 'string', description: 'Exact tool name from the index; omit to list names.' } }, additionalProperties: false } },
         { name: 'robinhood_call_tool', description: 'Call a Robinhood tool using the exact name and arguments returned by robinhood_list_tools. Only trade when the user has authorized it. If a call fails or times out, its outcome may be unknown: check order status before attempting another order.', parameters: { type: 'object', properties: { name: { type: 'string' }, arguments: { type: 'object', additionalProperties: true } }, required: ['name', 'arguments'], additionalProperties: false } },
       ],
       run: async (name, args) => {
@@ -262,7 +262,16 @@ export class Robinhood {
                 cursor = page.nextCursor
                 if (tools.length > 1000) throw new Error('Too many tools')
               } while (cursor)
-              return { ok: true, output: JSON.stringify(tools), summary: `${tools.length} Robinhood tools` }
+              const requested = args['name']
+              if (typeof requested === 'string' && requested) {
+                const tool = tools.find(tool => tool.name === requested)
+                if (!tool) return { ok: false, output: 'No Robinhood tool has that exact name. Call robinhood_list_tools without a name for the index.', summary: 'Unknown Robinhood tool' }
+                return { ok: true, output: JSON.stringify(tool), summary: `Robinhood schema: ${tool.name}` }
+              }
+              return { ok: true, output: JSON.stringify({
+                instructions: 'Pass an exact name to robinhood_list_tools to get its argument schema, then use robinhood_call_tool. Do not guess names or arguments.',
+                tools: tools.map(tool => ({ name: tool.name, description: (tool.description ?? '').slice(0, 80) })),
+              }), summary: `${tools.length} Robinhood tools` }
             }
             if (name !== 'robinhood_call_tool' || typeof args['name'] !== 'string' || !args['arguments'] || typeof args['arguments'] !== 'object' || Array.isArray(args['arguments'])) throw new Error('Invalid tool arguments')
             signal?.throwIfAborted()

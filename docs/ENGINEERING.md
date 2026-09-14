@@ -367,6 +367,15 @@ background-tab memory use; it does not cap a bot's memory or stop an active page
 from exhausting the shared container. The policy lives in
 `/etc/chromium/policies/managed/routi.json` inside the desktop image.
 
+`renderer-watchdog.py` checks Chromium renderer RSS every five seconds. After three
+consecutive readings above 2 GiB, it kills that renderer, leaving the browser and
+screen running. Affected tabs may show “Aw, Snap!”; nothing is automatically reloaded
+or retried. The entrypoint supervises the watcher. `docker logs routi-desktop` records
+interventions with PID, RSS, display and bot IDs, without page URLs or credentials.
+RSS includes resident shared pages. This is a best-effort guard against a large
+renderer, not a per-bot memory cap: rapid spikes and many smaller processes can still
+exhaust the shared container.
+
 One container, shared by every bot, with a display per bot. The value of a desktop is
 its accumulated state — a signed-in site, a browser profile, downloaded files — and a
 container per bot would discard that on every bot you create. The daemon starts it on

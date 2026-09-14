@@ -81,15 +81,16 @@ async function fixture(t: TestContext) {
   }
   const plugin = new Robinhood(store, secrets, dir, id => changed.push(id), `${url}/mcp`)
   t.after(async () => { plugin.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); db.close(); rmSync(dir, { recursive: true, force: true }) })
-  const begin = async () => {
-    const login = new URL((await plugin.connect('default')).url)
+  const callbackFor = (loginUrl: string) => {
+    const login = new URL(loginUrl)
     challenge = login.searchParams.get('code_challenge')!
     const callback = new URL(login.searchParams.get('redirect_uri')!)
     callback.searchParams.set('state', login.searchParams.get('state')!)
     callback.searchParams.set('code', 'test-code')
     return callback
   }
-  return { plugin, store, bot, saved, clients, calls, changed, begin, secrets, dir, url,
+  const begin = async () => callbackFor((await plugin.connect('default')).url)
+  return { plugin, store, bot, saved, clients, calls, changed, begin, callbackFor, secrets, dir, url,
     expire: () => { accessToken = 'expired-on-server' }, tokenCalls: () => tokenCalls, fail: () => { fail = true } }
 }
 
@@ -214,4 +215,76 @@ test('login expires and cannot exchange its callback afterward', async t => {
   assert.equal((await f.plugin.status('default')).connecting, false)
   await assert.rejects(f.plugin.finish('default', callback.href), /expired/)
   assert.equal(f.tokenCalls(), 0)
+})
+
+
+test('chat approval grants only the requesting bot and resumes once', async t => {
+  const f = await fixture(t)
+  await f.plugin.finish('default', (await f.begin()).href)
+  const conversation = f.store.listConversations(f.bot.id)[0]!
+  const other = f.store.createBot({ name: 'Other bot', surfaceMode: 'none' }).bot
+  const resumed: string[] = []
+  f.plugin.onAccessGranted = request => resumed.push(request.botId)
+  await f.plugin.requestAccess(f.bot.id, conversation.id)
+  await f.plugin.requestAccess(f.bot.id, conversation.id)
+  const requests = f.plugin.accessList('default')
+  assert.equal(requests.length, 1)
+  assert.equal(requests[0]!.connected, true)
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
+  await f.plugin.respondAccess('default', requests[0]!.id, true)
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), true)
+  assert.equal(f.store.pluginEnabled('robinhood', other.id), false)
+  assert.deepEqual(resumed, [f.bot.id])
+  await assert.rejects(f.plugin.respondAccess('default', requests[0]!.id, true), /expired/)
+})
+
+test('chat login grants access after OAuth completion, without a separate toggle', async t => {
+  const f = await fixture(t)
+  const conversation = f.store.listConversations(f.bot.id)[0]!
+  let resumed = 0
+  f.plugin.onAccessGranted = () => { resumed++ }
+  await f.plugin.requestAccess(f.bot.id, conversation.id)
+  const request = f.plugin.accessList('default')[0]!
+  assert.equal(request.connected, false)
+  const response = await f.plugin.respondAccess('default', request.id, true)
+  assert.ok(response.url)
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
+  await f.plugin.finish('default', f.callbackFor(response.url!).href)
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), true)
+  assert.equal(resumed, 1)
+  assert.deepEqual(f.plugin.accessList('default'), [])
+})
+
+test('declined, expired, cross-profile, and deleted-bot cards cannot grant access', async t => {
+  const f = await fixture(t)
+  const conversation = f.store.listConversations(f.bot.id)[0]!
+  const other = f.store.createProfile('Work')
+  await f.plugin.requestAccess(f.bot.id, conversation.id)
+  let request = f.plugin.accessList('default')[0]!
+  await assert.rejects(f.plugin.respondAccess(other.id, request.id, true), /expired/)
+  await f.plugin.respondAccess('default', request.id, false)
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true), /expired/)
+  t.mock.timers.enable({ apis: ['Date'] })
+  await f.plugin.requestAccess(f.bot.id, conversation.id)
+  request = f.plugin.accessList('default')[0]!
+  t.mock.timers.tick(10 * 60_000)
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true), /expired/)
+  await f.plugin.requestAccess(f.bot.id, conversation.id)
+  request = f.plugin.accessList('default')[0]!
+  f.store.deleteBot(f.bot.id)
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true), /expired/)
+})
+
+test('cancelling a chat login prevents its callback from granting access', async t => {
+  const f = await fixture(t)
+  const conversation = f.store.listConversations(f.bot.id)[0]!
+  await f.plugin.requestAccess(f.bot.id, conversation.id)
+  const request = f.plugin.accessList('default')[0]!
+  const response = await f.plugin.respondAccess('default', request.id, true)
+  const callback = f.callbackFor(response.url!)
+  await f.plugin.respondAccess('default', request.id, false)
+  await assert.rejects(f.plugin.finish('default', callback.href), /expired/)
+  assert.equal(f.tokenCalls(), 0)
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
 })

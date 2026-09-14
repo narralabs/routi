@@ -81,6 +81,7 @@ final class AppModel {
     var surfaceFrame: Data?
     /// Bots waiting on you, by bot id. A bot with one is paused until it is answered.
     var handovers: [String: Handover] = [:]
+    var pluginAccessRequests: [PluginAccessRequest] = []
     /// Where the desktop's own pointer is, in its pixels. Absent until a frame says.
     var surfacePointer: CGPoint?
     @ObservationIgnored private var hostFrameTask: Task<Void, Never>?
@@ -194,6 +195,13 @@ final class AppModel {
             self.isShowingScreen = false
             Task { await self.select(bot: botId) }
         }
+    }
+
+    func refreshPluginAccess() async {
+        let profileID = currentProfileID
+        guard let requests = try? await client.rpc("robinhood.access.list", ["profileId": profileID], field: "requests", as: [PluginAccessRequest].self),
+              profileID == currentProfileID else { return }
+        pluginAccessRequests = requests
     }
 
     func robinhoodStatus(profileID: String) async throws -> RobinhoodStatus {
@@ -492,6 +500,7 @@ final class AppModel {
     func switchProfile(to id: String) async {
         guard id != currentProfileID, profiles.contains(where: { $0.id == id }) else { return }
         currentProfileID = id
+        pluginAccessRequests = []
         UserDefaults.standard.set(id, forKey: "currentProfile")
         isLoadingBots = true
         clearSelection()
@@ -973,6 +982,8 @@ final class AppModel {
             await loadSharedMemories()
             await checkCoreUpdate()
 
+            await refreshPluginAccess()
+
             // A client that connects late still needs to see what is being waited on.
             if let pending = try? await client.rpc("handover.list", field: "handovers", as: [Handover].self) {
                 handovers = Dictionary(uniqueKeysWithValues: pending.map { ($0.botId, $0) })
@@ -1343,6 +1354,11 @@ final class AppModel {
                 preview: event.payload["preview"] as? String,
                 routineName: meta?["routineName"] as? String
             )
+
+        case "plugin.access.updated":
+            if event.payload["profileId"] as? String == currentProfileID {
+                Task { await refreshPluginAccess() }
+            }
 
         case "handover.requested":
             if let raw = event.payload["handover"],

@@ -541,6 +541,13 @@ single-use state; client credentials and tokens live in Keychain, scoped to this
 core's data directory and profile. Login expires after ten minutes. When signing in
 from another computer, paste the final callback URL into the connection pane.
 
+Bots can call `request_plugin_access` to show a chat approval card. Existing
+connections need one Allow click; signing in from the card also grants access to
+that bot. Requests are bound to the profile, bot, and conversation, expire after ten
+minutes, and disappear on restart. Approval posts a visible user-action message to
+resume the conversation through its normal queue. No approval grants another bot
+access or authorizes a trade by itself.
+
 Bots receive `robinhood_list_tools` and `robinhood_call_tool` through the shared tool
 context, including direct API adapters. Discovery reads Robinhood's current schemas;
 the model receives tool results, never OAuth credentials. Access is checked at call

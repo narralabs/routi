@@ -17,7 +17,14 @@ export const PROTOCOL_VERSION = 1
 
 // ---------------------------------------------------------------- RPC methods
 
+const PluginAccessRequest = z.object({
+  id: z.string(), botId: z.string(), conversationId: z.string(), profileId: z.string(),
+  connected: z.boolean(), connecting: z.boolean(), expiresAt: z.number(),
+})
+
 export const RpcMethods = {
+  'robinhood.access.list': { params: z.object({ profileId: z.string() }), result: z.object({ requests: z.array(PluginAccessRequest) }) },
+  'robinhood.access.respond': { params: z.object({ profileId: z.string(), id: z.string(), allow: z.boolean() }), result: z.object({ url: z.string().optional() }) },
   'robinhood.status': {
     params: z.object({ profileId: z.string() }),
     result: z.object({ connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
@@ -373,6 +380,7 @@ export const ServerEvent = z.discriminatedUnion('e', [
   z.object({ e: z.literal('surface.state'), botId: z.string(), surface: SurfaceStatus }),
   // A room message that was never written: a bot chose silence.
   z.object({ e: z.literal('message.deleted'), conversationId: z.string(), messageId: z.string() }),
+  z.object({ e: z.literal('plugin.access.updated'), profileId: z.string() }),
   z.object({ e: z.literal('handover.requested'), handover: Handover }),
   z.object({
     e: z.literal('handover.resolved'),

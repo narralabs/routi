@@ -155,14 +155,25 @@ test('requested screenshots are saved and broadcast inline, while navigation cap
 
 test('HTTP harnesses discover and execute an external plugin without a screen', async t => {
   let grantedBot = ''
-  const plugin = { context: (botId: string) => botId === grantedBot ? {
+  const requests: string[] = []
+  const plugin = {
+    requestAccess: async (botId: string, conversationId: string) => {
+      requests.push(`${botId}:${conversationId}`)
+      return { ok: true, output: 'Approval card shown; wait for approval.', summary: 'Access requested' }
+    },
+    context: (botId: string) => botId === grantedBot ? {
     specs: [{ name: 'robinhood_list_tools', description: 'Discover tools', parameters: { type: 'object', properties: {} } }],
     run: async () => ({ ok: true, output: 'Robinhood tool schemas', summary: 'Discovered tools' }),
   } : undefined } as unknown as Robinhood
   const f = await setup(t, plugin)
   grantedBot = f.first.bot.id
   const client = await f.connect()
-  assert.ok((await client.listTools()).tools.some(t => t.name === 'robinhood_list_tools'))
+  const tools = (await client.listTools()).tools
+  assert.ok(tools.some(t => t.name === 'robinhood_list_tools'))
+  assert.ok(tools.some(t => t.name === 'request_plugin_access'))
+  const approval = await client.callTool({ name: 'request_plugin_access', arguments: { plugin: 'robinhood' } })
+  assert.equal(approval.isError, false)
+  assert.deepEqual(requests, [`${f.first.bot.id}:${f.first.conversation.id}`])
   const result = await client.callTool({ name: 'robinhood_list_tools', arguments: {} })
   assert.equal(result.isError, false)
   assert.match(JSON.stringify(result.content), /Robinhood tool schemas/)

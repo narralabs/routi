@@ -396,15 +396,18 @@ export class SessionManager {
           conversationId,
           // The bot's name belongs in its prompt: without it a bot introduces itself
           // as "Claude" rather than as the thing the user just named and created.
-          systemPrompt: standingInstructions({
+          systemPrompt: [standingInstructions({
             bot,
             hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
             channel,
             memory,
-          }),
+          }), this.robinhood ? 'Robinhood is available through a direct MCP integration. For Robinhood account access or trading, use robinhood_list_tools and robinhood_call_tool. If access is disabled or the person asks to connect, call request_plugin_access with plugin="robinhood" and stop for the approval card. Do not open a browser or request desktop takeover to connect Robinhood.' : ''].filter(Boolean).join('\n\n'),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
-            external: this.robinhood?.context(bot.id, ac.signal),
+            external: this.robinhood?.context(bot.id, ac.signal, true),
+            requestPluginAccess: this.robinhood ? async plugin => plugin === 'robinhood'
+              ? this.robinhood!.requestAccess(bot.id, conversationId)
+              : { ok: false, output: 'Unknown plugin.', summary: 'Unknown plugin' } : undefined,
             attachImage: (image) => this.attachImage(bot.id, conversationId, image),
             routines: routineTools(this.store, bot.id, conversationId, () => this.routinesChanged(bot.id)),
             memory: memoryTools(this.store, bot.id, (owner) => this.memoryChanged(owner, 'bot')),

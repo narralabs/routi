@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
@@ -17,7 +17,12 @@ const networkFetch: typeof fetch = (url, init) => fetch(url, {
 
 type SavedLogin = { redirectUrl: string; client?: OAuthClientInformationMixed; tokens?: OAuthTokens }
 type Secrets = Pick<Credentials, 'getApiKey' | 'setApiKey' | 'clearApiKey'>
-type Pending = { provider: OAuthClientProvider; state: string; server: Server; timer: NodeJS.Timeout; redirectUrl: string }
+type Pending = { provider: OAuthClientProvider; state: string; server: Server; timer: NodeJS.Timeout; redirectUrl: string; accessId?: string }
+
+export interface PluginAccessRequest {
+  id: string; botId: string; conversationId: string; profileId: string
+  connected: boolean; connecting: boolean; expiresAt: number
+}
 
 /** One Robinhood account connection per Routi profile; access is granted per bot. */
 export class Robinhood {
@@ -25,6 +30,9 @@ export class Robinhood {
   private readonly errors = new Map<string, string>()
   private readonly queues = new Map<string, Promise<unknown>>()
   private readonly namespace: string
+  private readonly access = new Map<string, PluginAccessRequest>()
+  onAccessChanged: (profileId: string) => void = () => {}
+  onAccessGranted: (request: PluginAccessRequest) => void = () => {}
 
   constructor(
     private readonly store: Store,
@@ -98,9 +106,11 @@ export class Robinhood {
     }
   }
 
-  async connect(profileId: string): Promise<{ url: string }> {
+  async connect(profileId: string, accessId?: string): Promise<{ url: string }> {
     return this.serial(profileId, async () => {
       this.checkProfile(profileId)
+      if (accessId) this.findAccess(accessId, profileId)
+      if (accessId && this.pending.has(profileId)) throw new Error('Robinhood sign-in is already in progress. Finish it, then allow this bot.')
       this.cancel(profileId)
       this.errors.delete(profileId)
       const state = randomBytes(32).toString('hex')
@@ -116,6 +126,9 @@ export class Robinhood {
         })
       })
       await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+      if (accessId) {
+        try { this.findAccess(accessId, profileId) } catch (error) { server.close(); throw error }
+      }
       const address = server.address()
       if (!address || typeof address === 'string') { server.close(); throw new Error('Could not start login callback.') }
       const redirectUrl = `http://127.0.0.1:${address.port}/callback`
@@ -126,7 +139,7 @@ export class Robinhood {
         this.errors.set(profileId, 'Login expired. Connect again.')
       }, LOGIN_TIMEOUT)
       timer.unref()
-      this.pending.set(profileId, { provider, state, server, timer, redirectUrl })
+      this.pending.set(profileId, { provider, state, server, timer, redirectUrl, accessId })
       try {
         await auth(provider, { serverUrl: this.serverUrl, fetchFn: networkFetch })
         if (!url) throw new Error('Robinhood did not provide a login URL.')
@@ -156,9 +169,16 @@ export class Robinhood {
         const code = url.searchParams.get('code')
         if (url.searchParams.has('error') || !code) throw new Error('Authorization declined.')
         this.revoke(profileId)
-        await auth(pending.provider, { serverUrl: this.serverUrl, authorizationCode: code, fetchFn: networkFetch })
+        const outcome = await auth(pending.provider, { serverUrl: this.serverUrl, authorizationCode: code, fetchFn: networkFetch })
+        if (outcome !== 'AUTHORIZED') throw new Error('Authorization did not complete.')
         this.errors.delete(profileId)
+        if (pending.accessId) {
+          const request = this.findAccess(pending.accessId, profileId)
+          this.grantAccess(request)
+        }
       } catch {
+        const request = pending.accessId ? this.access.get(pending.accessId) : undefined
+        if (request) { request.connecting = false; this.onAccessChanged(profileId) }
         this.errors.set(profileId, 'Robinhood login failed. Connect again.')
         throw new Error('Robinhood login failed. Connect again.')
       }
@@ -167,7 +187,11 @@ export class Robinhood {
 
   private cancel(profileId: string): void {
     const pending = this.pending.get(profileId)
-    if (pending) { clearTimeout(pending.timer); pending.server.close(); this.pending.delete(profileId) }
+    if (pending) {
+      clearTimeout(pending.timer); pending.server.close(); this.pending.delete(profileId)
+      const request = pending.accessId ? this.access.get(pending.accessId) : undefined
+      if (request) { request.connecting = false; this.onAccessChanged(profileId) }
+    }
   }
 
   private revoke(profileId: string): void {
@@ -179,6 +203,8 @@ export class Robinhood {
   }
 
   async disconnect(profileId: string): Promise<void> {
+    for (const request of this.accessList(profileId)) this.access.delete(request.id)
+    this.onAccessChanged(profileId)
     // Revoke immediately, then again under the lock to cover already queued changes.
     this.cancel(profileId)
     this.revoke(profileId)
@@ -201,8 +227,8 @@ export class Robinhood {
     })
   }
 
-  context(botId: string, signal?: AbortSignal): ToolContext['external'] {
-    if (!this.store.getBot(botId) || !this.store.pluginEnabled('robinhood', botId)) return undefined
+  context(botId: string, signal?: AbortSignal, includeLocked = false): ToolContext['external'] {
+    if (!this.store.getBot(botId) || (!includeLocked && !this.store.pluginEnabled('robinhood', botId))) return undefined
     return {
       specs: [
         { name: 'robinhood_list_tools', description: 'Discover Robinhood account, market data, and trading tools and their argument schemas. Call before using robinhood_call_tool.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
@@ -212,7 +238,7 @@ export class Robinhood {
         const bot = this.store.getBot(botId)
         if (!bot) return { ok: false, output: 'This bot was deleted.', summary: 'Robinhood unavailable' }
         return this.serial(bot.profileId, async () => {
-          if (!this.store.getBot(botId) || !this.store.pluginEnabled('robinhood', botId)) return { ok: false, output: 'Robinhood access is disabled for this bot.', summary: 'Robinhood disconnected' }
+          if (!this.store.getBot(botId) || !this.store.pluginEnabled('robinhood', botId)) return { ok: false, output: 'Robinhood access is disabled for this bot. Use request_plugin_access with plugin=robinhood to show an approval card.', summary: 'Robinhood disconnected' }
           if (signal?.aborted) return { ok: false, output: 'Request cancelled before execution.', summary: 'Robinhood cancelled' }
           const client = new Client({ name: 'Routi Bot', version: '1.0.0' })
           try {
@@ -246,6 +272,80 @@ export class Robinhood {
           } finally { await client.close().catch(() => {}) }
         })
       },
+    }
+  }
+
+  async requestAccess(botId: string, conversationId: string) {
+    const bot = this.store.getBot(botId)
+    const conversation = this.store.getConversation(conversationId)
+    if (!bot || !conversation || (conversation.botId !== botId && !this.store.channelMembers(conversationId).some(b => b.id === botId))) {
+      return { ok: false, output: 'This bot is not part of this conversation.', summary: 'Access unavailable' }
+    }
+    if (this.store.pluginEnabled('robinhood', botId) && (await this.load(bot.profileId))?.tokens) {
+      return { ok: true, output: 'Robinhood access is already enabled. Use robinhood_list_tools to discover the tools.', summary: 'Robinhood enabled' }
+    }
+    const existing = this.accessList(bot.profileId).find(r => r.botId === botId && r.conversationId === conversationId)
+    if (!existing) {
+      const request: PluginAccessRequest = {
+        id: randomUUID(), botId, conversationId, profileId: bot.profileId,
+        connected: !!(await this.load(bot.profileId))?.tokens, connecting: false, expiresAt: Date.now() + LOGIN_TIMEOUT,
+      }
+      this.access.set(request.id, request)
+      this.onAccessChanged(bot.profileId)
+    }
+    return { ok: true, output: 'An access card is shown in this conversation. Stop here and wait for the person to allow access or sign in. Routi will send their approval into this chat so you can continue. Do not request passwords or use Robinhood tools before approval.', summary: 'Waiting for Robinhood access' }
+  }
+
+  accessList(profileId: string): PluginAccessRequest[] {
+    for (const [id, request] of this.access) {
+      if (request.expiresAt <= Date.now() || !this.store.getBot(request.botId) || !this.store.getConversation(request.conversationId)) this.access.delete(id)
+    }
+    return [...this.access.values()].filter(r => r.profileId === profileId).map(r => ({ ...r }))
+  }
+
+  private findAccess(id: string, profileId: string): PluginAccessRequest {
+    this.accessList(profileId)
+    const request = this.access.get(id)
+    if (!request || request.profileId !== profileId) throw new Error('This access request expired. Ask the bot to request access again.')
+    return request
+  }
+
+  private grantAccess(request: PluginAccessRequest): void {
+    const current = this.findAccess(request.id, request.profileId)
+    const bot = this.store.getBot(current.botId)
+    if (!bot || bot.profileId !== current.profileId) throw new Error('The bot is no longer in this profile.')
+    this.store.setPluginEnabled('robinhood', current.botId, true)
+    this.access.delete(current.id)
+    this.onAccessChanged(current.profileId)
+    // Chat providers already have the guarded tools, so do not interrupt a warm turn.
+    this.onAccessGranted({ ...current })
+  }
+
+  async respondAccess(profileId: string, id: string, allow: boolean): Promise<{ url?: string }> {
+    this.checkProfile(profileId)
+    const request = this.findAccess(id, profileId)
+    if (!allow) {
+      if (this.pending.get(profileId)?.accessId === id) this.cancel(profileId)
+      this.access.delete(id)
+      this.onAccessChanged(profileId)
+      return {}
+    }
+    if (request.connecting) throw new Error('Sign-in is already in progress for this request.')
+    request.connecting = true
+    this.onAccessChanged(profileId)
+    try {
+      if ((await this.load(profileId))?.tokens) {
+        await this.serial(profileId, async () => {
+          if (!(await this.load(profileId))?.tokens) throw new Error('Robinhood was disconnected. Try again.')
+          this.grantAccess(request)
+        })
+        return {}
+      }
+      return await this.connect(profileId, id)
+    } catch (error) {
+      if (this.access.has(id)) request.connecting = false
+      this.onAccessChanged(profileId)
+      throw error
     }
   }
 

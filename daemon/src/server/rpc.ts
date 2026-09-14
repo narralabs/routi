@@ -41,6 +41,11 @@ type Handler = (params: unknown, ctx: RpcContext) => Promise<unknown>
  * failure; anything else becomes an opaque `internal`.
  */
 const handlers: Record<RpcMethod, Handler> = {
+  'robinhood.access.list': async (p, ctx) => ({ requests: robinhood(ctx).accessList((p as { profileId: string }).profileId) }),
+  'robinhood.access.respond': async (p, ctx) => {
+    const { profileId, id, allow } = p as { profileId: string; id: string; allow: boolean }
+    return pluginAction(() => robinhood(ctx).respondAccess(profileId, id, allow))
+  },
   'robinhood.status': async (p, ctx) => robinhood(ctx).status((p as { profileId: string }).profileId),
   'robinhood.connect': async (p, ctx) => pluginAction(() => robinhood(ctx).connect((p as { profileId: string }).profileId)),
   'robinhood.finish': async (p, ctx) => {

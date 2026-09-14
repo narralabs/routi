@@ -77,6 +77,16 @@ async function main(): Promise<void> {
     handovers,
     robinhood,
   )
+  robinhood.onAccessChanged = profileId => server.broadcast({ e: 'plugin.access.updated', profileId })
+  robinhood.onAccessGranted = request => {
+    const bot = store.getBot(request.botId)
+    const conversation = store.getConversation(request.conversationId)
+    if (!bot || !conversation) return
+    const prefix = conversation.kind === 'channel' ? `@${bot.name} ` : ''
+    void sessions.send(request.conversationId, [{ type: 'text', text: `${prefix}I allowed this bot to access my Robinhood connection. Continue my previous request using Robinhood. This approval alone is not an instruction to place a trade.` }]).catch(() => {
+      server.broadcast({ e: 'error', conversationId: request.conversationId, code: 'plugin_resume_failed', message: 'Robinhood access was granted. Send a message to continue.' })
+    })
+  }
   server = new RoutiServer({
     store, sessions, providers, auth, desktops, handovers, updater, robinhood,
     // For telling the person, not for binding: the report says how Tailscale stands

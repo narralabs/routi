@@ -16,6 +16,7 @@
 		2046900E789F1433535727F0 /* Composer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75ECC9B53C46B40DF50283ED /* Composer.swift */; };
 		22565DA9110228003E0B6A11 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5AE73982ED2E7411675921 /* Entities.swift */; };
 		23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E864489D80BFEA22D10DE997 /* OnboardingView.swift */; };
+		26B5D26920B259D8504A71A5 /* PluginAccessCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B37A6ECB4A01AEBEEC5878 /* PluginAccessCard.swift */; };
 		2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */; };
 		2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F6D67DADD4D1871970741B /* ProfileMenu.swift */; };
 		36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DFC65D324CCCB7788FAC01 /* ChatView.swift */; };
@@ -90,6 +91,7 @@
 		97647FF55564F4B40332D6CA /* Routi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Routi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F745F0678DD8714864203C0 /* Handover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Handover.swift; sourceTree = "<group>"; };
 		A0128A80F54B6560A538AC1C /* ScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenView.swift; sourceTree = "<group>"; };
+		A7B37A6ECB4A01AEBEEC5878 /* PluginAccessCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginAccessCard.swift; sourceTree = "<group>"; };
 		A829C4CB13084CF2DEEE912D /* NoteEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditor.swift; sourceTree = "<group>"; };
 		AE9EE469AEAC6433B4672D15 /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		B1FB096BDC5492777BE9AD63 /* PluginsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsPane.swift; sourceTree = "<group>"; };
@@ -238,6 +240,7 @@
 				EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */,
 				DB45665E5E45F01F8945DBB6 /* MessageRow.swift */,
 				A829C4CB13084CF2DEEE912D /* NoteEditor.swift */,
+				A7B37A6ECB4A01AEBEEC5878 /* PluginAccessCard.swift */,
 				B3F6D67DADD4D1871970741B /* ProfileMenu.swift */,
 				A0128A80F54B6560A538AC1C /* ScreenView.swift */,
 				5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */,
@@ -418,6 +421,7 @@
 				161C6ED5CC704F12603B50FB /* Notifier.swift in Sources */,
 				7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */,
 				23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */,
+				26B5D26920B259D8504A71A5 /* PluginAccessCard.swift in Sources */,
 				0FA55DA39E18EA4713EB053D /* Plugins.swift in Sources */,
 				4442FC1F9A92A89C3982D45E /* PluginsPane.swift in Sources */,
 				2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */,

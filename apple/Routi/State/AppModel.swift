@@ -329,11 +329,11 @@ final class AppModel {
             guard !hasActiveWork else { throw UpdateFailure(message: "Wait for your bots to finish before updating Routi.") }
             return try await appUpdater.prepareUpdate()
         }, updateCore: { [self] appTarget in
-            guard client.endpoint == endpoint else { throw UpdateFailure(message: "The connected Mac changed. Start the update again.") }
+            try requireUpdateHost(endpoint)
             coreUpdate = nil
             await checkCoreUpdate(force: true)
             guard let update = coreUpdate, let latest = update.latest else { throw UpdateFailure(message: "Could not check for a core update. Try again.") }
-            guard client.endpoint == endpoint else { throw UpdateFailure(message: "The connected Mac changed. Start the update again.") }
+            try requireUpdateHost(endpoint)
             if appTarget == nil && Self.compareVersions(latest, appVersion) > 0 {
                 throw UpdateFailure(message: "The matching Mac app update is not ready. Try again shortly, or use a release build if this is a dev app.")
             }
@@ -345,20 +345,26 @@ final class AppModel {
                 guard !hasActiveWork else { throw UpdateFailure(message: "A bot started working. Wait for it to finish, then update again.") }
                 guard await startCoreUpdate() else { throw UpdateFailure(message: coreUpdateOutcome ?? "The core update failed. The app has not been restarted.") }
             }
-            guard client.endpoint == endpoint, connection == .connected else { throw UpdateFailure(message: "Reconnect to the original core before restarting Routi.") }
+            try requireUpdateHost(endpoint)
             if let appTarget, Self.compareVersions(coreVersion ?? "0", appTarget) < 0 {
                 throw UpdateFailure(message: "The core is still older than the app update. The app has not been restarted.")
             }
         }, installApp: { [self] in
-            guard client.endpoint == endpoint else { throw UpdateFailure(message: "The connected Mac changed. Start the update again.") }
+            try requireUpdateHost(endpoint)
             isShowingSettings = false
             isShowingPlugins = false
             isShowingNewProfile = false
             isShowingScreen = false
             try await Task.sleep(for: .milliseconds(400))
-            guard client.endpoint == endpoint, connection == .connected else { throw UpdateFailure(message: "Reconnect to the original core before restarting Routi.") }
+            try requireUpdateHost(endpoint)
             try appUpdater.installAndRelaunch()
         })
+    }
+
+    private func requireUpdateHost(_ endpoint: String) throws {
+        guard client.endpoint == endpoint, connection == .connected else {
+            throw UpdateFailure(message: "Reconnect to the original core at \(endpoint), then try Update Routi again.")
+        }
     }
     #endif
 
@@ -389,22 +395,15 @@ final class AppModel {
         }
     }
 
-    /**
-     Asks the core to update itself, then watches it go.
-
-     The core downloads and verifies the release, hands over to the release's own
-     update script, and is restarted by it — so the socket drops partway through, on
-     purpose. Reconnecting to the new version is success; reconnecting after a restart
-     to the old one means the script put it back; nothing within ten minutes is a
-     failure to say out loud, with the installer as the way out.
-     */
     /// Updating the core interrupts turns and pending handovers.
     private var hasActiveWork: Bool {
         !busyConversations.isEmpty || !handovers.isEmpty
     }
 
-    @discardableResult func startCoreUpdate() async -> Bool {
+    private func startCoreUpdate() async -> Bool {
         guard let target = coreUpdate?.latest, !isUpdatingCore else { return false }
+        let endpoint = client.endpoint
+        let started = coreUpdate?.current
         coreUpdateOutcome = nil
         coreUpdateSucceeded = false
         isUpdatingCore = true
@@ -421,16 +420,19 @@ final class AppModel {
             finishCoreUpdate(error.localizedDescription)
             return false
         }
-        await watchCoreUpdate()
+        await watchCoreUpdate(endpoint: endpoint, started: started)
         return coreUpdateSucceeded
     }
 
-    private func watchCoreUpdate() async {
-        let endpoint = client.endpoint
-        let started = coreUpdate?.current
+    private func watchCoreUpdate(endpoint: String, started: String?) async {
         let deadline = Date().addingTimeInterval(10 * 60)
         while isUpdatingCore && Date() < deadline {
-            try? await Task.sleep(for: .seconds(2))
+            do { try await Task.sleep(for: .seconds(2)) }
+            catch {
+                finishCoreUpdate("Stopped waiting for the update. Check the core version before trying again.")
+                return
+            }
+            guard isUpdatingCore else { return }
             guard client.endpoint == endpoint else {
                 finishCoreUpdate("The connected Mac changed during the update. Check the original Mac before continuing.")
                 return

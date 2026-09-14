@@ -174,8 +174,11 @@ extension AppUpdater: SPUUserDriver {
     func showUpdateInFocus() {}
 
     func dismissUpdateInstallation() {
-        if case .ready = phase { return }
-        phase = .idle
+        installReply = nil
+        switch phase {
+        case .upToDate, .failed: break
+        default: phase = .failed("The app update was interrupted. Try Update Routi again.")
+        }
     }
 }
 #endif

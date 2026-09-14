@@ -384,8 +384,12 @@ restart would defeat the point.
 
 `screenctl` serializes screen allocation and teardown. Display reservations survive
 stop so another bot cannot inherit the browser profile; conflicting assignments
-refuse access. Reservations, including deleted bots, count toward the 50-display
-limit until the container is replaced. Dock and agent launches both use
+refuse access. Stopping retains the browser profile and display reservation for reuse by the same
+bot. Permanent deletion cancels the bot’s turns, disconnects its viewers, removes
+its browser processes and profiles, and frees the reservation. Database records
+are deleted last; cleanup errors leave the bot available for retry. Shared downloads,
+channels, provider history directories and account credentials are retained.
+Dock and agent launches both use
 `chrome-wrapper.sh` and the same browser profile and debugging endpoint.
 
 A screen is Xvfb, xfwm4, picom and a bottom Plank dock with Chrome, the file manager

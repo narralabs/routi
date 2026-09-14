@@ -361,11 +361,32 @@ signed in, sees none of the first's bots, and cannot be deleted until its own bo
 
 ## The desktop
 
+`containers/desktop/browser-policy.json` enables Chromium Memory Saver in balanced
+mode. Chromium can reclaim inactive tabs and reload them when needed. This reduces
+background-tab memory use; it does not cap a bot's memory or stop an active page
+from exhausting the shared container. The policy lives in
+`/etc/chromium/policies/managed/routi.json` inside the desktop image.
+
+`renderer-watchdog.py` checks Chromium renderer RSS every five seconds. After three
+consecutive readings above 2 GiB, it kills that renderer, leaving the browser and
+screen running. Affected tabs may show “Aw, Snap!”; nothing is automatically reloaded
+or retried. The entrypoint supervises the watcher. `docker logs routi-desktop` records
+interventions with PID, RSS, display and bot IDs, without page URLs or credentials.
+RSS includes resident shared pages. This is a best-effort guard against a large
+renderer, not a per-bot memory cap: rapid spikes and many smaller processes can still
+exhaust the shared container.
+
 One container, shared by every bot, with a display per bot. The value of a desktop is
 its accumulated state — a signed-in site, a browser profile, downloaded files — and a
 container per bot would discard that on every bot you create. The daemon starts it on
 demand and leaves it running across its own restarts, since losing browser sessions to a
 restart would defeat the point.
+
+`screenctl` serializes screen allocation and teardown. Display reservations survive
+stop so another bot cannot inherit the browser profile; conflicting assignments
+refuse access. Reservations, including deleted bots, count toward the 50-display
+limit until the container is replaced. Dock and agent launches both use
+`chrome-wrapper.sh` and the same browser profile and debugging endpoint.
 
 A screen is Xvfb, xfwm4, picom and a bottom Plank dock with Chrome, the file manager
 and a terminal on it — no panel, no session, a dark canvas. It was a full XFCE session

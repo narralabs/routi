@@ -46,10 +46,12 @@ RUN useradd -ms /bin/bash routi \
     && chown -R routi:routi /home/routi
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY renderer-watchdog.py /usr/local/bin/renderer-watchdog.py
 COPY screenctl /usr/local/bin/screenctl
 COPY start-screen.sh /usr/local/bin/start-screen.sh
 COPY chrome-wrapper.sh /usr/local/bin/chrome-wrapper.sh
 COPY act /usr/local/bin/act
+COPY browser-policy.json /etc/chromium/policies/managed/routi.json
 RUN chmod +x /usr/local/bin/entrypoint.sh \
               /usr/local/bin/screenctl \
               /usr/local/bin/start-screen.sh \

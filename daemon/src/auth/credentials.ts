@@ -9,6 +9,7 @@ const SERVICE = 'Routi'
 
 /** Keychain account name per provider, so two keys can coexist. */
 const ACCOUNTS: Record<string, string> = {
+  robinhood: 'robinhood-oauth',
   anthropic: 'anthropic-api-key',
   'anthropic-claude': 'anthropic-claude-api-key',
   openai: 'openai-api-key',

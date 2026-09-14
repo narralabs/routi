@@ -1,3 +1,4 @@
+import { desktopToolSpecs, runDesktopTool } from '../surfaces/tools.js'
 import Anthropic from '@anthropic-ai/sdk'
 import type { MessageParam } from '@anthropic-ai/sdk/resources'
 import type { AccountInfo, Block, ModelInfo } from '@routi/protocol'
@@ -45,8 +46,8 @@ export class AnthropicApiAdapter implements ProviderAdapter {
   readonly supportsSurface = false
   private readonly client: Anthropic
 
-  constructor(private readonly apiKey: string) {
-    this.client = new Anthropic({ apiKey })
+  constructor(private readonly apiKey: string, client?: Anthropic) {
+    this.client = client ?? new Anthropic({ apiKey })
   }
 
   async listModels(): Promise<ModelInfo[]> {
@@ -102,46 +103,81 @@ export class AnthropicApiAdapter implements ProviderAdapter {
     if (input.length > 0) messages.push({ role: 'user', content: input })
 
     try {
-      const stream = this.client.messages.stream(
-        {
-          model,
-          max_tokens: 16_000,
-          system: req.systemPrompt || undefined,
-          messages,
-          thinking: { type: 'adaptive' },
-          ...(req.effort ? { output_config: { effort: req.effort } } : {}),
-        },
-        { signal },
-      )
+      let offset = 0
+      const usage: Record<string, number> = {}
+      for (let round = 0; round < 30; round++) {
+        const stream = this.client.messages.stream(
+          {
+            model,
+            max_tokens: 16_000,
+            system: req.systemPrompt || undefined,
+            messages,
+            tools: desktopToolSpecs(req.toolContext, { screen: false }).map(spec => ({
+              name: spec.name, description: spec.description,
+              input_schema: spec.parameters as Anthropic.Tool.InputSchema,
+            })),
+            thinking: { type: 'adaptive' },
+            ...(req.effort ? { output_config: { effort: req.effort } } : {}),
+          },
+          { signal },
+        )
 
-      for await (const event of stream) {
-        switch (event.type) {
-          case 'content_block_start': {
-            const block = apiBlockToRouti(event.content_block)
-            if (block) yield { type: 'block_start', index: event.index, block }
-            break
-          }
-          case 'content_block_delta':
-            if (event.delta.type === 'text_delta') {
-              yield { type: 'text_delta', index: event.index, text: event.delta.text }
-            } else if (event.delta.type === 'thinking_delta') {
-              yield { type: 'thinking_delta', index: event.index, text: event.delta.thinking }
+        for await (const event of stream) {
+          switch (event.type) {
+            case 'content_block_start': {
+              const block = apiBlockToRouti(event.content_block)
+              if (block) yield { type: 'block_start', index: offset + event.index, block }
+              break
             }
-            break
+            case 'content_block_delta':
+              if (event.delta.type === 'text_delta') {
+                yield { type: 'text_delta', index: offset + event.index, text: event.delta.text }
+              } else if (event.delta.type === 'thinking_delta') {
+                yield { type: 'thinking_delta', index: offset + event.index, text: event.delta.thinking }
+              }
+              break
+          }
         }
-      }
 
-      const final = await stream.finalMessage()
-      // A refusal is HTTP 200 with stop_reason "refusal" — check before trusting content.
-      if (final.stop_reason === 'refusal') {
-        yield { type: 'error', code: 'refusal', message: 'Claude declined to answer that.' }
+        const final = await stream.finalMessage()
+        for (const [key, value] of Object.entries(final.usage)) {
+          if (typeof value === 'number') usage[key] = (usage[key] ?? 0) + value
+        }
+        // A refusal is HTTP 200 with stop_reason "refusal" — check before trusting content.
+        if (final.stop_reason === 'refusal') {
+          yield { type: 'error', code: 'refusal', message: 'Claude declined to answer that.' }
+          return
+        }
+        for (const [i, raw] of final.content.entries()) {
+          if (raw.type === 'tool_use') continue
+          const block = apiBlockToRouti(raw)
+          if (block) yield { type: 'block_end', index: offset + i, block }
+        }
+        const calls = final.content.filter(block => block.type === 'tool_use')
+        if (calls.length) {
+          messages.push({ role: 'assistant', content: final.content })
+          const results: Anthropic.ToolResultBlockParam[] = []
+          for (const call of calls) {
+            signal.throwIfAborted()
+            const result = await runDesktopTool(null, call.name, call.input as Record<string, unknown>, req.toolContext)
+            yield { type: 'block_end', index: offset + final.content.indexOf(call), block: {
+              type: 'tool_use', id: call.id, name: call.name, input: call.input,
+              status: result.ok ? 'done' : 'error', title: result.summary,
+            } }
+            results.push({ type: 'tool_result', tool_use_id: call.id, content: result.output, is_error: !result.ok })
+          }
+          messages.push({ role: 'user', content: results })
+          offset += final.content.length
+          continue
+        }
+        yield {
+          type: 'done',
+          stopReason: final.stop_reason ?? 'end_turn',
+          meta: { model: final.model, usage },
+        }
         return
       }
-      yield {
-        type: 'done',
-        stopReason: final.stop_reason ?? 'end_turn',
-        meta: { model: final.model, usage: final.usage },
-      }
+      yield { type: 'error', code: 'tool_limit', message: 'Stopped after 30 tool rounds.' }
     } catch (err) {
       if (signal.aborted) {
         yield { type: 'done', stopReason: 'interrupted', meta: {} }

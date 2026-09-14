@@ -1,3 +1,4 @@
+import type { Robinhood } from '../plugins/robinhood.js'
 import { RpcMethods, type RpcMethod } from '@routi/protocol'
 import type { Store } from '../db/store.js'
 import { providerKey, type ProviderAdapter } from '../providers/types.js'
@@ -10,6 +11,7 @@ import type { DesktopPool } from '../surfaces/pool.js'
 import type { Updater } from '../update.js'
 
 export interface RpcContext {
+  robinhood?: Robinhood
   viewerPath?: (botId: string) => string
   store: Store
   sessions: SessionManager
@@ -39,6 +41,25 @@ type Handler = (params: unknown, ctx: RpcContext) => Promise<unknown>
  * failure; anything else becomes an opaque `internal`.
  */
 const handlers: Record<RpcMethod, Handler> = {
+  'robinhood.status': async (p, ctx) => robinhood(ctx).status((p as { profileId: string }).profileId),
+  'robinhood.connect': async (p, ctx) => pluginAction(() => robinhood(ctx).connect((p as { profileId: string }).profileId)),
+  'robinhood.finish': async (p, ctx) => {
+    const { profileId, callbackUrl } = p as { profileId: string; callbackUrl: string }
+    await pluginAction(() => robinhood(ctx).finish(profileId, callbackUrl))
+    return { ok: true }
+  },
+  'robinhood.disconnect': async (p, ctx) => {
+    await pluginAction(() => robinhood(ctx).disconnect((p as { profileId: string }).profileId))
+    return { ok: true }
+  },
+  'robinhood.enable': async (p, ctx) => {
+    const { profileId, botId, enabled } = p as { profileId: string; botId: string; enabled: boolean }
+    if (ctx.store.listConversations().some(c => ctx.sessions.isBusy(c.id) && (c.botId === botId || ctx.store.channelMembers(c.id).some(b => b.id === botId)))) {
+      throw new RpcError('busy', 'Wait for the bot to finish before changing plugin access.')
+    }
+    await pluginAction(() => robinhood(ctx).enable(profileId, botId, enabled))
+    return { ok: true }
+  },
   'bots.list': async (p, ctx) => {
     const { includeArchived, profileId } = p as { includeArchived: boolean; profileId?: string }
     return { bots: ctx.store.listBots(includeArchived, profileId) }
@@ -200,6 +221,8 @@ const handlers: Record<RpcMethod, Handler> = {
     if (!ctx.store.getProfile(id)) throw new RpcError('not_found', `No such profile: ${id}`)
     // Its bots are the person's work and are never deleted along with it.
     try {
+      if (ctx.store.listBots(true, id).length) throw new Error('Delete the bots in this profile first.')
+      await ctx.robinhood?.disconnect(id)
       ctx.store.deleteProfile(id)
     } catch (err) {
       throw new RpcError('bad_request', err instanceof Error ? err.message : String(err))
@@ -393,6 +416,16 @@ const handlers: Record<RpcMethod, Handler> = {
     const { patch } = p as { patch: Record<string, unknown> }
     return { settings: ctx.store.setSettings(patch) }
   },
+}
+
+function robinhood(ctx: RpcContext): Robinhood {
+  if (!ctx.robinhood) throw new RpcError('unavailable', 'Robinhood is not available on this core.')
+  return ctx.robinhood
+}
+async function pluginAction<T>(work: () => Promise<T>): Promise<T> {
+  try { return await work() } catch (err) {
+    throw new RpcError('robinhood_error', err instanceof Error ? err.message : 'Robinhood connection failed.')
+  }
 }
 
 export async function dispatch(method: string, rawParams: unknown, ctx: RpcContext): Promise<unknown> {

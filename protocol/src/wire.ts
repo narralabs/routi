@@ -18,6 +18,14 @@ export const PROTOCOL_VERSION = 1
 // ---------------------------------------------------------------- RPC methods
 
 export const RpcMethods = {
+  'robinhood.status': {
+    params: z.object({ profileId: z.string() }),
+    result: z.object({ connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
+  },
+  'robinhood.connect': { params: z.object({ profileId: z.string() }), result: z.object({ url: z.string() }) },
+  'robinhood.finish': { params: z.object({ profileId: z.string(), callbackUrl: z.string().max(8192) }), result: z.object({ ok: z.literal(true) }) },
+  'robinhood.disconnect': { params: z.object({ profileId: z.string() }), result: z.object({ ok: z.literal(true) }) },
+  'robinhood.enable': { params: z.object({ profileId: z.string(), botId: z.string(), enabled: z.boolean() }), result: z.object({ ok: z.literal(true) }) },
   'bots.list': {
     params: z.object({ includeArchived: z.boolean().default(false), profileId: z.string().optional() }),
     result: z.object({ bots: z.array(Bot) }),

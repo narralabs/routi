@@ -1,3 +1,4 @@
+import type { Robinhood } from '../src/plugins/robinhood.js'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { test, type TestContext } from 'node:test'
@@ -11,7 +12,7 @@ import { McpHttp } from '../src/server/mcp-http.js'
 import { Handovers } from '../src/surfaces/handover.js'
 import type { DesktopPool, Surface } from '../src/surfaces/pool.js'
 
-async function setup(t: TestContext) {
+async function setup(t: TestContext, robinhood?: Robinhood) {
   const db = openDb(':memory:')
   const store = new Store(db)
   store.ensureDefaultProfile()
@@ -32,7 +33,7 @@ async function setup(t: TestContext) {
   const sessions = new SessionManager(store, new Map(), (event) => events.push(event))
   const mcp = new McpHttp(desktops, store, new Handovers(() => {}),
     (owner) => memoryChanges.push(owner), (botId) => routineChanges.push(botId),
-    (botId, conversationId, image) => sessions.attachImage(botId, conversationId, image))
+    (botId, conversationId, image) => sessions.attachImage(botId, conversationId, image), robinhood)
   const server = createServer((req, res) => { void mcp.handle(req, res) })
   const clients: Client[] = []
   t.after(async () => {
@@ -149,4 +150,24 @@ test('requested screenshots are saved and broadcast inline, while navigation cap
   f.surface.captureFrame = async () => { throw new Error('Capture unavailable') }
   assert.equal((await client.callTool({ name: 'desktop_screenshot', arguments: { attach: true } })).isError, true)
   assert.equal(f.store.listMessages(f.screen.conversation.id).length, 1)
+})
+
+
+test('HTTP harnesses discover and execute an external plugin without a screen', async t => {
+  let grantedBot = ''
+  const plugin = { context: (botId: string) => botId === grantedBot ? {
+    specs: [{ name: 'robinhood_list_tools', description: 'Discover tools', parameters: { type: 'object', properties: {} } }],
+    run: async () => ({ ok: true, output: 'Robinhood tool schemas', summary: 'Discovered tools' }),
+  } : undefined } as unknown as Robinhood
+  const f = await setup(t, plugin)
+  grantedBot = f.first.bot.id
+  const client = await f.connect()
+  assert.ok((await client.listTools()).tools.some(t => t.name === 'robinhood_list_tools'))
+  const result = await client.callTool({ name: 'robinhood_list_tools', arguments: {} })
+  assert.equal(result.isError, false)
+  assert.match(JSON.stringify(result.content), /Robinhood tool schemas/)
+  const other = await f.connect(f.second)
+  assert.ok(!(await other.listTools()).tools.some(t => t.name === 'robinhood_list_tools'))
+  grantedBot = ''
+  assert.equal((await client.callTool({ name: 'robinhood_list_tools', arguments: {} })).isError, true)
 })

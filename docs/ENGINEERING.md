@@ -531,3 +531,23 @@ gives three columns on the Mac, sidebar-over-content on iPad and a push stack on
 from the same views. The first client was Flutter, and its chrome had to be rebuilt by
 hand to approximate what the native frameworks give away; the daemon split is what made
 the swap cheap, since nothing important lived in the client.
+
+## Robinhood plugin
+
+Settings → Plugins connects one Robinhood account per profile and grants access to
+selected bots. Core uses the official `https://agent.robinhood.com/mcp/trading`
+endpoint through the MCP SDK. OAuth uses PKCE, a temporary loopback callback, and
+single-use state; client credentials and tokens live in Keychain, scoped to this
+core's data directory and profile. Login expires after ten minutes. When signing in
+from another computer, paste the final callback URL into the connection pane.
+
+Bots receive `robinhood_list_tools` and `robinhood_call_tool` through the shared tool
+context, including direct API adapters. Discovery reads Robinhood's current schemas;
+the model receives tool results, never OAuth credentials. Access is checked at call
+time, and disconnect removes bot grants. Calls and token refresh serialize per
+profile. Routi does not replay failed tool calls; an uncertain order outcome must be
+checked before another order is attempted. Disconnect does not cancel existing
+orders or revoke Robinhood's server-side authorization.
+
+`daemon/tests/robinhood.test.ts` uses a local fake OAuth/MCP server: no accounts,
+model tokens, or live trades. Real account authorization remains a manual check.

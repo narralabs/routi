@@ -1,3 +1,4 @@
+import type { Robinhood } from '../plugins/robinhood.js'
 import type { ImageBlock } from '@routi/protocol'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Store } from '../db/store.js'
@@ -23,6 +24,7 @@ export class McpHttp {
     /** Told when a bot saves or removes a routine. */
     private readonly onRoutinesChanged: (botId: string) => void,
     private readonly onImageAttached?: (botId: string, conversationId: string, image: ImageBlock) => void,
+    private readonly robinhood?: Robinhood,
   ) {}
 
   /** True when this request is ours to answer. */
@@ -39,9 +41,10 @@ export class McpHttp {
    * tool, and tell the user it was unable to schedule anything. The tools existed; they
    * were simply never offered down this path.
    */
-  private contextFor(botId: string, conversationId: string) {
+  private contextFor(botId: string, conversationId: string, signal?: AbortSignal) {
     const bot = this.store.getBot(botId)
     return {
+      external: this.robinhood?.context(botId, signal),
       ...(this.onImageAttached ? {
         attachImage: (image: ImageBlock) => this.onImageAttached!(botId, conversationId, image),
       } : {}),
@@ -91,7 +94,13 @@ export class McpHttp {
       res.writeHead(202).end()
       return
     }
-    const result = await this.dispatch(botId, conversationId, request)
+    const abort = new AbortController()
+    const disconnected = () => { if (!res.writableEnded) abort.abort() }
+    res.once('close', disconnected)
+    let result: unknown
+    try { result = await this.dispatch(botId, conversationId, request, abort.signal) }
+    finally { res.off('close', disconnected) }
+    if (res.destroyed) return
     res.writeHead(200, { 'content-type': 'application/json' })
     res.end(JSON.stringify({
       jsonrpc: '2.0', id: request.id,
@@ -105,6 +114,7 @@ export class McpHttp {
     botId: string,
     conversationId: string,
     request: { method?: string; params?: Record<string, unknown> },
+    signal?: AbortSignal,
   ): Promise<unknown> {
     switch (request.method) {
       case 'initialize':
@@ -120,7 +130,7 @@ export class McpHttp {
 
       case 'tools/list':
         return {
-          tools: desktopToolSpecs(this.contextFor(botId, conversationId), { screen: this.hasScreen(botId) }).map((spec) => ({
+          tools: desktopToolSpecs(this.contextFor(botId, conversationId, signal), { screen: this.hasScreen(botId) }).map((spec) => ({
             name: spec.name,
             description: spec.description,
             inputSchema: spec.parameters,
@@ -135,7 +145,7 @@ export class McpHttp {
             this.hasScreen(botId) ? this.desktops.for(botId) : null,
             name,
             args,
-            this.contextFor(botId, conversationId),
+            this.contextFor(botId, conversationId, signal),
           )
           const content: unknown[] = []
           if (outcome.imageDataUrl) {

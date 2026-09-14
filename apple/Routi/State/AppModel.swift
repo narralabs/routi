@@ -195,6 +195,17 @@ final class AppModel {
         }
     }
 
+    func robinhoodStatus(profileID: String) async throws -> RobinhoodStatus {
+        let result = try await client.rpc("robinhood.status", ["profileId": profileID])
+        return try JSONDecoder().decode(RobinhoodStatus.self, from: JSONSerialization.data(withJSONObject: result))
+    }
+
+    func robinhoodAction(_ action: String, profileID: String, params: [String: Any] = [:]) async throws -> [String: Any] {
+        var params = params
+        params["profileId"] = profileID
+        return try await client.rpc("robinhood.\(action)", params)
+    }
+
     var account: AccountInfo? { client.account }
     var coreVersion: String? { client.serverVersion }
 

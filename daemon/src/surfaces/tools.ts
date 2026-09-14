@@ -271,7 +271,7 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
     },
   ]
 
-  return [...handoverTool, ...memoryTools, ...routineTools, ...screenTools]
+  return [...handoverTool, ...memoryTools, ...routineTools, ...screenTools, ...(ctx.external?.specs ?? [])]
 }
 
 /**
@@ -281,6 +281,7 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
  * be saved, not how routines are stored or when they fire.
  */
 export interface ToolContext {
+  external?: { specs: DesktopToolSpec[]; run(name: string, args: Record<string, unknown>): Promise<DesktopToolResult> }
   /** Saves an image as a visible attachment in the calling conversation. */
   attachImage?: (image: ImageBlock) => void
   /** Hands the screen to the person and waits for them. */
@@ -321,6 +322,7 @@ export async function runDesktopTool(
   ctx: ToolContext = {},
 ): Promise<DesktopToolResult> {
   const name = rawName.startsWith('mcp__desktop__') ? rawName.slice('mcp__desktop__'.length) : rawName
+  if (ctx.external?.specs.some(spec => spec.name === name)) return ctx.external.run(name, args)
   const num = (value: unknown): number => Math.round(Number(value) || 0)
 
   // Notes and routines touch no screen, so they are answered before the desktop is

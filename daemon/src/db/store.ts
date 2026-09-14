@@ -618,6 +618,15 @@ export class Store {
       .run(JSON.stringify(blocks), providerMeta ? JSON.stringify(providerMeta) : null, id)
   }
 
+  pluginEnabled(plugin: string, botId: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM plugin_bots WHERE plugin = ? AND bot_id = ?').get(plugin, botId)
+  }
+
+  setPluginEnabled(plugin: string, botId: string, enabled: boolean): void {
+    if (enabled) this.db.prepare('INSERT OR IGNORE INTO plugin_bots (plugin, bot_id) VALUES (?, ?)').run(plugin, botId)
+    else this.db.prepare('DELETE FROM plugin_bots WHERE plugin = ? AND bot_id = ?').run(plugin, botId)
+  }
+
   // --------------------------------------------------------------- settings
 
   getSettings(): Record<string, unknown> {

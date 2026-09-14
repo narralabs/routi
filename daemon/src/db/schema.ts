@@ -204,6 +204,13 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_bots_profile ON bots(profile_id);
   `,
 
+  `
+  CREATE TABLE plugin_bots (
+    plugin TEXT NOT NULL,
+    bot_id TEXT NOT NULL REFERENCES bots(id) ON DELETE CASCADE,
+    PRIMARY KEY (plugin, bot_id)
+  );
+  `,
 ]
 
 export function openDb(path: string): Database.Database {

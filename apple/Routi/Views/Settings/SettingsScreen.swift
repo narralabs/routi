@@ -36,6 +36,7 @@ struct SettingsScreen: View {
     /// there — it is the daemon this app talks to, not a model provider.
     enum Pane: Hashable, Identifiable {
         case general
+        case plugins
         case provider(String)
         case core
         case screens
@@ -43,6 +44,7 @@ struct SettingsScreen: View {
 
         var id: String {
             switch self {
+            case .plugins: return "plugins"
             case .general: return "general"
             case .provider(let id): return "provider.\(id)"
             case .core: return "core"
@@ -53,6 +55,7 @@ struct SettingsScreen: View {
 
         var title: String {
             switch self {
+            case .plugins: return "Plugins"
             case .general: return "General"
             case .provider(let id): return ProviderInfo.find(id).name
             case .core: return "Routi Core"
@@ -63,6 +66,7 @@ struct SettingsScreen: View {
 
         var symbol: String? {
             switch self {
+            case .plugins: return "puzzlepiece.extension"
             case .general: return "gearshape"
             case .provider: return nil // uses ProviderIcon instead
             case .core: return "externaldrive.connected.to.line.below"
@@ -73,7 +77,7 @@ struct SettingsScreen: View {
     }
 
     private static let sections: [(String, [Pane])] = [
-        ("App", [.general]),
+        ("App", [.general, .plugins]),
         ("Providers", ProviderInfo.all.map { .provider($0.id) }),
         ("Core", [.core, .screens]),
         ("About", [.about]),
@@ -86,6 +90,7 @@ struct SettingsScreen: View {
         guard let requested = model.requestedSettingsPane else { return }
         model.requestedSettingsPane = nil
         switch requested {
+        case "plugins": selection = .plugins
         case "general": selection = .general
         case "core": selection = .core
         case "screens": selection = .screens
@@ -140,6 +145,7 @@ struct SettingsScreen: View {
     @ViewBuilder
     private var pane: some View {
         switch selection ?? .general {
+        case .plugins: PluginsPane()
         case .general: GeneralPane()
         case .provider(let id): ProviderPane(provider: ProviderInfo.find(id))
         case .core: ConnectionPane()
@@ -171,6 +177,7 @@ struct SettingsScreen: View {
     @ViewBuilder
     private func paneView(_ pane: Pane) -> some View {
         switch pane {
+        case .plugins: PluginsPane()
         case .general: GeneralPane()
         case .provider(let id): ProviderPane(provider: ProviderInfo.find(id))
         case .core: ConnectionPane()

@@ -1,3 +1,4 @@
+import type { Robinhood } from '../plugins/robinhood.js'
 import { randomUUID } from 'node:crypto'
 import type { Block, Bot, ImageBlock, Message, ServerEvent } from '@routi/protocol'
 import type { Routine, Store } from '../db/store.js'
@@ -51,6 +52,7 @@ export class SessionManager {
     private readonly emit: Emit,
     private readonly desktops?: DesktopPool,
     private readonly handovers?: Handovers,
+    private readonly robinhood?: Robinhood,
   ) {}
 
   isBusy(conversationId: string): boolean {
@@ -402,6 +404,7 @@ export class SessionManager {
           }),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
+            external: this.robinhood?.context(bot.id, ac.signal),
             attachImage: (image) => this.attachImage(bot.id, conversationId, image),
             routines: routineTools(this.store, bot.id, conversationId, () => this.routinesChanged(bot.id)),
             memory: memoryTools(this.store, bot.id, (owner) => this.memoryChanged(owner, 'bot')),

@@ -1,4 +1,6 @@
-import { robinhoodFailure } from '../src/plugins/robinhood-error.js'
+import { mcpFailure } from '../src/plugins/mcp-error.js'
+import { McpPlugin } from '../src/plugins/mcp-plugin.js'
+import { robinhoodDefinition } from '../src/plugins/robinhood.js'
 import assert from 'node:assert/strict'
 import { test, type TestContext } from 'node:test'
 import { createServer } from 'node:http'
@@ -76,9 +78,9 @@ async function fixture(t: TestContext) {
   url = `http://127.0.0.1:${(server.address() as { port: number }).port}`
   const changed: string[] = []
   const secrets = {
-    getApiKey: async (_provider?: string, profile?: string) => saved.get(profile!) ?? null,
-    setApiKey: async (value: string, _provider?: string, profile?: string) => { saved.set(profile!, value) },
-    clearApiKey: async (_provider?: string, profile?: string) => { saved.delete(profile!) },
+    getApiKey: async (_provider?: string, profile?: string) => saved.get(`${_provider}:${profile}`) ?? null,
+    setApiKey: async (value: string, _provider?: string, profile?: string) => { saved.set(`${_provider}:${profile}`, value) },
+    clearApiKey: async (_provider?: string, profile?: string) => { saved.delete(`${_provider}:${profile}`) },
   }
   const plugin = new Robinhood(store, secrets, dir, id => changed.push(id), `${url}/mcp`)
   t.after(async () => { plugin.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); db.close(); rmSync(dir, { recursive: true, force: true }) })
@@ -299,10 +301,46 @@ test('cancelling a chat login prevents its callback from granting access', async
 
 
 test('failure messages distinguish authentication from transport errors without exposing error payloads', () => {
-  assert.equal(robinhoodFailure({ code: 401 }).kind, 'authentication')
-  assert.equal(robinhoodFailure({ name: 'InvalidGrantError' }).kind, 'authentication')
-  assert.equal(robinhoodFailure({ code: 503 }).kind, 'http_503')
-  assert.equal(robinhoodFailure({ name: 'TimeoutError' }).kind, 'timeout')
-  assert.equal(robinhoodFailure(new Error('secret access token'), true).kind, 'cancelled')
-  assert.doesNotMatch(JSON.stringify(robinhoodFailure(new Error('secret access token'))), /secret access token/)
+  assert.equal(mcpFailure(robinhoodDefinition, { code: 401 }).kind, 'authentication')
+  assert.equal(mcpFailure(robinhoodDefinition, { name: 'InvalidGrantError' }).kind, 'authentication')
+  assert.equal(mcpFailure(robinhoodDefinition, { code: 503 }).kind, 'http_503')
+  assert.equal(mcpFailure(robinhoodDefinition, { name: 'TimeoutError' }).kind, 'timeout')
+  assert.equal(mcpFailure(robinhoodDefinition, new Error('secret access token'), true).kind, 'cancelled')
+  assert.doesNotMatch(JSON.stringify(mcpFailure(robinhoodDefinition, new Error('secret access token'))), /secret access token/)
+})
+
+test('a second MCP plugin reuses login and discovery without sharing credentials or bot grants', async t => {
+  const f = await fixture(t)
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const other = new McpPlugin({ id: 'notes', name: 'Notes', url: `${f.url}/mcp` }, f.store, f.secrets, f.dir, () => {})
+  t.after(() => other.close())
+  assert.equal((await other.status('default')).connected, false)
+  assert.equal(other.context(f.bot.id), undefined)
+  await other.finish('default', f.callbackFor((await other.connect('default')).url).href)
+  // Signing in to another plugin does not revoke the existing Robinhood grant.
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), true)
+  assert.equal(f.store.pluginEnabled('notes', f.bot.id), false)
+  const conversation = f.store.listConversations(f.bot.id)[0]!
+  await other.requestAccess(f.bot.id, conversation.id)
+  const request = other.accessList('default')[0]!
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true), /expired/)
+  await other.respondAccess('default', request.id, true)
+  const ctx = { external: other.context(f.bot.id) }
+  const list = await runDesktopTool(null, 'notes_list_tools', {}, ctx)
+  assert.equal(list.ok, true)
+  assert.doesNotMatch(list.output, /Robinhood|robinhood|inputSchema/)
+  const schema = await runDesktopTool(null, 'notes_list_tools', { name: 'get_accounts' }, ctx)
+  assert.equal(JSON.parse(schema.output).name, 'get_accounts')
+  const call = await runDesktopTool(null, 'notes_call_tool', { name: 'get_accounts', arguments: {} }, ctx)
+  assert.equal(call.ok, true)
+  const slot = `${createHash('sha256').update(f.dir).digest('hex').slice(0, 16)}.default`
+  assert.ok(f.saved.has(`robinhood:${slot}`), 'existing Robinhood credential key is unchanged')
+  assert.ok(f.saved.has(`mcp:notes:${slot}`))
+  await other.disconnect('default')
+  assert.equal(f.store.pluginEnabled('notes', f.bot.id), false)
+  assert.equal((await f.plugin.status('default')).connected, true)
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), true)
+  assert.equal((await runDesktopTool(null, 'notes_call_tool', { name: 'get_accounts', arguments: {} }, ctx)).ok, false)
+  assert.equal((await runDesktopTool(null, 'robinhood_call_tool', { name: 'get_accounts', arguments: {} }, { external: f.plugin.context(f.bot.id) })).ok, true)
 })

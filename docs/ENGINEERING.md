@@ -532,7 +532,17 @@ from the same views. The first client was Flutter, and its chrome had to be rebu
 hand to approximate what the native frameworks give away; the daemon split is what made
 the swap cheap, since nothing important lived in the client.
 
-## Robinhood plugin
+## MCP plugins
+
+`daemon/src/plugins/mcp-plugin.ts` owns remote HTTP MCP login, credential refresh,
+bot access, compact tool discovery, and execution. Each service instance takes a
+plugin definition (ID, display name, URL, and optional action guidance). Connections
+are isolated by plugin, core data directory, and profile; grants are scoped to plugin
+and bot. `robinhood.ts` supplies the trading-specific configuration and preserves the
+existing credential slot. The app and RPC currently expose Robinhood only; new
+plugins still need their catalog/UI wiring and authentication compatibility checked.
+
+### Robinhood
 
 Plugins in the Mac sidebar (Settings → Plugins on iOS) connects one Robinhood
 account per profile and grants access to selected bots. Core uses the official `https://agent.robinhood.com/mcp/trading`
@@ -549,7 +559,7 @@ resume the conversation through its normal queue. No approval grants another bot
 access or authorizes a trade by itself.
 
 Bots receive `robinhood_list_tools` and `robinhood_call_tool` through the shared tool
-context, including direct API adapters. Discovery reads Robinhood's current schemas;
+context, including direct API adapters. Discovery returns a compact index, then the schema for one requested tool;
 the model receives tool results, never OAuth credentials. Access is checked at call
 time, and disconnect removes bot grants. Calls and token refresh serialize per
 profile. Routi does not replay failed tool calls; an uncertain order outcome must be

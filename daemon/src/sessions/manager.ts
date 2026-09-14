@@ -401,7 +401,7 @@ export class SessionManager {
             hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
             channel,
             memory,
-          }), this.robinhood ? 'Robinhood is available through a direct MCP integration. For Robinhood account access or trading, use robinhood_list_tools and robinhood_call_tool. If access is disabled or the person asks to connect, call request_plugin_access with plugin="robinhood" and stop for the approval card. Do not open a browser or request desktop takeover to connect Robinhood.' : ''].filter(Boolean).join('\n\n'),
+          }), this.robinhood ? 'Robinhood is available through a direct MCP integration. For Robinhood account access or trading, use robinhood_list_tools and robinhood_call_tool. If access is disabled or the person asks to connect, call request_plugin_access with plugin="robinhood" and stop for the approval card. Unless the person explicitly asks to use the website, do not open a browser or request desktop takeover to connect Robinhood.' : ''].filter(Boolean).join('\n\n'),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
             external: this.robinhood?.context(bot.id, ac.signal, true),

@@ -8,6 +8,7 @@ struct PluginsPane: View {
     @State private var error: String?
     @State private var refreshError: String?
     @State private var busy = false
+    @State private var showingDisconnectAlert = false
     @State private var callbackURL = ""
     @State private var loginURL: URL?
 
@@ -91,17 +92,12 @@ struct PluginsPane: View {
                         }
                         if status.connected || status.connecting {
                             Button(status.connected ? "Disconnect" : "Cancel login", role: .destructive) {
-                                perform { profileID in
-                                    _ = try await model.robinhoodAction("disconnect", profileID: profileID)
-                                    loginURL = nil
-                                    callbackURL = ""
-                                }
+                                if status.connected { showingDisconnectAlert = true }
+                                else { disconnect() }
                             }
                         }
                     }
                     .disabled(busy)
-                    Text("Disconnecting removes this profile’s saved login and bot access in Routi. Robinhood may still show the agent as connected; remove the connection on Robinhood’s website to revoke its authorization too.")
-                        .font(.caption).foregroundStyle(.secondary)
                     if status.connecting {
                         Text("Waiting for Robinhood sign-in…")
                         if let loginURL { Link("Open sign-in again", destination: loginURL) }
@@ -145,7 +141,22 @@ struct PluginsPane: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Robinhood")
+        .alert("Disconnect Robinhood?", isPresented: $showingDisconnectAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Disconnect", role: .destructive) { disconnect() }
+        } message: {
+            Text("This removes this profile’s saved login and bot access in Routi. Robinhood may still show the agent as connected. To revoke its authorization too, remove the connection on Robinhood’s website.")
+        }
+        .onChange(of: model.currentProfileID) { showingDisconnectAlert = false }
         .task(id: model.currentProfileID) { await pollStatus() }
+    }
+
+    private func disconnect() {
+        perform { profileID in
+            _ = try await model.robinhoodAction("disconnect", profileID: profileID)
+            loginURL = nil
+            callbackURL = ""
+        }
     }
 
     private func botAccessRow(_ bot: Bot, status: RobinhoodStatus) -> some View {

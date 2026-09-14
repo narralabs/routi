@@ -1,7 +1,8 @@
+import { robinhoodFailure } from './robinhood-error.js'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import { auth, UnauthorizedError, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { OAuthClientInformationMixed, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
@@ -241,14 +242,16 @@ export class Robinhood {
           if (!this.store.getBot(botId) || !this.store.pluginEnabled('robinhood', botId)) return { ok: false, output: 'Robinhood access is disabled for this bot. Use request_plugin_access with plugin=robinhood to show an approval card.', summary: 'Robinhood disconnected' }
           if (signal?.aborted) return { ok: false, output: 'Request cancelled before execution.', summary: 'Robinhood cancelled' }
           const client = new Client({ name: 'Routi Bot', version: '1.0.0' })
+          let stage: 'connect' | 'discover' | 'call' = 'connect'
           try {
             const saved = await this.load(bot.profileId)
-            if (!saved?.tokens) throw new Error('Not connected')
+            if (!saved?.tokens) throw new UnauthorizedError('Not connected')
             const transport = new StreamableHTTPClientTransport(new URL(this.serverUrl), { authProvider: this.provider(bot.profileId, saved), fetch: (url, init) => networkFetch(url, { ...init,
               signal: AbortSignal.any([...(signal ? [signal] : []), ...(init?.signal ? [init.signal] : [])]),
             }) })
             await client.connect(transport)
             if (name === 'robinhood_list_tools') {
+              stage = 'discover'
               const tools = []
               let cursor: string | undefined
               let pages = 0
@@ -265,10 +268,16 @@ export class Robinhood {
             signal?.throwIfAborted()
             // Recheck after network setup: access may have been revoked meanwhile.
             if (!this.store.pluginEnabled('robinhood', botId)) throw new Error('Access revoked')
+            stage = 'call'
             const result = await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })
             return { ok: !result.isError, output: JSON.stringify(result), summary: `Robinhood: ${args['name']}` }
-          } catch {
-            return { ok: false, output: 'Robinhood request failed. Check the connection in Plugins. If an order was submitted, its outcome is unknown: check order status before attempting another order. This request was not automatically replayed by Routi.', summary: 'Robinhood request failed' }
+          } catch (error) {
+            const failure = robinhoodFailure(error, signal?.aborted)
+            console.warn('Robinhood request failed', { botId, stage, kind: failure.kind })
+            const outcome = stage === 'call'
+              ? 'If an order was submitted, its outcome is unknown: check order status before attempting another order. Routi did not automatically replay the tool call.'
+              : 'No account or trading tool was submitted.'
+            return { ok: false, output: `${failure.message} Failure stage: ${stage}. ${outcome}`, summary: `Robinhood: ${failure.kind}` }
           } finally { await client.close().catch(() => {}) }
         })
       },

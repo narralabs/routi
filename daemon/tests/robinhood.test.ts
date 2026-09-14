@@ -1,3 +1,4 @@
+import { robinhoodFailure } from '../src/plugins/robinhood-error.js'
 import assert from 'node:assert/strict'
 import { test, type TestContext } from 'node:test'
 import { createServer } from 'node:http'
@@ -287,4 +288,14 @@ test('cancelling a chat login prevents its callback from granting access', async
   await assert.rejects(f.plugin.finish('default', callback.href), /expired/)
   assert.equal(f.tokenCalls(), 0)
   assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
+})
+
+
+test('failure messages distinguish authentication from transport errors without exposing error payloads', () => {
+  assert.equal(robinhoodFailure({ code: 401 }).kind, 'authentication')
+  assert.equal(robinhoodFailure({ name: 'InvalidGrantError' }).kind, 'authentication')
+  assert.equal(robinhoodFailure({ code: 503 }).kind, 'http_503')
+  assert.equal(robinhoodFailure({ name: 'TimeoutError' }).kind, 'timeout')
+  assert.equal(robinhoodFailure(new Error('secret access token'), true).kind, 'cancelled')
+  assert.doesNotMatch(JSON.stringify(robinhoodFailure(new Error('secret access token'))), /secret access token/)
 })

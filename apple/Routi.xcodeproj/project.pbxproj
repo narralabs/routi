@@ -47,6 +47,7 @@
 		D70141640505B1F4BAA53171 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D720880BAD6D2F0296D4A8 /* RootView.swift */; };
 		D8116D3E00FBE96C2311F8F0 /* BotAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */; };
 		DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB45665E5E45F01F8945DBB6 /* MessageRow.swift */; };
+		DEF29F89225C5F255ECEA1FD /* RoutiUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 507438B7D0AA7E577BF5D59B /* RoutiUpdate.swift */; };
 		EC3CF43ED8865BB048129C3E /* ScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0128A80F54B6560A538AC1C /* ScreenView.swift */; };
 		EE7B1D28943762E8D0683800 /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F126D3177A0B31881954AE1 /* Effort.swift */; };
 		F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEA46F4858311831473C9EF7 /* Providers.swift */; };
@@ -80,6 +81,7 @@
 		46A9147FFCAF8A5BE1C24F7B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailRail.swift; sourceTree = "<group>"; };
 		502F8CF0DE246295A5890E87 /* Blocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Blocks.swift; sourceTree = "<group>"; };
+		507438B7D0AA7E577BF5D59B /* RoutiUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutiUpdate.swift; sourceTree = "<group>"; };
 		5BD073724E27CFF96D741B5D /* NewBotSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBotSheet.swift; sourceTree = "<group>"; };
 		5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
 		6132C9BD1682BD1B1B50464C /* FaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceTests.swift; sourceTree = "<group>"; };
@@ -196,6 +198,7 @@
 				E531433B6982110683524454 /* AppModel.swift */,
 				0F02CE3E96C03ACAE557A719 /* AppUpdater.swift */,
 				EA56FAD7115195CEA260370F /* Notifier.swift */,
+				507438B7D0AA7E577BF5D59B /* RoutiUpdate.swift */,
 			);
 			path = State;
 			sourceTree = "<group>";
@@ -429,6 +432,7 @@
 				D70141640505B1F4BAA53171 /* RootView.swift in Sources */,
 				C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */,
 				8E79CDC70EF57C2C8B2B4694 /* RoutiClient.swift in Sources */,
+				DEF29F89225C5F255ECEA1FD /* RoutiUpdate.swift in Sources */,
 				EC3CF43ED8865BB048129C3E /* ScreenView.swift in Sources */,
 				8C1FB2AFAB34503F6F28467B /* ScreenWindow.swift in Sources */,
 				39AE62A74C81E7C6A1A0B843 /* SettingsComponents.swift in Sources */,

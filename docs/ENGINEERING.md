@@ -179,12 +179,18 @@ sha256 are the two lines that change), copied to `Formula/routi-core.rb` in the
 
 ### How each side updates
 
-The core updates itself from the button in Settings › Routi Core (above). The Mac app
-updates itself with Sparkle, the way Cursor does: a check on launch and daily, a
-download and signature check in the background, then a "Restart to Update" button in
-the same pane; ignored, it installs on the next quit. `AppUpdater` in
-`apple/Routi/State/` is Sparkle's user driver, so the state shows in our pane rather
-than Sparkle's windows. What it reads is `appcast.xml`, uploaded beside the DMG on
+The Mac offers one **Update Routi** action. `RoutiUpdate` prepares the Sparkle app
+update, updates the connected core, and waits for the expected version (or newer)
+before installing and relaunching the app. Core failure or rollback keeps the app
+open. A core-only update finishes without replacing an already-current app. Source
+checkouts require their normal development update path. Active bot work blocks the
+update; this first flow is manual, with no unattended restart setting.
+
+The core being updated is the one at the displayed connection address, including a
+remote host. Changing hosts interrupts coordination. iPhone/iPad users are directed
+to Routi on the core's Mac; their app still updates through TestFlight. Sparkle's
+unattended download/install-on-quit mode is disabled so it cannot bypass core
+coordination. `AppUpdater` reads `appcast.xml`, uploaded beside the DMG on
 every release and reached through the newest release's `latest/download` URL; what it
 trusts is the EdDSA signature in that file, made by `generate_appcast` inside
 `package.sh` with the private key in the release Mac's login keychain (Sparkle's

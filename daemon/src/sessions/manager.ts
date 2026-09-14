@@ -21,6 +21,8 @@ type Emit = (event: ServerEvent) => void
  * still finds the message row and can resync, rather than seeing a gap.
  */
 export class SessionManager {
+  private readonly deletions = new Map<string, Promise<void>>()
+  private readonly active = new Map<AbortController, { botId: string; conversationId: string; done: Promise<void>; finished?: boolean }>()
   private readonly inFlight = new Map<string, AbortController>()
   /**
    * The message each running turn is writing, as it stands right now.
@@ -54,6 +56,49 @@ export class SessionManager {
     private readonly handovers?: Handovers,
     private readonly robinhood?: Robinhood,
   ) {}
+
+  /** Keep the row until private resources are gone, so failures remain retryable. */
+  deleteBot(botId: string, disconnectViewer?: () => Promise<void>): Promise<void> {
+    const existing = this.deletions.get(botId)
+    if (existing) return existing
+    const deletion = this.deleteBotOnce(botId, disconnectViewer).finally(() => {
+      this.deletions.delete(botId)
+      this.desktops?.endDeletion(botId)
+    })
+    this.deletions.set(botId, deletion)
+    return deletion
+  }
+
+  private async deleteBotOnce(botId: string, disconnectViewer?: () => Promise<void>): Promise<void> {
+    if (!this.store.getBot(botId)) throw new Error(`No such bot: ${botId}`)
+    this.desktops?.beginDeletion(botId)
+    for (const conversation of this.store.listConversations(botId)) this.queued.delete(conversation.id)
+    const pending: Promise<void>[] = []
+    for (const [controller, turn] of this.active) {
+      if (turn.botId !== botId) continue
+      pending.push(turn.done)
+      controller.abort()
+    }
+    this.handovers?.resolve(botId, 'skipped')
+    let timer: NodeJS.Timeout | undefined
+    try {
+      await Promise.race([
+        Promise.all(pending),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('The bot is still stopping. Retry deletion shortly.')), 10_000)
+        }),
+      ])
+    } finally { clearTimeout(timer) }
+    // Session keys include the bot id, including in shared channels.
+    for (const conversation of this.store.listConversations()) {
+      for (const provider of this.providers.values()) provider.release(`${conversation.id}:${botId}`)
+    }
+    await disconnectViewer?.()
+    await this.desktops?.destroy(botId)
+    this.store.deleteBot(botId)
+    this.memoryEdited.delete(botId)
+    this.sharedShownAt.delete(botId)
+  }
 
   isBusy(conversationId: string): boolean {
     return this.inFlight.has(conversationId)
@@ -112,6 +157,7 @@ export class SessionManager {
     const isChannel = conv.kind === 'channel'
     const bot = isChannel ? null : this.store.getBot(conv.botId ?? '')
     if (!isChannel && !bot) throw new Error(`No such bot: ${conv.botId}`)
+    if (bot && this.deletions.has(bot.id)) throw new Error('This bot is being deleted.')
 
     const userMessage = this.store.insertMessage({ conversationId, role: 'user', blocks })
     this.emit({ e: 'message.created', message: userMessage })
@@ -331,13 +377,39 @@ export class SessionManager {
     /** Present when a routine woke this turn rather than a person. */
     routine?: { routineId: string; routineName: string },
   ): Promise<void> {
+    if (this.deletions.has(bot.id) || !this.store.getBot(bot.id)) return
+    const ac = new AbortController()
+    let finish!: () => void
+    const done = new Promise<void>(resolve => { finish = resolve })
+    this.active.set(ac, { botId: bot.id, conversationId, done })
+    try { await this.runTurnBody(conversationId, bot, input, channel, routine, ac) }
+    finally { this.finishFlight(conversationId, ac); this.active.delete(ac); finish() }
+  }
+
+  private finishFlight(conversationId: string, ac: AbortController): void {
+    const turn = this.active.get(ac)
+    if (turn) turn.finished = true
+    if (this.inFlight.get(conversationId) !== ac) return
+    const other = [...this.active].find(([key, turn]) => key !== ac && !turn.finished && turn.conversationId === conversationId)
+    if (other) this.inFlight.set(conversationId, other[0])
+    else this.inFlight.delete(conversationId)
+  }
+
+  private async runTurnBody(
+    conversationId: string,
+    bot: NonNullable<ReturnType<Store['getBot']>>,
+    input: Block[],
+    channel: { members: Bot[] } | undefined,
+    /** Present when a routine woke this turn rather than a person. */
+    routine: { routineId: string; routineName: string } | undefined,
+    ac: AbortController,
+  ): Promise<void> {
     const provider = this.providers.get(providerKey(bot.profileId, bot.provider))
     if (!provider) {
       this.emit({ e: 'error', conversationId, code: 'no_provider', message: `Unknown provider: ${bot.provider}` })
       return
     }
 
-    const ac = new AbortController()
     this.inFlight.set(conversationId, ac)
     this.emit({ e: 'conversation.busy', conversationId, busy: true, routineName: routine?.routineName })
 
@@ -347,6 +419,12 @@ export class SessionManager {
     // bot set to it shares the surface. Whoever is second waits rather than fighting.
     const surface = bot.surfaceMode !== 'none' ? this.desktops?.for(bot.id) : undefined
     if (surface) await waitForSurface(surface, conversationId, ac.signal)
+    if (ac.signal.aborted) {
+      surface?.release(conversationId)
+      this.finishFlight(conversationId, ac)
+      this.emit({ e: 'conversation.busy', conversationId, busy: this.isBusy(conversationId) })
+      return
+    }
 
     const messageId = randomUUID()
     const blocks: Block[] = []
@@ -484,8 +562,8 @@ export class SessionManager {
     } finally {
       // Runs whatever the turn did, including throwing: a failed turn that kept the
       // lock or the queue would leave the conversation permanently stuck.
-      this.inFlight.delete(conversationId)
-      this.live.delete(conversationId)
+      this.finishFlight(conversationId, ac)
+      if (this.live.get(conversationId)?.messageId === messageId) this.live.delete(conversationId)
       surface?.release(conversationId)
 
       const finalBlocks = blocks.filter(Boolean)
@@ -532,7 +610,7 @@ export class SessionManager {
       })
 
       // Finish this turn's status before queued work announces that it is busy.
-      this.emit({ e: 'conversation.busy', conversationId, busy: false })
+      this.emit({ e: 'conversation.busy', conversationId, busy: this.isBusy(conversationId) })
 
       // Deleted from inFlight first, so anything sent mid-turn starts now rather than
       // queueing again behind a turn that has already finished.
@@ -540,7 +618,7 @@ export class SessionManager {
 
       // What a bot said can wake a teammate — but only one it named. This is the loop
       // rule doing its work: a statement reaches nobody, an @mention reaches one bot.
-      if (channel && !saidNothing) {
+      if (channel && !saidNothing && !this.deletions.has(bot.id)) {
         const posted = this.store.getMessage(messageId)
         if (posted) void this.runChannelTurn(conversationId, posted, bot.id)
       }

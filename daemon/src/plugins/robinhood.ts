@@ -87,7 +87,7 @@ export class Robinhood {
       saveCodeVerifier: code => { verifier = code },
       codeVerifier: () => { if (!verifier) throw new Error('Login expired. Connect again.'); return verifier },
       redirectToAuthorization: url => {
-        if (!interactive) throw new Error('Reconnect Robinhood in Settings → Plugins.')
+        if (!interactive) throw new Error('Reconnect Robinhood in Plugins.')
         interactive.redirect(url)
       },
       invalidateCredentials: async scope => {
@@ -242,7 +242,7 @@ export class Robinhood {
             const result = await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })
             return { ok: !result.isError, output: JSON.stringify(result), summary: `Robinhood: ${args['name']}` }
           } catch {
-            return { ok: false, output: 'Robinhood request failed. Check the connection in Settings → Plugins. If an order was submitted, its outcome is unknown: check order status before attempting another order. This request was not automatically replayed by Routi.', summary: 'Robinhood request failed' }
+            return { ok: false, output: 'Robinhood request failed. Check the connection in Plugins. If an order was submitted, its outcome is unknown: check order status before attempting another order. This request was not automatically replayed by Routi.', summary: 'Robinhood request failed' }
           } finally { await client.close().catch(() => {}) }
         })
       },

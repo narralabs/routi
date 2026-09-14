@@ -57,6 +57,7 @@ final class AppModel {
     /// Settings replaces the whole window rather than opening a panel, so its
     /// visibility is app state, not view state — the ⌘, menu command toggles it too.
     var isShowingSettings = false
+    var isShowingPlugins = false
     /// A pane Settings should open on, asked for by whoever opened it. Read once.
     var requestedSettingsPane: String?
 
@@ -180,7 +181,7 @@ final class AppModel {
         // one's while the app is in the background or behind Settings or the screen.
         notifier.isWatching = { [weak self] conversationId in
             guard let self, self.selectedConversationID == conversationId else { return false }
-            guard !self.isShowingSettings, !self.isShowingScreen else { return false }
+            guard !self.isShowingSettings, !self.isShowingPlugins, !self.isShowingScreen else { return false }
             #if os(macOS)
             return NSApp.isActive
             #else

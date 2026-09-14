@@ -534,8 +534,8 @@ the swap cheap, since nothing important lived in the client.
 
 ## Robinhood plugin
 
-Settings → Plugins connects one Robinhood account per profile and grants access to
-selected bots. Core uses the official `https://agent.robinhood.com/mcp/trading`
+Plugins in the Mac sidebar (Settings → Plugins on iOS) connects one Robinhood
+account per profile and grants access to selected bots. Core uses the official `https://agent.robinhood.com/mcp/trading`
 endpoint through the MCP SDK. OAuth uses PKCE, a temporary loopback callback, and
 single-use state; client credentials and tokens live in Keychain, scoped to this
 core's data directory and profile. Login expires after ten minutes. When signing in

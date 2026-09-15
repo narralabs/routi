@@ -1,4 +1,4 @@
-import { Robinhood } from './plugins/robinhood.js'
+import { Plugins } from './plugins/registry.js'
 import { Credentials } from './auth/credentials.js'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   let server: RoutiServer
   const handovers = new Handovers((event) => server.broadcast(event))
   const updater = new Updater(DATA_DIR, (stage, line) => server.broadcast({ e: 'core.update.progress', stage, line }))
-  const robinhood = new Robinhood(store, new Credentials(DATA_DIR), DATA_DIR, (botId) => {
+  const plugins = new Plugins(store, new Credentials(DATA_DIR), DATA_DIR, (botId) => {
     const bot = store.getBot(botId)
     if (!bot) return
     const adapter = providers.get(providerKey(bot.profileId, bot.provider))
@@ -75,20 +75,20 @@ async function main(): Promise<void> {
     (event) => server.broadcast(event),
     desktops,
     handovers,
-    robinhood,
+    plugins,
   )
-  robinhood.onAccessChanged = profileId => server.broadcast({ e: 'plugin.access.updated', profileId })
-  robinhood.onAccessGranted = request => {
+  plugins.onAccessChanged = profileId => server.broadcast({ e: 'plugin.access.updated', profileId })
+  plugins.onAccessGranted = request => {
     const bot = store.getBot(request.botId)
     const conversation = store.getConversation(request.conversationId)
     if (!bot || !conversation) return
     const prefix = conversation.kind === 'channel' ? `@${bot.name} ` : ''
-    void sessions.send(request.conversationId, [{ type: 'text', text: `${prefix}I allowed this bot to access my Robinhood connection. Continue my previous request using Robinhood. This approval alone is not an instruction to place a trade.` }]).catch(() => {
-      server.broadcast({ e: 'error', conversationId: request.conversationId, code: 'plugin_resume_failed', message: 'Robinhood access was granted. Send a message to continue.' })
+    void sessions.send(request.conversationId, [{ type: 'text', text: `${prefix}I allowed this bot to access my ${request.pluginId} connection. Continue my previous request using that plugin. This approval alone does not authorize a new action.` }]).catch(() => {
+      server.broadcast({ e: 'error', conversationId: request.conversationId, code: 'plugin_resume_failed', message: 'Plugin access was granted. Send a message to continue.' })
     })
   }
   server = new RoutiServer({
-    store, sessions, providers, auth, desktops, handovers, updater, robinhood,
+    store, sessions, providers, auth, desktops, handovers, updater, plugins,
     // For telling the person, not for binding: the report says how Tailscale stands
     // here, which the interface scan below cannot — a userspace daemon has an address
     // and no interface, and the core is reachable on it through `tailscale serve`.
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} — shutting down`)
     scheduler.stop()
-    robinhood.close()
+    plugins.close()
     for (const p of providers.values()) p.dispose()
     // Leave the desktops running: their state is the value, and a restart of routid
     // should not cost the user their browser sessions.

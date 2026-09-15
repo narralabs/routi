@@ -18,11 +18,22 @@ export const PROTOCOL_VERSION = 1
 // ---------------------------------------------------------------- RPC methods
 
 const PluginAccessRequest = z.object({
+  pluginId: z.string(),
   id: z.string(), botId: z.string(), conversationId: z.string(), profileId: z.string(),
   connected: z.boolean(), connecting: z.boolean(), expiresAt: z.number(),
 })
 
 export const RpcMethods = {
+  'plugin.access.list': { params: z.object({ profileId: z.string() }), result: z.object({ requests: z.array(PluginAccessRequest) }) },
+  'plugin.access.respond': { params: z.object({ pluginId: z.string(), profileId: z.string(), id: z.string(), allow: z.boolean() }), result: z.object({ url: z.string().optional() }) },
+  'plugin.status': {
+    params: z.object({ pluginId: z.string(), profileId: z.string() }),
+    result: z.object({ connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
+  },
+  'plugin.connect': { params: z.object({ pluginId: z.string(), profileId: z.string() }), result: z.object({ url: z.string() }) },
+  'plugin.finish': { params: z.object({ pluginId: z.string(), profileId: z.string(), callbackUrl: z.string().max(8192) }), result: z.object({ ok: z.literal(true) }) },
+  'plugin.disconnect': { params: z.object({ pluginId: z.string(), profileId: z.string() }), result: z.object({ ok: z.literal(true) }) },
+  'plugin.enable': { params: z.object({ pluginId: z.string(), profileId: z.string(), botId: z.string(), enabled: z.boolean() }), result: z.object({ ok: z.literal(true) }) },
   'robinhood.access.list': { params: z.object({ profileId: z.string() }), result: z.object({ requests: z.array(PluginAccessRequest) }) },
   'robinhood.access.respond': { params: z.object({ profileId: z.string(), id: z.string(), allow: z.boolean() }), result: z.object({ url: z.string().optional() }) },
   'robinhood.status': {

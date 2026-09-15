@@ -273,8 +273,8 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
 
   const accessTools: DesktopToolSpec[] = ctx.requestPluginAccess ? [{
     name: 'request_plugin_access',
-    description: 'Ask the person to connect Robinhood or allow this bot to use their existing Robinhood connection. Shows an approval card in this chat; never ask for passwords. Use when the person wants to connect or use Robinhood and access has not been granted. Stop after requesting and wait for the approval message.',
-    parameters: object({ plugin: { type: 'string', enum: ['robinhood'] } }, ['plugin']),
+    description: 'Ask the person to connect a plugin or allow this bot to use an existing connection. Shows an approval card in this chat; never ask for passwords. Use when plugin access has not been granted. Stop after requesting and wait for the approval message.',
+    parameters: object({ plugin: { type: 'string', enum: ctx.pluginIds ?? [] } }, ['plugin']),
   }] : []
   return [...accessTools, ...handoverTool, ...memoryTools, ...routineTools, ...screenTools, ...(ctx.external?.specs ?? [])]
 }
@@ -286,6 +286,7 @@ export function desktopToolSpecs(ctx: ToolContext = {}, opts: ToolOptions = {}):
  * be saved, not how routines are stored or when they fire.
  */
 export interface ToolContext {
+  pluginIds?: string[]
   requestPluginAccess?: (plugin: string) => Promise<DesktopToolResult>
   external?: { specs: DesktopToolSpec[]; run(name: string, args: Record<string, unknown>): Promise<DesktopToolResult> }
   /** Saves an image as a visible attachment in the calling conversation. */

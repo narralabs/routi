@@ -18,6 +18,12 @@ export interface McpPluginDefinition {
   credentialProvider?: string
   callInstructions?: string
   failedCallInstructions?: string
+  oauth?: {
+    client?: OAuthClientInformationMixed
+    scope: string
+    authorizationParams?: Record<string, string>
+    setupMessage: string
+  }
 }
 export const MAX_PLUGIN_OUTPUT_BYTES = 24_000
 const LOGIN_TIMEOUT = 10 * 60_000
@@ -30,7 +36,7 @@ type Secrets = Pick<Credentials, 'getApiKey' | 'setApiKey' | 'clearApiKey'>
 type Pending = { provider: OAuthClientProvider; state: string; server: Server; timer: NodeJS.Timeout; redirectUrl: string; accessId?: string }
 
 export interface PluginAccessRequest {
-  id: string; botId: string; conversationId: string; profileId: string
+  pluginId: string; id: string; botId: string; conversationId: string; profileId: string
   connected: boolean; connecting: boolean; expiresAt: number
 }
 
@@ -98,7 +104,7 @@ export class McpPlugin {
         token_endpoint_auth_method: 'none',
       },
       state: () => interactive?.state ?? randomBytes(32).toString('hex'),
-      clientInformation: () => saved.client,
+      clientInformation: () => this.definition.oauth?.client ?? saved.client,
       saveClientInformation: info => { saved.client = info },
       tokens: () => saved.tokens,
       saveTokens: async tokens => { saved.tokens = tokens; await persist() },
@@ -106,6 +112,8 @@ export class McpPlugin {
       codeVerifier: () => { if (!verifier) throw new Error('Login expired. Connect again.'); return verifier },
       redirectToAuthorization: url => {
         if (!interactive) throw new Error(`Reconnect ${this.definition.name} in Plugins.`)
+        if (this.definition.oauth) url.searchParams.set('scope', this.definition.oauth.scope)
+        for (const [key, value] of Object.entries(this.definition.oauth?.authorizationParams ?? {})) url.searchParams.set(key, value)
         interactive.redirect(url)
       },
       invalidateCredentials: async scope => {
@@ -119,6 +127,7 @@ export class McpPlugin {
   async connect(profileId: string, accessId?: string): Promise<{ url: string }> {
     return this.serial(profileId, async () => {
       this.checkProfile(profileId)
+      if (this.definition.oauth && !this.definition.oauth.client) throw new Error(this.definition.oauth.setupMessage)
       if (accessId) this.findAccess(accessId, profileId)
       if (accessId && this.pending.has(profileId)) throw new Error(`${this.definition.name} sign-in is already in progress. Finish it, then allow this bot.`)
       this.cancel(profileId)
@@ -151,7 +160,7 @@ export class McpPlugin {
       timer.unref()
       this.pending.set(profileId, { provider, state, server, timer, redirectUrl, accessId })
       try {
-        await auth(provider, { serverUrl: this.definition.url, fetchFn: networkFetch })
+        await auth(provider, { serverUrl: this.definition.url, scope: this.definition.oauth?.scope, fetchFn: networkFetch })
         if (!url) throw new Error(`${this.definition.name} did not provide a login URL.`)
         return { url }
       } catch {
@@ -239,6 +248,7 @@ export class McpPlugin {
 
   toolContext(botId: string, conversationId: string, signal?: AbortSignal): ToolContext {
     return {
+      pluginIds: [this.definition.id],
       external: this.context(botId, signal, true),
       requestPluginAccess: async plugin => plugin === this.definition.id
         ? this.requestAccess(botId, conversationId)
@@ -329,7 +339,7 @@ export class McpPlugin {
     const existing = this.accessList(bot.profileId).find(r => r.botId === botId && r.conversationId === conversationId)
     if (!existing) {
       const request: PluginAccessRequest = {
-        id: randomUUID(), botId, conversationId, profileId: bot.profileId,
+        pluginId: this.definition.id, id: randomUUID(), botId, conversationId, profileId: bot.profileId,
         connected: !!(await this.load(bot.profileId))?.tokens, connecting: false, expiresAt: Date.now() + LOGIN_TIMEOUT,
       }
       this.access.set(request.id, request)

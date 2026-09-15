@@ -47,7 +47,7 @@ private struct PluginRow: View {
                             .font(.subheadline).foregroundStyle(.secondary)
                         if let status {
                             Text(status.connected
-                                 ? "Connected · \(status.botIds.count) \(status.botIds.count == 1 ? "bot" : "bots") with access"
+                                 ? "\(status.accountEmail ?? "Connected") · \(status.botIds.count) \(status.botIds.count == 1 ? "bot" : "bots") with access"
                                  : status.connecting ? "Connecting…" : "Not connected")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
@@ -89,6 +89,12 @@ private struct PluginRow: View {
                     .foregroundStyle(.secondary)
                 if let status {
                     Label(status.connected ? "Connected" : "Not connected", systemImage: status.connected ? "checkmark.circle.fill" : "link")
+                    if status.connected, let email = status.accountEmail {
+                        Text(email).textSelection(.enabled)
+                    } else if status.connected, plugin.id != "robinhood" {
+                        Text("Email unavailable. Reconnect to allow Routi to identify this Google account.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     HStack {
                         Button(status.connected ? "Reconnect" : "Connect") {
                             perform { profileID in

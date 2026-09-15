@@ -598,7 +598,12 @@ Set `ROUTI_GOOGLE_CLIENT_ID` and, if issued for that client,
 Do not put credentials in source control. The localhost callback runs on the core’s
 Mac. Tokens stay in its Keychain, separately for each profile and service.
 
-The initial scopes allow Gmail reads and drafts, Drive reads and app-authorized
+Google connections also request `openid email` to show the signed-in address in Plugins.
+The address is fetched from Google UserInfo and cached alongside the login in Keychain;
+older connections need one reconnect to grant identity access. A failed identity lookup
+does not fail the connection.
+
+The initial service scopes allow Gmail reads and drafts, Drive reads and app-authorized
 file writes, and Calendar reads/availability. Tool capabilities come from Google;
 the UI does not promise a send-mail or calendar-write tool. Other Google products
 can add definitions after their scopes and tools are validated. Distribution still

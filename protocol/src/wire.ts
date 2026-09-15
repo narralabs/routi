@@ -28,7 +28,7 @@ export const RpcMethods = {
   'plugin.access.respond': { params: z.object({ pluginId: z.string(), profileId: z.string(), id: z.string(), allow: z.boolean() }), result: z.object({ url: z.string().optional() }) },
   'plugin.status': {
     params: z.object({ pluginId: z.string(), profileId: z.string() }),
-    result: z.object({ connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
+    result: z.object({ accountEmail: z.string().nullable().optional(), connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
   },
   'plugin.connect': { params: z.object({ pluginId: z.string(), profileId: z.string() }), result: z.object({ url: z.string() }) },
   'plugin.finish': { params: z.object({ pluginId: z.string(), profileId: z.string(), callbackUrl: z.string().max(8192) }), result: z.object({ ok: z.literal(true) }) },
@@ -38,7 +38,7 @@ export const RpcMethods = {
   'robinhood.access.respond': { params: z.object({ profileId: z.string(), id: z.string(), allow: z.boolean() }), result: z.object({ url: z.string().optional() }) },
   'robinhood.status': {
     params: z.object({ profileId: z.string() }),
-    result: z.object({ connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
+    result: z.object({ accountEmail: z.string().nullable().optional(), connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
   },
   'robinhood.connect': { params: z.object({ profileId: z.string() }), result: z.object({ url: z.string() }) },
   'robinhood.finish': { params: z.object({ profileId: z.string(), callbackUrl: z.string().max(8192) }), result: z.object({ ok: z.literal(true) }) },

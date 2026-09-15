@@ -1,6 +1,7 @@
 import Foundation
 
 struct PluginStatus: Decodable {
+    let accountEmail: String?
     let connected: Bool
     let connecting: Bool
     let error: String?

@@ -1,5 +1,15 @@
 import type { McpPluginDefinition } from './mcp-plugin.js'
 
+/** Fetch identity only; never load mailbox or file contents to label a connection. */
+export async function googleAccountEmail(accessToken: string): Promise<string | null> {
+  const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(10_000),
+  })
+  if (!response.ok) return null
+  const info = await response.json() as { email?: unknown; email_verified?: unknown }
+  return info.email_verified === true && typeof info.email === 'string' ? info.email : null
+}
+
 /** Same Google-hosted endpoints as cursor/plugins; OAuth belongs to Routi. */
 export function googleDefinitions(): McpPluginDefinition[] {
   const clientId = process.env['ROUTI_GOOGLE_CLIENT_ID']
@@ -14,9 +24,10 @@ export function googleDefinitions(): McpPluginDefinition[] {
   ].map(service => ({
     id: service.id, name: service.name, url: `https://${service.host}.googleapis.com/mcp/v1`,
     callInstructions: service.instructions,
+    accountEmail: googleAccountEmail,
     oauth: {
       client: clientId ? { client_id: clientId, ...(clientSecret ? { client_secret: clientSecret } : {}) } : undefined,
-      scope: service.scopes.map(scope => `https://www.googleapis.com/auth/${scope}`).join(' '),
+      scope: ['openid', 'email', ...service.scopes.map(scope => `https://www.googleapis.com/auth/${scope}`)].join(' '),
       authorizationParams: { access_type: 'offline', prompt: 'consent' },
       setupMessage: 'Google sign-in is not configured on this core. Configure Routi’s Google OAuth client first; see docs/ENGINEERING.md.',
     },

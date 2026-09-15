@@ -17,6 +17,7 @@ export interface McpPluginDefinition {
   /** Existing credential slot, when a plugin predates the shared MCP service. */
   credentialProvider?: string
   callInstructions?: string
+  accountEmail?: (accessToken: string) => Promise<string | null>
   failedCallInstructions?: string
   oauth?: {
     client?: OAuthClientInformationMixed
@@ -31,7 +32,7 @@ const networkFetch: typeof fetch = (url, init) => fetch(url, {
   ...init, signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(init?.signal ? [init.signal] : [])]),
 })
 
-type SavedLogin = { redirectUrl: string; client?: OAuthClientInformationMixed; tokens?: OAuthTokens }
+type SavedLogin = { redirectUrl: string; client?: OAuthClientInformationMixed; tokens?: OAuthTokens; accountEmail?: string | null }
 type Secrets = Pick<Credentials, 'getApiKey' | 'setApiKey' | 'clearApiKey'>
 type Pending = { provider: OAuthClientProvider; state: string; server: Server; timer: NodeJS.Timeout; redirectUrl: string; accessId?: string }
 
@@ -79,8 +80,10 @@ export class McpPlugin {
 
   async status(profileId: string) {
     this.checkProfile(profileId)
+    const saved = await this.load(profileId)
     return {
-      connected: !!(await this.load(profileId))?.tokens,
+      connected: !!saved?.tokens,
+      accountEmail: saved?.tokens ? saved.accountEmail ?? null : null,
       connecting: this.pending.has(profileId),
       error: this.errors.get(profileId) ?? null,
       botIds: this.store.listBots(true, profileId).filter(b => this.store.pluginEnabled(this.definition.id, b.id)).map(b => b.id),
@@ -107,7 +110,13 @@ export class McpPlugin {
       clientInformation: () => this.definition.oauth?.client ?? saved.client,
       saveClientInformation: info => { saved.client = info },
       tokens: () => saved.tokens,
-      saveTokens: async tokens => { saved.tokens = tokens; await persist() },
+      saveTokens: async tokens => {
+        saved.tokens = tokens
+        if (this.definition.accountEmail) {
+          saved.accountEmail = await this.definition.accountEmail(tokens.access_token).catch(() => null) ?? saved.accountEmail ?? null
+        }
+        await persist()
+      },
       saveCodeVerifier: code => { verifier = code },
       codeVerifier: () => { if (!verifier) throw new Error('Login expired. Connect again.'); return verifier },
       redirectToAuthorization: url => {
@@ -117,7 +126,7 @@ export class McpPlugin {
         interactive.redirect(url)
       },
       invalidateCredentials: async scope => {
-        if (scope === 'tokens' || scope === 'all') { delete saved.tokens; await persist() }
+        if (scope === 'tokens' || scope === 'all') { delete saved.tokens; delete saved.accountEmail; await persist() }
         if (scope === 'client' || scope === 'all') delete saved.client
         if (scope === 'verifier' || scope === 'all') verifier = undefined
       },

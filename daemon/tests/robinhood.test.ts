@@ -390,7 +390,7 @@ test('oversized schemas and results are withheld without replaying actions', asy
 
 test('Google uses a registered OAuth client, narrow scopes and offline consent', async t => {
   const definition = googleDefinitions()[0]!
-  const f = await fixture(t, { ...definition, oauth: { ...definition.oauth!, client: { client_id: 'google-test', client_secret: 'test-client-secret' } } })
+  const f = await fixture(t, { ...definition, accountEmail: async () => 'test@example.com', oauth: { ...definition.oauth!, client: { client_id: 'google-test', client_secret: 'test-client-secret' } } })
   const login = new URL((await f.plugin.connect('default')).url)
   assert.equal(login.searchParams.get('client_id'), 'google-test')
   assert.equal(login.searchParams.get('scope'), definition.oauth!.scope)
@@ -406,6 +406,7 @@ test('Google uses a registered OAuth client, narrow scopes and offline consent',
   f.expire()
   assert.equal((await f.plugin.context(f.bot.id)!.run('gmail_list_tools', {})).ok, true)
   assert.equal(f.tokenCalls(), 2, 'saved Google credentials refresh without a new sign-in')
+  assert.equal((await f.plugin.status('default')).accountEmail, 'test@example.com')
 })
 
 test('missing Google client fails before opening a login session', async t => {
@@ -438,4 +439,21 @@ test('plugin roster routes approvals and keeps service and profile grants separa
   assert.equal(plugins.accessList('default').length, 0)
   assert.equal((await ctx.external!.run('gmail_list_tools', {})).ok, false)
   assert.equal((await ctx.external!.run('robinhood_list_tools', {})).ok, false)
+})
+
+
+test('connected account identity follows reconnect and is cleared by disconnect', async t => {
+  let email: string | null = 'first@example.com'
+  const f = await fixture(t, { ...robinhoodDefinition, accountEmail: async () => email })
+  await f.plugin.finish('default', (await f.begin()).href)
+  assert.equal((await f.plugin.status('default')).accountEmail, 'first@example.com')
+  email = 'second@example.com'
+  await f.plugin.finish('default', (await f.begin()).href)
+  assert.equal((await f.plugin.status('default')).accountEmail, 'second@example.com')
+  email = null
+  await f.plugin.finish('default', (await f.begin()).href)
+  assert.equal((await f.plugin.status('default')).connected, true)
+  assert.equal((await f.plugin.status('default')).accountEmail, null, 'never show the previous account after reconnect')
+  await f.plugin.disconnect('default')
+  assert.equal((await f.plugin.status('default')).accountEmail, null)
 })

@@ -525,6 +525,10 @@ struct ConnectionPane: View {
                 }
             }
 
+            #if os(macOS)
+            ConnectSettings()
+            #endif
+
             // How a phone or iPad reaches this core. Tailscale is the recommended way:
             // the same address works at home and away, and only that person's own
             // devices can use it. The core listens there the moment Tailscale is up.

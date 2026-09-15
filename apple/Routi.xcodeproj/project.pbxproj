@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		08966B34941B3AE65C038BE8 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */; };
 		0FA55DA39E18EA4713EB053D /* Plugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B67CB1A9034BEB0658EDB3 /* Plugins.swift */; };
+		105976697EFF2525998305FB /* RelayAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E54B59F7610B69E84F6A603 /* RelayAddress.swift */; };
 		121F5D600BB09425082B33D3 /* FaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6132C9BD1682BD1B1B50464C /* FaceTests.swift */; };
 		15C44DA114D533E687FB4811 /* Blocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502F8CF0DE246295A5890E87 /* Blocks.swift */; };
 		161C6ED5CC704F12603B50FB /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA56FAD7115195CEA260370F /* Notifier.swift */; };
@@ -19,6 +20,7 @@
 		26B5D26920B259D8504A71A5 /* PluginAccessCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B37A6ECB4A01AEBEEC5878 /* PluginAccessCard.swift */; };
 		2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */; };
 		2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F6D67DADD4D1871970741B /* ProfileMenu.swift */; };
+		2D60D01B129DC7EEFF709104 /* ConnectSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08237E41C7EBDCEAC9E65136 /* ConnectSettings.swift */; };
 		36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DFC65D324CCCB7788FAC01 /* ChatView.swift */; };
 		3786843725D3C783B4F14C33 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F02CE3E96C03ACAE557A719 /* AppUpdater.swift */; };
 		39AE62A74C81E7C6A1A0B843 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */; };
@@ -67,6 +69,7 @@
 		00B67CB1A9034BEB0658EDB3 /* Plugins.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plugins.swift; sourceTree = "<group>"; };
 		01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopTouchTests.swift; sourceTree = "<group>"; };
 		04C419477237E8F8F539AB6D /* ScreenWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenWindow.swift; sourceTree = "<group>"; };
+		08237E41C7EBDCEAC9E65136 /* ConnectSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectSettings.swift; sourceTree = "<group>"; };
 		099C9C1462D777FC014D22E1 /* Routi.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Routi.entitlements; sourceTree = "<group>"; };
 		0BDD1652BD89D0FF8E9E5053 /* DesktopHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopHostView.swift; sourceTree = "<group>"; };
 		0F02CE3E96C03ACAE557A719 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
@@ -91,6 +94,7 @@
 		85E91F8038F61343E3273FD7 /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
 		87CC49000AD0941F4B4E281A /* InstallCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallCommand.swift; sourceTree = "<group>"; };
 		97647FF55564F4B40332D6CA /* Routi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Routi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9E54B59F7610B69E84F6A603 /* RelayAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayAddress.swift; sourceTree = "<group>"; };
 		9F745F0678DD8714864203C0 /* Handover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Handover.swift; sourceTree = "<group>"; };
 		A0128A80F54B6560A538AC1C /* ScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenView.swift; sourceTree = "<group>"; };
 		A7B37A6ECB4A01AEBEEC5878 /* PluginAccessCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginAccessCard.swift; sourceTree = "<group>"; };
@@ -160,6 +164,7 @@
 				9F745F0678DD8714864203C0 /* Handover.swift */,
 				85E91F8038F61343E3273FD7 /* ModelName.swift */,
 				00B67CB1A9034BEB0658EDB3 /* Plugins.swift */,
+				9E54B59F7610B69E84F6A603 /* RelayAddress.swift */,
 				B7400158C8ADF31FCEE7EA29 /* Surface.swift */,
 			);
 			path = Models;
@@ -206,6 +211,7 @@
 		D1EB7AB7352EEA9DE905879B /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				08237E41C7EBDCEAC9E65136 /* ConnectSettings.swift */,
 				B1FB096BDC5492777BE9AD63 /* PluginsPane.swift */,
 				DEA46F4858311831473C9EF7 /* Providers.swift */,
 				F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */,
@@ -407,6 +413,7 @@
 				3D42E355F685B12EA2B094F6 /* BotListView.swift in Sources */,
 				36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */,
 				2046900E789F1433535727F0 /* Composer.swift in Sources */,
+				2D60D01B129DC7EEFF709104 /* ConnectSettings.swift in Sources */,
 				CF6BE494A2D1ABEDD51F01BA /* DesktopHostView.swift in Sources */,
 				AAAF782A150C68DB48D03410 /* DesktopViewer.swift in Sources */,
 				5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */,
@@ -429,6 +436,7 @@
 				4442FC1F9A92A89C3982D45E /* PluginsPane.swift in Sources */,
 				2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */,
 				F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */,
+				105976697EFF2525998305FB /* RelayAddress.swift in Sources */,
 				D70141640505B1F4BAA53171 /* RootView.swift in Sources */,
 				C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */,
 				8E79CDC70EF57C2C8B2B4694 /* RoutiClient.swift in Sources */,

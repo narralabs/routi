@@ -8,13 +8,13 @@ struct ConnectStatus: Decodable {
     let state: String
     let error: String?
 
-    var label: String {
+    var indicator: (label: String, color: Color) {
         switch state {
-        case "connected": "Connected"
-        case "connecting": "Connecting…"
-        case "reconnecting": "Reconnecting…"
-        case "rejected", "error": "Connection failed"
-        default: "Disconnected"
+        case "connected": ("Connected", .green)
+        case "connecting": ("Connecting…", .orange)
+        case "reconnecting": ("Reconnecting…", .orange)
+        case "rejected", "error": ("Connection failed", .red)
+        default: ("Disconnected", .secondary)
         }
     }
 }
@@ -36,11 +36,13 @@ struct ConnectSettings: View {
                     footnote: "Pilot connection to this Mac. Device pairing, chat, and desktop access are not available yet."
                 ) {
                     SettingsRow(title: "Relay connection", isFirst: true) {
-                        SettingsValue(text: model.connection == .connected ? status.label : "Core unavailable")
-                        Button(status.enabled ? "Disconnect" : "Connect") {
-                            Task { await configure(status) }
-                        }
-                        .disabled(busy || model.connection != .connected)
+                        let available = model.connection == .connected && refreshError == nil
+                        let label = available ? status.indicator.label : "Core unavailable"
+                        Circle()
+                            .fill(available ? status.indicator.color : .red)
+                            .frame(width: 7, height: 7)
+                            .help(label)
+                            .accessibilityLabel(label)
                     }
                     SettingsRow(title: "Relay address") {
                         TextField("wss://connect.routibot.com", text: $address)
@@ -50,6 +52,12 @@ struct ConnectSettings: View {
                     }
                     if let message = error ?? refreshError ?? status.error {
                         Text(message).font(.caption).foregroundStyle(.red).padding(14)
+                    }
+                    SettingsRow(title: "") {
+                        Button(status.enabled ? "Disconnect" : "Connect") {
+                            Task { await configure(status) }
+                        }
+                        .disabled(busy || model.connection != .connected)
                     }
                 }
             }

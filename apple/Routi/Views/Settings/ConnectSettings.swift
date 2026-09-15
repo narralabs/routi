@@ -10,10 +10,10 @@ struct ConnectSettings: View {
     var body: some View {
         SettingsSection(
             "Routi Connect",
-            footnote: "Development preview only. Routi Connect is not available yet; these controls are disabled."
+            footnote: "Securely connect to your bots when you’re away from your Mac. Coming soon."
         ) {
             SettingsRow(title: "Remote access", isFirst: true) {
-                SettingsValue(text: "Not available yet")
+                SettingsValue(text: "Coming Soon")
             }
             VStack(alignment: .leading, spacing: 8) {
                 Divider()

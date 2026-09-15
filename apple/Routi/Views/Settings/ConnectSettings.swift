@@ -38,11 +38,13 @@ struct ConnectSettings: View {
                     SettingsRow(title: "Relay connection", isFirst: true) {
                         let available = model.connection == .connected && refreshError == nil
                         let label = available ? status.indicator.label : "Core unavailable"
-                        Circle()
-                            .fill(available ? status.indicator.color : .red)
-                            .frame(width: 7, height: 7)
-                            .help(label)
-                            .accessibilityLabel(label)
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(available ? status.indicator.color : .red)
+                                .frame(width: 7, height: 7)
+                                .accessibilityHidden(true)
+                            SettingsValue(text: label)
+                        }
                     }
                     SettingsRow(title: "Relay address") {
                         TextField("wss://connect.routibot.com", text: $address)

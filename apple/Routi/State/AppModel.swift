@@ -215,6 +215,16 @@ final class AppModel {
         return try await client.rpc("robinhood.\(action)", params)
     }
 
+    #if os(macOS)
+    func connectStatus() async throws -> ConnectStatus {
+        try await client.rpc("connect.status", field: "connection", as: ConnectStatus.self)
+    }
+
+    func configureConnect(url: String, enabled: Bool) async throws -> ConnectStatus {
+        try await client.rpc("connect.configure", ["url": url, "enabled": enabled], field: "connection", as: ConnectStatus.self)
+    }
+    #endif
+
     var account: AccountInfo? { client.account }
     var isUpdatingRouti: Bool {
         #if os(macOS)

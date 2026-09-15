@@ -123,6 +123,32 @@ Tailscale. The app's Info.plist allows cleartext connections, since `ws://` to a
 address is refused by App Transport Security otherwise — the encryption is WireGuard's,
 underneath.
 
+### Routi Connect pilot
+
+Provisioned Macs can maintain an outbound connection to a Routi relay. The pinned
+`routi-relay/connection` client handles mutual TLS and reconnects. This pilot serves
+only `GET /health` over authenticated sessions; it does not expose RPC, MCP, VNC,
+or arbitrary local ports. The relay never receives the device private keys.
+
+Place the locally provisioned host credentials at `<data-dir>/connect-host.json`
+(mode `0600`), or set `ROUTI_CONNECT_HOST_FILE` to that private file. Provisioning is
+currently the relay repository's `pnpm pair` command; register only its `relay.json`
+token hashes on the relay and keep `viewer.json` on the test client. Test certificates
+expire after 30 days. Do not commit these files or bundle pilot credentials in releases.
+
+Mac Settings → Routi Core shows Routi Connect when that core has a host file or an
+enabled connection (so it can still be disconnected if the file is removed).
+Connect saves the relay URL and enabled preference in the core database; Disconnect
+stops sessions and retries. A core restart resumes an enabled connection. App closure
+does not stop the core's connection. Normal installations remain off and show no
+unfinished settings. Remote app access and user-facing pairing are separate work.
+
+With the real core connected, run this read-only check (excluded from CI, no model usage):
+
+```sh
+pnpm --filter routid test:live:relay wss://connect.routibot.com /private/path/viewer.json
+```
+
 ## Updating an installed core from the app
 
 Settings › Routi Core shows "Update Routi Core" when a newer release exists, and the

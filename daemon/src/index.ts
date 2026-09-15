@@ -1,3 +1,4 @@
+import { RelayConnection } from './server/relay.js'
 import { Robinhood } from './plugins/robinhood.js'
 import { Credentials } from './auth/credentials.js'
 import { homedir } from 'node:os'
@@ -56,6 +57,8 @@ async function main(): Promise<void> {
   store.ensureDefaultProfile()
   await auth.applyMode()
 
+  const relay = new RelayConnection(store, process.env['ROUTI_CONNECT_HOST_FILE'] ?? join(DATA_DIR, 'connect-host.json'))
+
   let server: RoutiServer
   const handovers = new Handovers((event) => server.broadcast(event))
   const updater = new Updater(DATA_DIR, (stage, line) => server.broadcast({ e: 'core.update.progress', stage, line }))
@@ -88,7 +91,7 @@ async function main(): Promise<void> {
     })
   }
   server = new RoutiServer({
-    store, sessions, providers, auth, desktops, handovers, updater, robinhood,
+    store, sessions, providers, auth, desktops, handovers, updater, robinhood, relay,
     // For telling the person, not for binding: the report says how Tailscale stands
     // here, which the interface scan below cannot — a userspace daemon has an address
     // and no interface, and the core is reachable on it through `tailscale serve`.
@@ -153,6 +156,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} — shutting down`)
     scheduler.stop()
+    relay.stop()
     robinhood.close()
     for (const p of providers.values()) p.dispose()
     // Leave the desktops running: their state is the value, and a restart of routid

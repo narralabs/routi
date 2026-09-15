@@ -1,3 +1,4 @@
+import type { RelayConnection } from './relay.js'
 import type { Robinhood } from '../plugins/robinhood.js'
 import { RpcMethods, type RpcMethod } from '@routi/protocol'
 import type { Store } from '../db/store.js'
@@ -11,6 +12,7 @@ import type { DesktopPool } from '../surfaces/pool.js'
 import type { Updater } from '../update.js'
 
 export interface RpcContext {
+  relay?: RelayConnection
   robinhood?: Robinhood
   viewerPath?: (botId: string) => string
   store: Store
@@ -41,6 +43,15 @@ type Handler = (params: unknown, ctx: RpcContext) => Promise<unknown>
  * failure; anything else becomes an opaque `internal`.
  */
 const handlers: Record<RpcMethod, Handler> = {
+  'connect.status': async (_p, ctx) => {
+    if (!ctx.relay) throw new RpcError('unavailable', 'Routi Connect is not available on this core.')
+    return { connection: ctx.relay.status() }
+  },
+  'connect.configure': async (p, ctx) => {
+    if (!ctx.relay) throw new RpcError('unavailable', 'Routi Connect is not available on this core.')
+    try { return { connection: ctx.relay.configure(p as { url: string; enabled: boolean }) } }
+    catch (error) { throw new RpcError('connect_error', error instanceof Error ? error.message : 'Connection failed.') }
+  },
   'robinhood.access.list': async (p, ctx) => ({ requests: robinhood(ctx).accessList((p as { profileId: string }).profileId) }),
   'robinhood.access.respond': async (p, ctx) => {
     const { profileId, id, allow } = p as { profileId: string; id: string; allow: boolean }

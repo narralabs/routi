@@ -525,8 +525,8 @@ struct ConnectionPane: View {
                 }
             }
 
-            #if os(macOS) && DEBUG
-            ConnectSettings()
+            #if os(macOS)
+            ConnectSettings().id(model.coreEndpoint)
             #endif
 
             // How a phone or iPad reaches this core. Tailscale is the recommended way:

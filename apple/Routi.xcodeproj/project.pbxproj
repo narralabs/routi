@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		08966B34941B3AE65C038BE8 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */; };
 		0FA55DA39E18EA4713EB053D /* Plugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B67CB1A9034BEB0658EDB3 /* Plugins.swift */; };
-		105976697EFF2525998305FB /* RelayAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E54B59F7610B69E84F6A603 /* RelayAddress.swift */; };
 		121F5D600BB09425082B33D3 /* FaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6132C9BD1682BD1B1B50464C /* FaceTests.swift */; };
 		15C44DA114D533E687FB4811 /* Blocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 502F8CF0DE246295A5890E87 /* Blocks.swift */; };
 		161C6ED5CC704F12603B50FB /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA56FAD7115195CEA260370F /* Notifier.swift */; };
@@ -94,7 +93,6 @@
 		85E91F8038F61343E3273FD7 /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
 		87CC49000AD0941F4B4E281A /* InstallCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallCommand.swift; sourceTree = "<group>"; };
 		97647FF55564F4B40332D6CA /* Routi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Routi.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		9E54B59F7610B69E84F6A603 /* RelayAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayAddress.swift; sourceTree = "<group>"; };
 		9F745F0678DD8714864203C0 /* Handover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Handover.swift; sourceTree = "<group>"; };
 		A0128A80F54B6560A538AC1C /* ScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenView.swift; sourceTree = "<group>"; };
 		A7B37A6ECB4A01AEBEEC5878 /* PluginAccessCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginAccessCard.swift; sourceTree = "<group>"; };
@@ -164,7 +162,6 @@
 				9F745F0678DD8714864203C0 /* Handover.swift */,
 				85E91F8038F61343E3273FD7 /* ModelName.swift */,
 				00B67CB1A9034BEB0658EDB3 /* Plugins.swift */,
-				9E54B59F7610B69E84F6A603 /* RelayAddress.swift */,
 				B7400158C8ADF31FCEE7EA29 /* Surface.swift */,
 			);
 			path = Models;
@@ -436,7 +433,6 @@
 				4442FC1F9A92A89C3982D45E /* PluginsPane.swift in Sources */,
 				2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */,
 				F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */,
-				105976697EFF2525998305FB /* RelayAddress.swift in Sources */,
 				D70141640505B1F4BAA53171 /* RootView.swift in Sources */,
 				C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */,
 				8E79CDC70EF57C2C8B2B4694 /* RoutiClient.swift in Sources */,

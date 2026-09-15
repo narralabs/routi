@@ -28,7 +28,7 @@ struct ConnectSettings: View {
     @State private var busy = false
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             // Only provisioned pilot installations have a usable connection to configure.
             if let status, status.configured || status.enabled {
                 SettingsSection(

@@ -1,4 +1,4 @@
-#if os(macOS)
+#if os(macOS) && DEBUG
 import SwiftUI
 
 struct ConnectSettings: View {
@@ -10,10 +10,10 @@ struct ConnectSettings: View {
     var body: some View {
         SettingsSection(
             "Routi Connect",
-            footnote: "Remote access is not available in this build. You can save an address now; connecting this Mac and pairing devices will follow in a future update."
+            footnote: "Development preview only. Routi Connect is not available yet; these controls are disabled."
         ) {
             SettingsRow(title: "Remote access", isFirst: true) {
-                SettingsValue(text: "Off")
+                SettingsValue(text: "Not available yet")
             }
             VStack(alignment: .leading, spacing: 8) {
                 Divider()
@@ -44,6 +44,7 @@ struct ConnectSettings: View {
             .padding(.horizontal, 14)
             .padding(.bottom, 11)
         }
+        .disabled(true)
         .onAppear { draft = relayURL }
     }
 

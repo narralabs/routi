@@ -525,7 +525,7 @@ struct ConnectionPane: View {
                 }
             }
 
-            #if os(macOS)
+            #if os(macOS) && DEBUG
             ConnectSettings()
             #endif
 

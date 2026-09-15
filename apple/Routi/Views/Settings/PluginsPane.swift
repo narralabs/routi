@@ -90,7 +90,7 @@ private struct PluginRow: View {
                 if let status {
                     Label(status.connected ? "Connected" : "Not connected", systemImage: status.connected ? "checkmark.circle.fill" : "link")
                     HStack {
-                        Button(status.connected ? "Reconnect" : "Connect \(plugin.name)") {
+                        Button(status.connected ? "Reconnect" : "Connect") {
                             perform { profileID in
                                 let result = try await model.pluginAction(plugin.id, "connect", profileID: profileID)
                                 guard let text = result["url"] as? String, let url = URL(string: text) else { return }

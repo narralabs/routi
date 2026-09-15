@@ -38,7 +38,7 @@ struct PluginAccessCard: View {
             }
             HStack {
                 if !request.connecting {
-                    Button(request.connected ? "Allow" : "Connect \(plugin.name)") {
+                    Button(request.connected ? "Allow" : "Connect") {
                         perform {
                             let result = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": true])
                             if let text = result["url"] as? String, let url = URL(string: text) {

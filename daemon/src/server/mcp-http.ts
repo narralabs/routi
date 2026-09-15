@@ -1,4 +1,4 @@
-import type { Robinhood } from '../plugins/robinhood.js'
+import type { Plugins } from '../plugins/registry.js'
 import type { ImageBlock } from '@routi/protocol'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Store } from '../db/store.js'
@@ -24,7 +24,7 @@ export class McpHttp {
     /** Told when a bot saves or removes a routine. */
     private readonly onRoutinesChanged: (botId: string) => void,
     private readonly onImageAttached?: (botId: string, conversationId: string, image: ImageBlock) => void,
-    private readonly robinhood?: Robinhood,
+    private readonly plugins?: Pick<Plugins, 'toolContext'>,
   ) {}
 
   /** True when this request is ours to answer. */
@@ -44,7 +44,7 @@ export class McpHttp {
   private contextFor(botId: string, conversationId: string, signal?: AbortSignal) {
     const bot = this.store.getBot(botId)
     return {
-      ...this.robinhood?.toolContext(botId, conversationId, signal),
+      ...this.plugins?.toolContext(botId, conversationId, signal),
       ...(this.onImageAttached ? {
         attachImage: (image: ImageBlock) => this.onImageAttached!(botId, conversationId, image),
       } : {}),

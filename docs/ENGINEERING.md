@@ -576,3 +576,36 @@ orders or revoke Robinhood's server-side authorization.
 
 `daemon/tests/robinhood.test.ts` uses a local fake OAuth/MCP server: no accounts,
 model tokens, or live trades. Real account authorization remains a manual check.
+
+
+### Google plugins
+
+Gmail, Drive and Calendar use Google’s remote MCP endpoints, matching
+[cursor/plugins](https://github.com/cursor/plugins/tree/main/third_party).
+`plugins/registry.ts` shares routing, credentials and approvals with Robinhood;
+`plugins/google.ts` supplies endpoints and OAuth scopes. Each service has its own
+connection per profile and explicit per-bot grants. Only two discovery/call tools
+per service enter the model context; remote schemas are fetched on demand.
+
+For local testing, create a **Desktop app** OAuth client in Routi’s Google Cloud
+project. Enable each product API and MCP service, configure the consent screen and
+add test accounts. Google currently lists these MCP services as Developer Preview;
+project/account access must be enabled before a live test. Follow
+[Google’s MCP setup](https://developers.google.com/workspace/guides/configure-mcp-servers)
+and [installed-app OAuth](https://developers.google.com/identity/protocols/oauth2/native-app).
+Set `ROUTI_GOOGLE_CLIENT_ID` and, if issued for that client,
+`ROUTI_GOOGLE_CLIENT_SECRET` in the core process environment, then restart the core.
+Do not put credentials in source control. The localhost callback runs on the core’s
+Mac. Tokens stay in its Keychain, separately for each profile and service.
+
+Google connections also request `openid email` to show the signed-in address in Plugins.
+The address is fetched from Google UserInfo and cached alongside the login in Keychain;
+older connections need one reconnect to grant identity access. A failed identity lookup
+does not fail the connection.
+
+The initial service scopes allow Gmail reads and drafts, Drive reads and app-authorized
+file writes, and Calendar reads/availability. Tool capabilities come from Google;
+the UI does not promise a send-mail or calendar-write tool. Other Google products
+can add definitions after their scopes and tools are validated. Distribution still
+requires configuring Routi’s OAuth client and Google’s applicable verification;
+this implementation alone does not complete that setup.

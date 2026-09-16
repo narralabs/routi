@@ -97,6 +97,10 @@ targets:
     info:
       path: Routi/Info.plist
       properties:
+        NSCameraUsageDescription: Scan a pairing code to connect to your Mac.
+        CFBundleURLTypes:
+          - CFBundleURLName: Routi Connect pairing
+            CFBundleURLSchemes: [routibot]
         # The app talks to the core over plain ws://. From a phone that is a Tailscale
         # address, encrypted underneath by WireGuard — which App Transport Security
         # cannot know, and it refuses cleartext to anything but loopback and .local.

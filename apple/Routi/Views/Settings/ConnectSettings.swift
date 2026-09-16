@@ -4,7 +4,8 @@ import CoreImage.CIFilterBuiltins
 
 struct ConnectStatus: Decodable {
     let canPair: Bool
-    let phonePaired: Bool
+    struct Device: Decodable, Identifiable { let id: String; let name: String; let createdAt: Double }
+    let devices: [Device]
     let configured: Bool
     let url: String
     let enabled: Bool
@@ -61,11 +62,13 @@ struct ConnectSettings: View {
                         Text(message).font(.caption).foregroundStyle(.red).padding(14)
                     }
                     if status.canPair {
-                        SettingsRow(title: "Phone", detail: status.phonePaired ? "A phone is paired with this Mac." : "Scan a code with Routi Bot on your iPhone.") {
-                            Button(status.phonePaired ? "Pair another phone" : "Pair iPhone") { Task { await pair() } }
+                        SettingsRow(title: "Paired devices", detail: "Each device has its own access.") {
+                            Button("Pair device") { Task { await pair() } }
                                 .disabled(busy || status.state != "connected")
-                            if status.phonePaired {
-                                Button("Revoke") { Task { await revoke() } }.disabled(busy)
+                        }
+                        ForEach(status.devices) { device in
+                            SettingsRow(title: device.name) {
+                                Button("Revoke") { Task { await revoke(device.id) } }.disabled(busy)
                             }
                         }
                     }
@@ -80,13 +83,13 @@ struct ConnectSettings: View {
         }
         .sheet(isPresented: Binding(get: { pairingCode != nil }, set: { if !$0 { cancelPairing() } })) {
             VStack(spacing: 18) {
-                Text("Pair your iPhone").font(.title2.bold())
-                Text("On your iPhone, choose Scan pairing code in Routi Bot, then scan this code and confirm.")
+                Text("Pair a device").font(.title2.bold())
+                Text("On your iPhone or iPad, choose Scan pairing code in Routi Bot, then scan this code and confirm.")
                     .multilineTextAlignment(.center)
                 if let pairingCode, let image = qrCode(pairingCode) {
                     Image(nsImage: image).interpolation(.none).resizable().frame(width: 320, height: 320)
                 }
-                Text("Valid for five minutes. Pairing replaces the previous phone’s access.")
+                Text("Valid for five minutes. Your other paired devices stay connected.")
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Done") { cancelPairing() }
             }.padding(28).frame(width: 410)
@@ -126,10 +129,10 @@ struct ConnectSettings: View {
         Task { try? await model.cancelPhonePairing() }
     }
 
-    private func revoke() async {
+    private func revoke(_ id: String) async {
         busy = true
         defer { busy = false }
-        do { try await model.revokePhone(); status = try await model.connectStatus(); error = nil }
+        do { try await model.revokeDevice(id); status = try await model.connectStatus(); error = nil }
         catch { self.error = error.localizedDescription }
     }
 

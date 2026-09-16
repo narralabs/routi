@@ -216,6 +216,14 @@ final class AppModel {
     }
 
     #if os(macOS)
+    struct PhonePairCode: Decodable { let url: String; let expiresAt: Double }
+    func pairPhone() async throws -> PhonePairCode {
+        let result = try await client.rpc("connect.pair")
+        return try JSONDecoder().decode(PhonePairCode.self, from: JSONSerialization.data(withJSONObject: result))
+    }
+    func cancelPhonePairing() async throws { try await client.rpc("connect.cancelPairing") }
+    func revokePhone() async throws { try await client.rpc("connect.revokePhone") }
+
     func connectStatus() async throws -> ConnectStatus {
         try await client.rpc("connect.status", field: "connection", as: ConnectStatus.self)
     }
@@ -224,6 +232,28 @@ final class AppModel {
         try await client.rpc("connect.configure", ["url": url, "enabled": enabled], field: "connection", as: ConnectStatus.self)
     }
     #endif
+
+    var usesRelay: Bool { client.relayProfile != nil }
+    var pairedMacName: String? { client.relayProfile?.name }
+
+    func useRelay(_ profile: RelayProfile) throws {
+        try RelayPairing.save(profile)
+        switchRelay(profile)
+    }
+
+    func forgetRelay() throws {
+        try RelayPairing.forget()
+        switchRelay(nil)
+    }
+
+    private func switchRelay(_ profile: RelayProfile?) {
+        selectedConversationID = nil
+        selectedBotID = nil
+        bots = []; conversations = [:]; messages = []
+        authKnown = false
+        isShowingScreen = false
+        client.useRelay(profile)
+    }
 
     var account: AccountInfo? { client.account }
     var isUpdatingRouti: Bool {

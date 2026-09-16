@@ -54,6 +54,12 @@ struct RootView: View {
                 #endif
             }
         }
+        .sheet(isPresented: Binding(
+            get: { model.isShowingSettings },
+            set: { model.isShowingSettings = $0 }
+        )) {
+            SettingsScreen()
+        }
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
         .animation(.snappy(duration: 0.3), value: model.authKnown)
         .animation(.snappy(duration: 0.3), value: model.isSettling)
@@ -116,12 +122,6 @@ struct RootView: View {
         }
         #endif
         .sheet(isPresented: Binding(
-            get: { model.isShowingSettings },
-            set: { model.isShowingSettings = $0 }
-        )) {
-            SettingsScreen()
-        }
-        .sheet(isPresented: Binding(
             get: { model.isShowingPlugins },
             set: { model.isShowingPlugins = $0 }
         )) {
@@ -163,7 +163,7 @@ struct RootView: View {
                 HStack(spacing: 0) {
                     ChatView(bot: bot, showBotSidebar: $showBotSidebar)
                         .frame(minWidth: 340)
-                    if showBotSidebar {
+                    if showBotSidebar && !model.usesRelay {
                         DetailRail(bot: bot, showingSettings: $showingRailSettings)
                             .frame(width: 300)
                             .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -207,6 +207,9 @@ private struct ConnectingView: View {
     @Environment(AppModel.self) private var model
     @AppStorage("daemonHost") private var host = "127.0.0.1"
     @State private var slow = false
+    #if os(iOS)
+    @State private var showingScanner = false
+    #endif
 
     private var isLocal: Bool { host == "127.0.0.1" || host == "localhost" }
 
@@ -216,21 +219,28 @@ private struct ConnectingView: View {
                 Image(systemName: "externaldrive.badge.xmark")
                     .font(.system(size: 34, weight: .light))
                     .foregroundStyle(.secondary)
-                Text(isLocal ? "Routi Core isn't running on this Mac" : "Can't reach Routi Core at \(host)")
+                Text(model.usesRelay ? "Can’t reach your paired Mac" : isLocal ? "Routi Core isn't running on this Mac" : "Can't reach Routi Core at \(host)")
                     .font(.system(size: 15, weight: .semibold))
-                Text(isLocal
+                Text(model.usesRelay ? "Check that your Mac is awake, online, and connected to Routi Connect."
+                     : isLocal
                      ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; this screen carries on by itself once the core answers."
                      : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works.")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 400)
-                if isLocal {
+                if isLocal && !model.usesRelay {
                     InstallCommand()
                 }
                 Button("Connect to a different Mac…") { model.isShowingSettings = true }
                     .controlSize(.small)
                     .padding(.top, 4)
+                #if os(iOS)
+                Button { showingScanner = true } label: {
+                    Label("Scan pairing code", systemImage: "qrcode.viewfinder")
+                }
+                .buttonStyle(.borderedProminent)
+                #endif
             } else if slow {
                 ProgressView().controlSize(.large)
                 Text("Connecting to Routi Core…")
@@ -240,6 +250,9 @@ private struct ConnectingView: View {
         }
         #if os(macOS)
         .frame(minWidth: 460, minHeight: 320)
+        #endif
+        #if os(iOS)
+        .sheet(isPresented: $showingScanner) { PhonePairingScanner() }
         #endif
         .animation(.snappy(duration: 0.25), value: model.connectionFailed)
         .task { await model.watchForCore() }

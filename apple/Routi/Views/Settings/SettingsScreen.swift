@@ -485,32 +485,36 @@ struct ConnectionPane: View {
 
     var body: some View {
         SettingsPane(title: "Routi Core") {
-            SettingsSection("Connection") {
-                SettingsRow(title: "Status", isFirst: true) {
-                    HStack(spacing: 6) {
-                        Circle().fill(status.1).frame(width: 7, height: 7)
-                        SettingsValue(text: status.0)
+            if model.usesRelay {
+                PhoneConnectionSettings()
+            } else {
+                SettingsSection("Connection") {
+                    SettingsRow(title: "Status", isFirst: true) {
+                        HStack(spacing: 6) {
+                            Circle().fill(status.1).frame(width: 7, height: 7)
+                            SettingsValue(text: status.0)
+                        }
                     }
-                }
-                SettingsRow(title: "Host", detail: "A Tailscale name works here too.") {
-                    TextField("127.0.0.1", text: $draftHost)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 200)
-                        #if !os(macOS)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        #endif
-                }
-                SettingsRow(title: "Port") {
-                    TextField("7171", value: $draftPort, format: .number.grouping(.never))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 90)
-                }
-                SettingsRow(title: "", detail: nil) {
-                    HStack {
-                        Spacer()
-                        Button("Reconnect") { apply() }
-                            .disabled(model.isUpdatingRouti || draftHost.isEmpty || (draftHost == host && draftPort == port))
+                    SettingsRow(title: "Host", detail: "A Tailscale name works here too.") {
+                        TextField("127.0.0.1", text: $draftHost)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 200)
+                            #if !os(macOS)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            #endif
+                    }
+                    SettingsRow(title: "Port") {
+                        TextField("7171", value: $draftPort, format: .number.grouping(.never))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 90)
+                    }
+                    SettingsRow(title: "", detail: nil) {
+                        HStack {
+                            Spacer()
+                            Button("Reconnect") { apply() }
+                                .disabled(model.isUpdatingRouti || draftHost.isEmpty || (draftHost == host && draftPort == port))
+                        }
                     }
                 }
             }
@@ -529,52 +533,54 @@ struct ConnectionPane: View {
             ConnectSettings().id(model.coreEndpoint)
             #endif
 
-            // How a phone or iPad reaches this core. Tailscale is the recommended way:
-            // the same address works at home and away, and only that person's own
-            // devices can use it. The core listens there the moment Tailscale is up.
-            SettingsSection(
-                "Phone and iPad",
-                footnote: "Routi Core answers on this Mac and, when Tailscale is running, on its Tailscale address — reachable only from your own devices, wherever they are."
-            ) {
-                if let addresses = model.coreAddresses, let tailscale = addresses.tailscale {
-                    // A userspace Tailscale has the address without an interface: the core
-                    // cannot bind it, and is reached there only if `tailscale serve`
-                    // forwards the port. Say which, rather than showing an address that
-                    // may not answer — or none, as if Tailscale were missing.
-                    let served = addresses.tailscaleMode == "userspace"
-                    let unreachable = addresses.reachable == false && (served || addresses.listening == false)
-                    SettingsRow(
-                        title: "Address",
-                        detail: unreachable
-                            ? (served
-                                ? "Tailscale is running without a network interface here, and nothing forwards this port. On \(addresses.hostname), run: tailscale serve --bg --tcp \(port) tcp://127.0.0.1:\(port)"
-                                : "Routi Core is not answering on this address yet. It listens there within half a minute of Tailscale coming up.")
-                            : (served
-                                ? "Reached through Tailscale serve. Enter this in the Routi app on your phone or iPad when it asks where Routi Core is."
-                                : "Enter this in the Routi app on your phone or iPad when it asks where Routi Core is."),
-                        isFirst: true
-                    ) {
-                        SettingsValue(text: "\(tailscale):\(port)", monospaced: true)
+            if !model.usesRelay {
+                // How a phone or iPad reaches this core. Tailscale is the recommended way:
+                // the same address works at home and away, and only that person's own
+                // devices can use it. The core listens there the moment Tailscale is up.
+                SettingsSection(
+                    "Phone and iPad",
+                    footnote: "Routi Core answers on this Mac and, when Tailscale is running, on its Tailscale address — reachable only from your own devices, wherever they are."
+                ) {
+                    if let addresses = model.coreAddresses, let tailscale = addresses.tailscale {
+                        // A userspace Tailscale has the address without an interface: the core
+                        // cannot bind it, and is reached there only if `tailscale serve`
+                        // forwards the port. Say which, rather than showing an address that
+                        // may not answer — or none, as if Tailscale were missing.
+                        let served = addresses.tailscaleMode == "userspace"
+                        let unreachable = addresses.reachable == false && (served || addresses.listening == false)
+                        SettingsRow(
+                            title: "Address",
+                            detail: unreachable
+                                ? (served
+                                    ? "Tailscale is running without a network interface here, and nothing forwards this port. On \(addresses.hostname), run: tailscale serve --bg --tcp \(port) tcp://127.0.0.1:\(port)"
+                                    : "Routi Core is not answering on this address yet. It listens there within half a minute of Tailscale coming up.")
+                                : (served
+                                    ? "Reached through Tailscale serve. Enter this in the Routi app on your phone or iPad when it asks where Routi Core is."
+                                    : "Enter this in the Routi app on your phone or iPad when it asks where Routi Core is."),
+                            isFirst: true
+                        ) {
+                            SettingsValue(text: "\(tailscale):\(port)", monospaced: true)
+                        }
+                    } else if model.coreAddresses?.tailscaleMode == "down" {
+                        SettingsRow(
+                            title: "Tailscale",
+                            detail: "Tailscale is installed on \(model.coreAddresses?.hostname ?? "the Mac running Routi Core") but not running. Start it there, and the address to use appears here.",
+                            isFirst: true
+                        ) {
+                            Link("Get Tailscale", destination: URL(string: "https://tailscale.com/download")!)
+                        }
+                    } else {
+                        SettingsRow(
+                            title: "Tailscale",
+                            detail: "Install Tailscale on \(model.coreAddresses?.hostname ?? "the Mac running Routi Core") and on your phone, sign both into the same account, and the address to use appears here.",
+                            isFirst: true
+                        ) {
+                            Link("Get Tailscale", destination: URL(string: "https://tailscale.com/download")!)
+                        }
                     }
-                } else if model.coreAddresses?.tailscaleMode == "down" {
-                    SettingsRow(
-                        title: "Tailscale",
-                        detail: "Tailscale is installed on \(model.coreAddresses?.hostname ?? "the Mac running Routi Core") but not running. Start it there, and the address to use appears here.",
-                        isFirst: true
-                    ) {
-                        Link("Get Tailscale", destination: URL(string: "https://tailscale.com/download")!)
+                    SettingsRow(title: "Data") {
+                        SettingsValue(text: "~/.routi on the host Mac", monospaced: true)
                     }
-                } else {
-                    SettingsRow(
-                        title: "Tailscale",
-                        detail: "Install Tailscale on \(model.coreAddresses?.hostname ?? "the Mac running Routi Core") and on your phone, sign both into the same account, and the address to use appears here.",
-                        isFirst: true
-                    ) {
-                        Link("Get Tailscale", destination: URL(string: "https://tailscale.com/download")!)
-                    }
-                }
-                SettingsRow(title: "Data") {
-                    SettingsValue(text: "~/.routi on the host Mac", monospaced: true)
                 }
             }
         }

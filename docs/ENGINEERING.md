@@ -125,29 +125,36 @@ underneath.
 
 ### Routi Connect pilot
 
-Provisioned Macs can maintain an outbound connection to a Routi relay. The pinned
-`routi-relay/connection` client handles mutual TLS and reconnects. This pilot serves
-only `GET /health` over authenticated sessions; it does not expose RPC, MCP, VNC,
-or arbitrary local ports. The relay never receives the device private keys.
+A provisioned Mac supports phone chat over an outbound relay connection, without
+Tailscale. In Mac Settings → Routi Core → Routi Connect, connect and choose Pair
+iPhone. Scan the code in the phone app and confirm the Mac’s Computer Name.
+Desktop viewing still requires a direct connection.
 
-Place the locally provisioned host credentials at `<data-dir>/connect-host.json`
-(mode `0600`), or set `ROUTI_CONNECT_HOST_FILE` to that private file. Provisioning is
-currently the relay repository's `pnpm pair` command; register only its `relay.json`
-token hashes on the relay and keep `viewer.json` on the test client. Test certificates
-expire after 30 days. Do not commit these files or bundle pilot credentials in releases.
+The QR contains a five-minute, single-use claim and the Mac’s certificate, never a
+private key. The phone pins that certificate, redeems the claim over TLS, and stores
+its client identity in Keychain. Chat uses mutual TLS 1.3 through the relay; the
+relay cannot read it. Swift uses a loopback-only byte bridge so URLSession handles
+TLS and the existing chat WebSocket. The core exposes `/pair` to claim holders and
+`/chat` to the paired identity, without forwarding arbitrary local ports.
 
-Mac Settings → Routi Core shows Routi Connect when that core has a host file or an
-enabled connection (so it can still be disconnected if the file is removed).
-Connect saves the relay URL and enabled preference in the core database; Disconnect
-stops sessions and retries. A core restart resumes an enabled connection. App closure
-does not stop the core's connection. Normal installations remain off and show no
-unfinished settings. Remote app access and user-facing pairing are separate work.
+One phone is paired per Mac in this pilot. Pairing another phone rotates trust and
+closes the old phone’s sessions. Revoke removes chat access immediately; Forget
+this Mac removes the phone’s local identity. Disconnect stops relay sessions and
+retries. An enabled connection resumes when the core restarts, independently of
+whether the Mac app is open.
 
-With the real core connected, run this read-only check (excluded from CI, no model usage):
+Provisioning uses the relay repository’s `pnpm pair`: register only `relay.json`
+token hashes on the relay. Locally, copy `host.json` to
+`<data-dir>/connect-host.json` (mode `0600`) and add `viewerToken` from `viewer.json`’s
+`token` field. `ROUTI_CONNECT_HOST_FILE` can override that path. Keep all device
+credentials private; never bundle them in releases. Test certificates expire after
+30 days; public enrollment and automatic certificate renewal are not implemented.
+Ordinary installations show no Connect section until provisioned.
 
-```sh
-pnpm --filter routid test:live:relay wss://connect.routibot.com /private/path/viewer.json
-```
+`pnpm test` covers pairing expiry/replay, trust rotation, revocation, disconnect,
+and route restrictions using local test credentials, with no model calls. The
+explicit `test:live:relay` health check accepts an unrotated CLI viewer credential;
+a phone pairing replaces that identity.
 
 ## Updating an installed core from the app
 

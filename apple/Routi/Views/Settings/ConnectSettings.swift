@@ -1,7 +1,10 @@
 #if os(macOS)
 import SwiftUI
+import CoreImage.CIFilterBuiltins
 
 struct ConnectStatus: Decodable {
+    let canPair: Bool
+    let phonePaired: Bool
     let configured: Bool
     let url: String
     let enabled: Bool
@@ -26,6 +29,8 @@ struct ConnectSettings: View {
     @State private var error: String?
     @State private var refreshError: String?
     @State private var busy = false
+    @State private var pairingCode: String?
+    @State private var pairingExpiresAt: Date?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,7 +38,7 @@ struct ConnectSettings: View {
             if let status, status.configured || status.enabled {
                 SettingsSection(
                     "Routi Connect",
-                    footnote: "Pilot connection to this Mac. Device pairing, chat, and desktop access are not available yet."
+                    footnote: "Chat from your paired phone without Tailscale. Desktop viewing still requires a direct connection."
                 ) {
                     SettingsRow(title: "Relay connection", isFirst: true) {
                         let available = model.connection == .connected && refreshError == nil
@@ -55,6 +60,15 @@ struct ConnectSettings: View {
                     if let message = error ?? refreshError ?? status.error {
                         Text(message).font(.caption).foregroundStyle(.red).padding(14)
                     }
+                    if status.canPair {
+                        SettingsRow(title: "Phone", detail: status.phonePaired ? "A phone is paired with this Mac." : "Scan a code with Routi Bot on your iPhone.") {
+                            Button(status.phonePaired ? "Pair another phone" : "Pair iPhone") { Task { await pair() } }
+                                .disabled(busy || status.state != "connected")
+                            if status.phonePaired {
+                                Button("Revoke") { Task { await revoke() } }.disabled(busy)
+                            }
+                        }
+                    }
                     SettingsRow(title: "") {
                         Button(status.enabled ? "Disconnect" : "Connect") {
                             Task { await configure(status) }
@@ -64,9 +78,59 @@ struct ConnectSettings: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(get: { pairingCode != nil }, set: { if !$0 { cancelPairing() } })) {
+            VStack(spacing: 18) {
+                Text("Pair your iPhone").font(.title2.bold())
+                Text("On your iPhone, choose Scan pairing code in Routi Bot, then scan this code and confirm.")
+                    .multilineTextAlignment(.center)
+                if let pairingCode, let image = qrCode(pairingCode) {
+                    Image(nsImage: image).interpolation(.none).resizable().frame(width: 320, height: 320)
+                }
+                Text("Valid for five minutes. Pairing replaces the previous phone’s access.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Done") { cancelPairing() }
+            }.padding(28).frame(width: 410)
+            .task {
+                guard let pairingExpiresAt else { return }
+                try? await Task.sleep(for: .seconds(max(0, pairingExpiresAt.timeIntervalSinceNow)))
+                if !Task.isCancelled { cancelPairing() }
+            }
+        }
         .task(id: model.connection) {
             if model.connection == .connected { await refresh() }
         }
+    }
+
+    private func qrCode(_ value: String) -> NSImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(value.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage,
+              let cg = CIContext().createCGImage(output, from: output.extent) else { return nil }
+        return NSImage(cgImage: cg, size: NSSize(width: output.extent.width, height: output.extent.height))
+    }
+
+    private func pair() async {
+        busy = true
+        defer { busy = false }
+        do {
+            let code = try await model.pairPhone()
+            pairingExpiresAt = Date(timeIntervalSince1970: code.expiresAt / 1000)
+            pairingCode = code.url
+            error = nil
+        } catch { self.error = error.localizedDescription }
+    }
+
+    private func cancelPairing() {
+        pairingCode = nil
+        Task { try? await model.cancelPhonePairing() }
+    }
+
+    private func revoke() async {
+        busy = true
+        defer { busy = false }
+        do { try await model.revokePhone(); status = try await model.connectStatus(); error = nil }
+        catch { self.error = error.localizedDescription }
     }
 
     private func refresh() async {

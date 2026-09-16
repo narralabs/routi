@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct RoutiApp: App {
     @State private var model = AppModel()
+    @State private var pairingInvitation: RelayInvitation?
+    @State private var pairingError: String?
     @AppStorage("appearance") private var appearanceRaw = AppearanceMode.system.rawValue
 
     private var appearance: AppearanceMode {
@@ -50,6 +52,16 @@ struct RoutiApp: App {
             RootView()
                 .environment(model)
                 .preferredColorScheme(appearance.colorScheme)
+                .onOpenURL { url in
+                    do { pairingInvitation = try RelayInvitation.parse(url) }
+                    catch { pairingError = error.localizedDescription }
+                }
+                .sheet(item: $pairingInvitation) { invitation in
+                    PhonePairingSheet(invitation: invitation).environment(model)
+                }
+                .alert("Cannot pair", isPresented: Binding(get: { pairingError != nil }, set: { if !$0 { pairingError = nil } })) {
+                    Button("OK") { pairingError = nil }
+                } message: { Text(pairingError ?? "") }
         }
         #endif
     }

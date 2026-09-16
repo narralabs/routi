@@ -12,6 +12,7 @@ import type { DesktopPool } from '../surfaces/pool.js'
 import type { Updater } from '../update.js'
 
 export interface RpcContext {
+  viaRelay?: boolean
   relay?: RelayConnection
   robinhood?: Robinhood
   viewerPath?: (botId: string) => string
@@ -43,11 +44,25 @@ type Handler = (params: unknown, ctx: RpcContext) => Promise<unknown>
  * failure; anything else becomes an opaque `internal`.
  */
 const handlers: Record<RpcMethod, Handler> = {
+  'connect.pair': async (_p, ctx) => {
+    if (ctx.viaRelay || !ctx.relay) throw new RpcError('forbidden', 'Pair devices from your Mac.')
+    try { return await ctx.relay.pairPhone() }
+    catch { throw new RpcError('pairing_failed', 'Could not create a pairing code. Check the relay connection and provisioning.') }
+  },
+  'connect.cancelPairing': async (_p, ctx) => {
+    if (ctx.viaRelay || !ctx.relay) throw new RpcError('forbidden', 'Manage pairing from your Mac.')
+    ctx.relay.cancelPairing(); return { ok: true }
+  },
+  'connect.revokePhone': async (_p, ctx) => {
+    if (ctx.viaRelay || !ctx.relay) throw new RpcError('forbidden', 'Manage pairing from your Mac.')
+    ctx.relay.revokePhone(); return { ok: true }
+  },
   'connect.status': async (_p, ctx) => {
     if (!ctx.relay) throw new RpcError('unavailable', 'Routi Connect is not available on this core.')
     return { connection: ctx.relay.status() }
   },
   'connect.configure': async (p, ctx) => {
+    if (ctx.viaRelay) throw new RpcError('forbidden', 'Configure the relay from your Mac.')
     if (!ctx.relay) throw new RpcError('unavailable', 'Routi Connect is not available on this core.')
     try { return { connection: ctx.relay.configure(p as { url: string; enabled: boolean }) } }
     catch (error) { throw new RpcError('connect_error', error instanceof Error ? error.message : 'Connection failed.') }

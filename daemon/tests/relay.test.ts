@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { WebSocketServer } from 'ws'
+import { execFileSync } from 'node:child_process'
+import { dispatch } from '../src/server/rpc.js'
 import { once } from 'node:events'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -41,12 +44,12 @@ async function waitFor(core: RelayConnection, state: string) {
   assert.fail(`Expected ${state}, got ${core.status().state}`)
 }
 
-async function request(url: string, device: Awaited<ReturnType<typeof createPairing>>['viewer'], path = '/health', method = 'GET') {
+async function request(url: string, device: Awaited<ReturnType<typeof createPairing>>['viewer'], path = '/health', method = 'GET', authorization = '') {
   const stream = await connectViewer(url, device)
   const chunks: Buffer[] = []
   stream.on('data', chunk => chunks.push(Buffer.from(chunk)))
   const ended = once(stream, 'end')
-  stream.write(`${method} ${path} HTTP/1.1\r\nHost: routi-host\r\nConnection: close\r\n\r\n`)
+  stream.write(`${method} ${path} HTTP/1.1\r\nHost: routi-host\r\nConnection: close\r\nAuthorization: Bearer ${authorization}\r\n\r\n`)
   try { await ended; return Buffer.concat(chunks).toString() } finally { stream.destroy() }
 }
 
@@ -121,4 +124,72 @@ test('malformed saved relay address falls back to disabled without crashing star
   t.after(() => core.stop())
   assert.equal(core.status().enabled, false)
   assert.equal(core.status().state, 'disconnected')
+})
+
+test('phone pairing is single-use, rotates trust, and revokes active sessions', { timeout: 15_000 }, async t => {
+  const { core, store, hostFile, pair, url } = await setup(t)
+  writeFileSync(hostFile, JSON.stringify({ ...pair.host, viewerToken: pair.viewer.token }))
+  store.setSettings({ connectPhonePaired: true })
+  const wss = new WebSocketServer({ noServer: true })
+  core.setChatHandler((req, socket, head) => wss.handleUpgrade(req, socket, head, () => {}))
+  t.after(() => new Promise<void>(resolve => wss.close(() => resolve())))
+  async function openChat(device: typeof pair.viewer) {
+    const stream = await connectViewer(url, device)
+    const ready = once(stream, 'data')
+    stream.write('GET /chat HTTP/1.1\r\nHost: routi-host\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n')
+    assert.match((await ready)[0].toString(), /HTTP\/1.1 101/)
+    return stream
+  }
+  core.configure({ url, enabled: true })
+  await waitFor(core, 'connected')
+  const original = await openChat(pair.viewer)
+  const originalClosed = once(original, 'close')
+  const code = await core.pairPhone()
+  const payload = JSON.parse(Buffer.from(new URL(code.url).searchParams.get('data')!, 'base64url').toString())
+  assert.ok(payload.expiresAt > Date.now())
+  assert.equal(payload.pkcs12, undefined)
+  assert.equal(payload.key, undefined)
+  const unpaired = { ...pair.viewer, key: '', cert: '' }
+  assert.match(await request(url, unpaired, '/health'), /HTTP\/1.1 403/)
+  assert.match(await request(url, unpaired, '/pair', 'POST', 'wrong'), /HTTP\/1.1 403/)
+  const response = await request(url, unpaired, '/pair', 'POST', payload.secret)
+  assert.match(response.slice(0, 32), /HTTP\/1.1 200/)
+  await originalClosed
+  assert.match(await request(url, pair.viewer), /HTTP\/1.1 403/)
+  assert.equal(core.status().phonePaired, true)
+  assert.match(await request(url, unpaired, '/pair', 'POST', payload.secret), /HTTP\/1.1 403/)
+  const encoded = response.match(/"pkcs12":"([^"]+)"/)?.[1]
+  assert.ok(encoded)
+  const p12File = join(hostFile, '..', 'phone.p12')
+  writeFileSync(p12File, Buffer.from(encoded, 'base64'), { mode: 0o600 })
+  const pem = execFileSync('openssl', ['pkcs12', '-in', p12File, '-passin', 'pass:routi', '-nodes'], { encoding: 'utf8' })
+  const phone = { ...pair.viewer, key: pem, cert: pem }
+  assert.match(await request(url, phone), /HTTP\/1.1 200/)
+  const stream = await openChat(phone)
+  const closed = once(stream, 'close')
+  core.revokePhone()
+  await closed
+  assert.equal(core.status().phonePaired, false)
+  for (const method of ['connect.pair', 'connect.cancelPairing', 'connect.revokePhone', 'connect.configure']) {
+    await assert.rejects(dispatch(method, method === 'connect.configure' ? { url, enabled: false } : {}, { relay: core, viaRelay: true } as never), /from your Mac/)
+  }
+  const revoked = await connectViewer(url, phone)
+  const revokedClosed = once(revoked, 'close')
+  revoked.write('GET /chat HTTP/1.1\r\nHost: routi-host\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n')
+  await revokedClosed
+})
+
+test('cancelled and expired pairing codes cannot be redeemed', { timeout: 15_000 }, async t => {
+  const { core, hostFile, pair, url } = await setup(t)
+  writeFileSync(hostFile, JSON.stringify({ ...pair.host, viewerToken: pair.viewer.token }))
+  core.configure({ url, enabled: true })
+  await waitFor(core, 'connected')
+  const unpaired = { ...pair.viewer, key: '', cert: '' }
+  const decode = (value: string) => JSON.parse(Buffer.from(new URL(value).searchParams.get('data')!, 'base64url').toString())
+  const cancelled = decode((await core.pairPhone()).url)
+  core.cancelPairing()
+  assert.match(await request(url, unpaired, '/pair', 'POST', cancelled.secret), /HTTP\/1.1 403/)
+  const expired = decode((await core.pairPhone()).url)
+  t.mock.method(Date, 'now', () => expired.expiresAt + 1)
+  assert.match(await request(url, unpaired, '/pair', 'POST', expired.secret), /HTTP\/1.1 403/)
 })

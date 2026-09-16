@@ -41,7 +41,11 @@ final class RoutiClient: NSObject {
     /// without waiting for a follow-up round trip.
     var onAuthStatus: ((AuthStatus) -> Void)?
 
-    var endpoint: String { "\(host):\(port)" }
+    var endpoint: String { relayProfile.map { "Routi Connect · \($0.name)" } ?? "\(host):\(port)" }
+    private(set) var relayProfile: RelayProfile?
+    private var relayTunnel: RelayTunnel?
+    private var relaySession: URLSession?
+    private var openingTask: Task<Void, Never>?
 
     private var host: String
     private var port: Int
@@ -56,13 +60,22 @@ final class RoutiClient: NSObject {
     init(host: String = "127.0.0.1", port: Int = 7171) {
         self.host = host
         self.port = port
+        #if !os(macOS)
+        self.relayProfile = try? RelayPairing.load()
+        #endif
         super.init()
         self.session = URLSession(configuration: .default)
     }
 
     func httpURL(path: String) -> URL? {
-        guard path.hasPrefix("/vnc/") else { return nil }
+        guard relayProfile == nil, path.hasPrefix("/vnc/") else { return nil }
         return URL(string: "http://\(host):\(port)\(path)")
+    }
+
+    func useRelay(_ profile: RelayProfile?) {
+        subscriptions.removeAll()
+        relayProfile = profile
+        reconnect(immediately: true)
     }
 
     func updateEndpoint(host: String, port: Int) {
@@ -95,11 +108,33 @@ final class RoutiClient: NSObject {
         guard !isStopped, state == .disconnected else { return }
         state = .connecting
 
-        guard let url = URL(string: "ws://\(host):\(port)") else {
-            state = .disconnected
+        if let profile = relayProfile {
+            openingTask = Task { [weak self] in
+                guard let self else { return }
+                let tunnel = RelayTunnel(relay: URL(string: profile.relay)!, token: profile.token)
+                self.relayTunnel = tunnel
+                do {
+                    let base = try await tunnel.start()
+                    try Task.checkCancellation()
+                    let trust = try RelayTrust(certificate: profile.certificate, pkcs12: profile.pkcs12)
+                    let inner = URLSession(configuration: .ephemeral, delegate: trust, delegateQueue: nil)
+                    self.relaySession = inner
+                    var parts = URLComponents(url: base, resolvingAgainstBaseURL: false)!
+                    parts.scheme = "wss"
+                    parts.path = "/chat"
+                    self.open(inner.webSocketTask(with: parts.url!))
+                } catch {
+                    tunnel.stop()
+                    if !Task.isCancelled { self.handleDisconnect() }
+                }
+            }
             return
         }
-        let task = session.webSocketTask(with: url)
+        guard let url = URL(string: "ws://\(host):\(port)") else { state = .disconnected; return }
+        open(session.webSocketTask(with: url))
+    }
+
+    private func open(_ task: URLSessionWebSocketTask) {
         self.task = task
         task.resume()
         receiveLoop(task)
@@ -115,8 +150,16 @@ final class RoutiClient: NSObject {
     func stop() {
         isStopped = true
         reconnectTask?.cancel()
-        task?.cancel(with: .goingAway, reason: nil)
-        task = nil
+        handleDisconnect()
+    }
+
+    private func closeRelay() {
+        openingTask?.cancel()
+        openingTask = nil
+        relaySession?.invalidateAndCancel()
+        relaySession = nil
+        relayTunnel?.stop()
+        relayTunnel = nil
     }
 
     private static var platformName: String {
@@ -148,7 +191,9 @@ final class RoutiClient: NSObject {
 
     private func handleDisconnect() {
         guard state != .disconnected else { return }
+        task?.cancel(with: .goingAway, reason: nil)
         task = nil
+        closeRelay()
         state = .disconnected
 
         // Fail every in-flight RPC rather than leaving callers hung.
@@ -164,6 +209,9 @@ final class RoutiClient: NSObject {
     private func reconnect(immediately: Bool) {
         reconnectTask?.cancel()
         if immediately {
+            for continuation in pending.values { continuation.resume(throwing: RPCError(code: "disconnected", message: "Connection changed.")) }
+            pending.removeAll()
+            closeRelay()
             task?.cancel(with: .goingAway, reason: nil)
             task = nil
             state = .disconnected
@@ -264,13 +312,14 @@ final class RoutiClient: NSObject {
         defer { timeoutTask.cancel() }
 
         return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { cont in
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { cont in
                 pending[id] = cont
                 send(["t": "rpc", "id": id, "method": method, "params": params])
             }
         } onCancel: {
             Task { @MainActor [weak self] in
-                self?.pending.removeValue(forKey: id)
+                self?.pending.removeValue(forKey: id)?.resume(throwing: CancellationError())
             }
         }
     }

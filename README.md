@@ -91,6 +91,10 @@ they were yours before Routi.
   restrictions must be enforced by the tools and execution environment. The
   iMessage bridge, authorized senders and Mac permissions need design before
   implementation.
+- **Apple containers.** Add Apple's container runtime as an optional backend for
+  bot computers, while keeping Docker support. Aim for stronger isolation and
+  improved performance; measure memory use, CPU and startup time before choosing
+  defaults.
 - **More AI providers.** Add Gemini and Kimi, plus local model providers such as
   Ollama and llama.cpp. Let users choose a supported hosted or local model per bot.
 - **Connectors.** Sign in to Gmail once and every bot you allow can search, read, draft

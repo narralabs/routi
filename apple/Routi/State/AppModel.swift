@@ -234,6 +234,7 @@ final class AppModel {
     #endif
 
     var usesRelay: Bool { client.relayProfile != nil }
+    var relayViewerProfile: RelayProfile? { client.relayProfile }
     var pairedMacName: String? { client.relayProfile?.name }
 
     func useRelay(_ profile: RelayProfile) throws {

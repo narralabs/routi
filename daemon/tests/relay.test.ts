@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
-import { WebSocketServer } from 'ws'
-import { execFileSync } from 'node:child_process'
+import { WebSocket, WebSocketServer } from 'ws'
+import { execFileSync, spawn } from 'node:child_process'
+import { createVncBridge } from '../src/server/vnc-bridge.js'
 import { dispatch } from '../src/server/rpc.js'
 import { once } from 'node:events'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -212,4 +213,57 @@ test('cancelled and expired pairing codes cannot be redeemed', { timeout: 15_000
   const expired = decode((await core.pairPhone()).url)
   t.mock.method(Date, 'now', () => expired.expiresAt + 1)
   assert.match(await request(url, unpaired, '/pair', 'POST', expired.secret), /HTTP\/1.1 403/)
+})
+
+
+test('paired VNC uses encrypted relay transport; revocation closes the viewer and releases its desktop', { timeout: 15_000 }, async t => {
+  const { core, store, pair, url } = await setup(t)
+  store.setSettings({ connectPhonePaired: true })
+  const bot = '00000000-0000-0000-0000-000000000001'
+  let released = 0
+  const bridge = createVncBridge({
+    token: 'test-capability',
+    displayFor: async id => { assert.equal(id, bot); return ':104' },
+    acquireDisplay: async () => ({
+      open: () => spawn(process.execPath, ['-e', 'process.stdin.pipe(process.stdout)']),
+      release: () => { released++ },
+    }),
+  })
+  core.setDesktopHandler(bridge)
+  t.after(() => bridge.close())
+  core.configure({ url, enabled: true })
+  await waitFor(core, 'connected')
+  const prefix = bridge.prefix
+  assert.match(await request(url, pair.viewer, `${prefix}/viewer/${bot}`), /HTTP\/1.1 200/)
+  assert.match(await request(url, pair.viewer, `${prefix}/assets/core/rfb.js`), /class RFB/)
+  for (const path of ['/mcp/bot/conversation', '/vnc/wrong/viewer/' + bot, `${prefix}/assets/../../package.json`]) {
+    assert.match(await request(url, pair.viewer, path), /HTTP\/1.1 404/)
+  }
+  const unpaired = { ...pair.viewer, key: '', cert: '' }
+  assert.match(await request(url, unpaired, `${prefix}/viewer/${bot}`), /HTTP\/1.1 403/)
+  const connect = async (origin: string) => {
+    const stream = await connectViewer(url, pair.viewer)
+    return new WebSocket(`wss://routi-host${prefix}/connect/${bot}`, { createConnection: () => stream, origin })
+  }
+  const denied = await connect('https://untrusted.example')
+  assert.match(String((await once(denied, 'error'))[0]), /403/)
+  const ws = await connect('https://routi-host')
+  t.after(() => ws.terminate())
+  await once(ws, 'open')
+  // Frame-sized binary traffic crosses multiple TLS/relay chunks without corruption.
+  const payload = Buffer.alloc(512 * 1024, 0xa5)
+  let received = Buffer.alloc(0)
+  const complete = new Promise<void>(resolve => ws.on('message', chunk => {
+    received = Buffer.concat([received, chunk as Buffer])
+    if (received.length >= payload.length) resolve()
+  }))
+  ws.send(payload)
+  await complete
+  assert.deepEqual(received, payload)
+  const closed = once(ws, 'close')
+  await core.revokeDevice('legacy')
+  await closed
+  for (let i = 0; i < 100 && !released; i++) await sleep(10)
+  assert.equal(released, 1)
+  assert.match(await request(url, pair.viewer, `${prefix}/viewer/${bot}`), /HTTP\/1.1 403/)
 })

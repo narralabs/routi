@@ -74,6 +74,7 @@ export class RoutiServer {
     this.wss = new WebSocketServer({ noServer: true })
     this.wss.on('connection', (ws) => this.onConnection(ws))
     this.adopt(this.http)
+    ctx.relay?.setDesktopHandler(this.vnc)
     ctx.relay?.setChatHandler((req, socket, head) => {
       this.wss.handleUpgrade(req, socket, head, ws => this.onConnection(ws, true))
     })

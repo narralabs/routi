@@ -29,9 +29,10 @@ final class RelayTunnel: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
                         let listener = try NWListener(using: parameters)
                         self.listener = listener
                         self.session = URLSession(configuration: .ephemeral, delegate: self, delegateQueue: nil)
+                        // Six WebKit asset connections plus chat and the VNC WebSocket.
                         listener.newConnectionHandler = { [weak self] connection in
                             guard let self, !self.stopped, let session = self.session,
-                                  self.pipes.count < 4 else { connection.cancel(); return }
+                                  self.pipes.count < 8 else { connection.cancel(); return }
                             let id = UUID()
                             let url = self.relay.appendingPathComponent("v1/sessions/\(id.uuidString)")
                             var request = URLRequest(url: url)
@@ -177,6 +178,11 @@ final class RelayTrust: NSObject, URLSessionDelegate, @unchecked Sendable {
 
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        respond(to: challenge, completionHandler: completionHandler)
+    }
+
+    func respond(to challenge: URLAuthenticationChallenge,
+                 completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         switch challenge.protectionSpace.authenticationMethod {
         case NSURLAuthenticationMethodServerTrust:
             guard let trust = challenge.protectionSpace.serverTrust,

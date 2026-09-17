@@ -163,7 +163,7 @@ struct RootView: View {
                 HStack(spacing: 0) {
                     ChatView(bot: bot, showBotSidebar: $showBotSidebar)
                         .frame(minWidth: 340)
-                    if showBotSidebar && !model.usesRelay {
+                    if showBotSidebar {
                         DetailRail(bot: bot, showingSettings: $showingRailSettings)
                             .frame(width: 300)
                             .transition(.move(edge: .trailing).combined(with: .opacity))

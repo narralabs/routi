@@ -13,8 +13,13 @@ App (WKWebView + noVNC)
 
 The app requests a token-protected viewer path through `surface.viewer`. The
 viewer, MCP and chat API share the core's host and port. Phones connect through
-the same private network as chat; Docker's VNC ports stay on container loopback.
+a private network or Routi Connect; Docker's VNC ports stay on container loopback.
 The bridge validates the viewer token, bot ID and WebSocket Origin/Host.
+
+Routi Connect carries the viewer page, noVNC modules and VNC WebSocket through
+mutual TLS between the paired device and Core. The relay forwards encrypted bytes.
+Mobile input RPCs use the encrypted chat connection. Revoking a device closes its
+viewer connections too; other devices and the bot keep running.
 
 ## Lifecycle
 

@@ -80,6 +80,15 @@ they were yours before Routi.
 
 ## Roadmap
 
+- **Personal Assistant (working name).** A default, general-purpose bot that is your
+  main helper for everyday tasks. Give it permission to work on the actual Mac
+  running Routi Core: files, terminal commands, native apps and iMessage. Reach the
+  same assistant through Routi Bot on Mac, iPhone or iPad, or by messaging it in
+  iMessage, with shared context across those channels. Coordinate access to the
+  Mac's screen so simultaneous tasks do not interfere with each other. The iMessage
+  bridge, authorized senders and Mac permissions need design before implementation.
+- **More AI providers.** Add Gemini and Kimi, plus local model providers such as
+  Ollama and llama.cpp. Let users choose a supported hosted or local model per bot.
 - **Connectors.** Sign in to Gmail once and every bot you allow can search, read, draft
   and send, as tools rather than through the browser; Google Calendar, Drive, Slack and
   GitHub follow the same way. The sign-in happens on the Mac running the core and the

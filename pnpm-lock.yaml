@@ -34,6 +34,9 @@ importers:
       openai:
         specifier: ^7.10.0
         version: 7.10.0(ws@8.21.3)(zod@4.5.4)
+      routi-relay:
+        specifier: github:laborosai/routi-relay#be8588f44f18648007a6695b811c2111e5704094
+        version: https://codeload.github.com/laborosai/routi-relay/tar.gz/be8588f44f18648007a6695b811c2111e5704094
       ws:
         specifier: ^8.21.3
         version: 8.21.3
@@ -807,6 +810,11 @@ packages:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
 
+  routi-relay@https://codeload.github.com/laborosai/routi-relay/tar.gz/be8588f44f18648007a6695b811c2111e5704094:
+    resolution: {tarball: https://codeload.github.com/laborosai/routi-relay/tar.gz/be8588f44f18648007a6695b811c2111e5704094}
+    version: 0.1.0
+    engines: {node: '>=22'}
+
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
 
@@ -1502,6 +1510,13 @@ snapshots:
       path-to-regexp: 8.4.2
     transitivePeerDependencies:
       - supports-color
+
+  routi-relay@https://codeload.github.com/laborosai/routi-relay/tar.gz/be8588f44f18648007a6695b811c2111e5704094:
+    dependencies:
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   safer-buffer@2.1.2: {}
 

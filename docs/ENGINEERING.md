@@ -123,6 +123,39 @@ Tailscale. The app's Info.plist allows cleartext connections, since `ws://` to a
 address is refused by App Transport Security otherwise — the encryption is WireGuard's,
 underneath.
 
+### Routi Connect pilot
+
+A provisioned Mac supports phone chat over an outbound relay connection, without
+Tailscale. In Mac Settings → Routi Core → Routi Connect, connect and choose Pair
+iPhone. Scan the code in the phone app and confirm the Mac’s Computer Name.
+Desktop viewing still requires a direct connection.
+
+The QR contains a five-minute, single-use claim and the Mac’s certificate, never a
+private key. The phone pins that certificate, redeems the claim over TLS, and stores
+its client identity in Keychain. Chat uses mutual TLS 1.3 through the relay; the
+relay cannot read it. Swift uses a loopback-only byte bridge so URLSession handles
+TLS and the existing chat WebSocket. The core exposes `/pair` to claim holders and
+`/chat` to the paired identity, without forwarding arbitrary local ports.
+
+One phone is paired per Mac in this pilot. Pairing another phone rotates trust and
+closes the old phone’s sessions. Revoke removes chat access immediately; Forget
+this Mac removes the phone’s local identity. Disconnect stops relay sessions and
+retries. An enabled connection resumes when the core restarts, independently of
+whether the Mac app is open.
+
+Provisioning uses the relay repository’s `pnpm pair`: register only `relay.json`
+token hashes on the relay. Locally, copy `host.json` to
+`<data-dir>/connect-host.json` (mode `0600`) and add `viewerToken` from `viewer.json`’s
+`token` field. `ROUTI_CONNECT_HOST_FILE` can override that path. Keep all device
+credentials private; never bundle them in releases. Test certificates expire after
+30 days; public enrollment and automatic certificate renewal are not implemented.
+Ordinary installations show no Connect section until provisioned.
+
+`pnpm test` covers pairing expiry/replay, trust rotation, revocation, disconnect,
+and route restrictions using local test credentials, with no model calls. The
+explicit `test:live:relay` health check accepts an unrotated CLI viewer credential;
+a phone pairing replaces that identity.
+
 ## Updating an installed core from the app
 
 Settings › Routi Core shows "Update Routi Core" when a newer release exists, and the

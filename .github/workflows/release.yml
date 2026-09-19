@@ -13,9 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Pack the core
+        env:
+          ROUTI_GOOGLE_CLIENT_ID: ${{ secrets.ROUTI_GOOGLE_CLIENT_ID }}
+          ROUTI_GOOGLE_CLIENT_SECRET: ${{ secrets.ROUTI_GOOGLE_CLIENT_SECRET }}
         run: |
-          git archive --format=tar.gz --prefix=routi-core/ -o routi-core.tar.gz HEAD \
-            daemon protocol containers scripts package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json README.md
+          python3 scripts/pack-core.py routi-core.tar.gz
           shasum -a 256 routi-core.tar.gz | tee routi-core.tar.gz.sha256
       - name: Publish
         uses: softprops/action-gh-release@v2

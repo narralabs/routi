@@ -620,42 +620,38 @@ orders or revoke Robinhood's server-side authorization.
 model tokens, or live trades. Real account authorization remains a manual check.
 
 
-### Google plugins
+### Gmail
 
-Gmail, Drive and Calendar use Google’s remote MCP endpoints, matching
-[cursor/plugins](https://github.com/cursor/plugins/tree/main/third_party).
-`plugins/registry.ts` shares routing, credentials and approvals with Robinhood;
-`plugins/google.ts` supplies endpoints and OAuth scopes. Each service has its own
-connection per profile and explicit per-bot grants. Only two discovery/call tools
-per service enter the model context; remote schemas are fetched on demand.
+Gmail uses Google’s remote MCP endpoint, matching cursor/plugins. The shared
+plugin registry routes Gmail and Robinhood through profile connections, Keychain
+storage and per-bot approvals. Each plugin exposes two discovery/call tools;
+remote schemas are fetched on demand. Routi adds `gmail_send_draft` using Gmail’s
+REST API because the tested Google MCP connection does not expose sending.
+Sending is never automatically retried; uncertain outcomes require checking Sent.
 
-For local testing, create a **Desktop app** OAuth client in Routi’s Google Cloud
-project. Enable each product API and MCP service, configure the consent screen and
-add test accounts. Gmail needs both `gmailmcp.googleapis.com` for remote tools and
-`gmail.googleapis.com` for sending drafts through REST. Enabling MCP alone does not
-enable the REST send path. Google currently lists these MCP services as Developer Preview;
-project/account access must be enabled before a live test. Follow
-[Google’s MCP setup](https://developers.google.com/workspace/guides/configure-mcp-servers)
-and [installed-app OAuth](https://developers.google.com/identity/protocols/oauth2/native-app).
-Set `ROUTI_GOOGLE_CLIENT_ID` and, if issued for that client,
-`ROUTI_GOOGLE_CLIENT_SECRET` in the core process environment, then restart the core.
-Do not put credentials in source control. The localhost callback runs on the core’s
-Mac. Tokens stay in its Keychain, separately for each profile and service.
+Enable both `gmailmcp.googleapis.com` and `gmail.googleapis.com` in project
+`routi-bot`. Google MCP access and OAuth app verification are separate requirements.
+Gmail requests `gmail.readonly`, `gmail.compose`, and `gmail.modify`, plus
+`openid email` to display the connected address. Existing connections must
+reconnect when permissions change. Tokens remain in the core Mac’s Keychain.
 
-Gmail also requests `gmail.modify` for labels and mailbox management; existing
-connections must reconnect to grant this permission.
+Official core archives include Routi’s Desktop OAuth client. Set repository
+Actions secrets `ROUTI_GOOGLE_CLIENT_ID` and `ROUTI_GOOGLE_CLIENT_SECRET` for the
+release workflow. For local packaging, set `ROUTI_GOOGLE_CLIENT_FILE` to the
+Google-downloaded Desktop client JSON before running `scripts/package.sh` or
+`python3 scripts/pack-core.py OUTPUT.tar.gz`. Packaging fails without the client.
+The client values ship in the downloadable core: a Desktop client is a public
+OAuth client, not a confidential backend credential. User tokens are never bundled.
+Do not use a Web application client or commit client credentials to source control.
 
-Google connections also request `openid email` to show the signed-in address in Plugins.
-The address is fetched from Google UserInfo and cached alongside the login in Keychain;
-older connections need one reconnect to grant identity access. A failed identity lookup
-does not fail the connection.
+Source builds can set `ROUTI_GOOGLE_CLIENT_ID` and `ROUTI_GOOGLE_CLIENT_SECRET` in
+the core environment. An explicit client ID overrides the bundled client, so
+self-hosted builds use their own project. OAuth uses PKCE and a localhost callback
+on the core Mac. No OAuth client configuration is needed in the iPhone/iPad app.
 
-Gmail adds `gmail_send_draft` to the shared discovery/call tools, using Google’s
-REST drafts/send API and the existing `gmail.compose` grant. It sends only an
-existing draft, requires bot access, and never automatically retries a send.
-The agent must have user authorization and check Sent mail after an uncertain outcome.
-Other capabilities come from Google: Drive reads and app-authorized file writes,
-and Calendar reads/availability. Other Google products
-can add definitions after their scopes and tools are validated. Distribution still
-requires configuring Routi’s OAuth client and Google’s applicable verification;
-this implementation alone does not complete that setup.
+Before public release, complete Google’s consent branding, authorized domain,
+privacy policy, requested-scope justification, and applicable verification in
+Google Auth Platform. Confirm external production access and test with an account
+outside the test-user list. A successful developer-account test alone is not
+public-release validation. See [Google’s Gmail MCP setup](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)
+and [OAuth verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification).

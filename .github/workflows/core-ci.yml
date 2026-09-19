@@ -32,5 +32,12 @@ jobs:
         run: pnpm build
       - name: Run core tests
         run: pnpm test
-      - name: Test container renderer watchdog
+
+  desktop-scripts:
+    name: Test Linux desktop scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test screen allocation, browser launching and renderer watchdog
         run: python3 -B -m unittest discover -s daemon/tests/container -p '*_test.py'

@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         adwaita-icon-theme \
         ca-certificates \
         procps \
+        util-linux \
         socat \
         python3 \
     && apt-get clean \

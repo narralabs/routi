@@ -421,6 +421,12 @@ container per bot would discard that on every bot you create. The daemon starts 
 demand and leaves it running across its own restarts, since losing browser sessions to a
 restart would defeat the point.
 
+`screenctl` serializes screen allocation and teardown. Display reservations survive
+stop so another bot cannot inherit the browser profile; conflicting assignments
+refuse access. Reservations, including deleted bots, count toward the 50-display
+limit until the container is replaced. Dock and agent launches both use
+`chrome-wrapper.sh` and the same browser profile and debugging endpoint.
+
 A screen is Xvfb, xfwm4, picom and a bottom Plank dock with Chrome, the file manager
 and a terminal on it — no panel, no session, a dark canvas. It was a full XFCE session
 until PR #1, whose author was Grok Bot's own agent; the bar and its clock were noise in

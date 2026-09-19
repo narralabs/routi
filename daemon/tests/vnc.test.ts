@@ -233,6 +233,7 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     let originalUpdates = 0
     let focuses = 0
     const timers: Array<() => void> = []
+    const handshakes = new Set<() => void>()
     const documentEvents = new Map<string, () => void>()
     class RFB {
       constructor() { instance = this }
@@ -245,7 +246,12 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     let instance!: RFB
     const context = {
       RFB, location: { host: 'localhost', protocol: 'http:', search: '' }, Uint8ClampedArray, URLSearchParams,
-      clearTimeout() {}, setTimeout(callback: () => void) { timers.push(callback) },
+      clearTimeout(callback: () => void) { handshakes.delete(callback) },
+      setTimeout(callback: () => void, delay: number) {
+        if (delay === 15000) handshakes.add(callback)
+        else timers.push(callback)
+        return callback
+      },
       ImageData: class { constructor(..._args: unknown[]) {} },
       document: {
         hidden: false,
@@ -277,6 +283,9 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     const second = instance
     documentEvents.get('visibilitychange')!()
     assert.notEqual(instance, second)
+    context.document.hidden = true
+    documentEvents.get('visibilitychange')!()
+    context.document.hidden = false
     runInNewContext(script.replace(/^import .*;$/m, ''), { ...context, window: { addEventListener() {} } })
     assert.equal(instance._updateCursor, RFB.prototype._updateCursor, 'Mac has no native cursor hook')
     instance.events.get('connect')!()
@@ -285,6 +294,16 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     runInNewContext(script.replace(/^import .*;$/m, ''), { ...context, window: { addEventListener() {} } })
     instance.events.get('connect')!()
     assert.equal(focuses, 1, 'sidebar preview must not steal keyboard focus')
+    assert.equal(handshakes.size, 0, 'successful connection clears the handshake deadline')
+    documentEvents.get('visibilitychange')!()
+    const stalled = instance
+    assert.equal(handshakes.size, 1)
+    const retries = timers.length
+    ;[...handshakes][0]!()
+    assert.equal(timers.length, retries + 1, 'stalled handshake disconnects and schedules a retry')
+    timers.at(-1)!()
+    assert.notEqual(instance, stalled)
+
   } finally { await server.close() }
 })
 

@@ -1,4 +1,4 @@
-import type { Robinhood } from '../plugins/robinhood.js'
+import type { Plugins } from '../plugins/registry.js'
 import { randomUUID } from 'node:crypto'
 import type { Block, Bot, ImageBlock, Message, ServerEvent } from '@routi/protocol'
 import type { Routine, Store } from '../db/store.js'
@@ -52,7 +52,7 @@ export class SessionManager {
     private readonly emit: Emit,
     private readonly desktops?: DesktopPool,
     private readonly handovers?: Handovers,
-    private readonly robinhood?: Robinhood,
+    private readonly plugins?: Pick<Plugins, 'toolContext'>,
   ) {}
 
   isBusy(conversationId: string): boolean {
@@ -401,10 +401,10 @@ export class SessionManager {
             hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
             channel,
             memory,
-          }), this.robinhood ? 'Robinhood is available through a direct MCP integration. For Robinhood account access or trading, use robinhood_list_tools and robinhood_call_tool. If access is disabled or the person asks to connect, call request_plugin_access with plugin="robinhood" and stop for the approval card. Unless the person explicitly asks to use the website, do not open a browser or request desktop takeover to connect Robinhood.' : ''].filter(Boolean).join('\n\n'),
+          }), this.plugins ? 'Prefer available plugins over browser automation for connected services. Discover tools through each plugin’s list_tools tool, then call_tool. Plugin tools can change: call list_tools again before claiming a capability is unavailable. Searching the outer tool registry does not search the tools inside a plugin. If access is disabled or the person asks to connect, call request_plugin_access with the plugin ID and stop for the approval card. Do not request passwords or desktop takeover for a service with a plugin unless the person explicitly asks to use its website.' : ''].filter(Boolean).join('\n\n'),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
-            ...this.robinhood?.toolContext(bot.id, conversationId, ac.signal),
+            ...this.plugins?.toolContext(bot.id, conversationId, ac.signal),
             attachImage: (image) => this.attachImage(bot.id, conversationId, image),
             routines: routineTools(this.store, bot.id, conversationId, () => this.routinesChanged(bot.id)),
             memory: memoryTools(this.store, bot.id, (owner) => this.memoryChanged(owner, 'bot')),

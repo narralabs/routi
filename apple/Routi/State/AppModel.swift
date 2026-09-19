@@ -199,20 +199,21 @@ final class AppModel {
 
     func refreshPluginAccess() async {
         let profileID = currentProfileID
-        guard let requests = try? await client.rpc("robinhood.access.list", ["profileId": profileID], field: "requests", as: [PluginAccessRequest].self),
+        guard let requests = try? await client.rpc("plugin.access.list", ["profileId": profileID], field: "requests", as: [PluginAccessRequest].self),
               profileID == currentProfileID else { return }
         pluginAccessRequests = requests
     }
 
-    func robinhoodStatus(profileID: String) async throws -> RobinhoodStatus {
-        let result = try await client.rpc("robinhood.status", ["profileId": profileID])
-        return try JSONDecoder().decode(RobinhoodStatus.self, from: JSONSerialization.data(withJSONObject: result))
+    func pluginStatus(_ pluginID: String, profileID: String) async throws -> PluginStatus {
+        let result = try await client.rpc("plugin.status", ["pluginId": pluginID, "profileId": profileID])
+        return try JSONDecoder().decode(PluginStatus.self, from: JSONSerialization.data(withJSONObject: result))
     }
 
-    func robinhoodAction(_ action: String, profileID: String, params: [String: Any] = [:]) async throws -> [String: Any] {
+    func pluginAction(_ pluginID: String, _ action: String, profileID: String, params: [String: Any] = [:]) async throws -> [String: Any] {
         var params = params
         params["profileId"] = profileID
-        return try await client.rpc("robinhood.\(action)", params)
+        params["pluginId"] = pluginID
+        return try await client.rpc("plugin.\(action)", params)
     }
 
     #if os(macOS)

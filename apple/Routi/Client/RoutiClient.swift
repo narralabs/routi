@@ -45,6 +45,7 @@ final class RoutiClient: NSObject {
     private(set) var relayProfile: RelayProfile?
     private var relayTunnel: RelayTunnel?
     private var relaySession: URLSession?
+    private var relayBaseURL: URL?
     private var openingTask: Task<Void, Never>?
 
     private var host: String
@@ -68,7 +69,11 @@ final class RoutiClient: NSObject {
     }
 
     func httpURL(path: String) -> URL? {
-        guard relayProfile == nil, path.hasPrefix("/vnc/") else { return nil }
+        guard path.hasPrefix("/vnc/") else { return nil }
+        if relayProfile != nil {
+            guard let base = relayBaseURL else { return nil }
+            return URL(string: path, relativeTo: base)?.absoluteURL
+        }
         return URL(string: "http://\(host):\(port)\(path)")
     }
 
@@ -116,6 +121,7 @@ final class RoutiClient: NSObject {
                 do {
                     let base = try await tunnel.start()
                     try Task.checkCancellation()
+                    self.relayBaseURL = base
                     let trust = try RelayTrust(certificate: profile.certificate, pkcs12: profile.pkcs12)
                     let inner = URLSession(configuration: .ephemeral, delegate: trust, delegateQueue: nil)
                     self.relaySession = inner
@@ -160,6 +166,7 @@ final class RoutiClient: NSObject {
         relaySession = nil
         relayTunnel?.stop()
         relayTunnel = nil
+        relayBaseURL = nil
     }
 
     private static var platformName: String {

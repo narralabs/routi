@@ -17,7 +17,7 @@ struct PhonePairingSheet: View {
             VStack(spacing: 20) {
                 Image(systemName: "desktopcomputer").font(.system(size: 44)).foregroundStyle(.tint)
                 Text("Connect to \(invitation.name)").font(.title2.bold()).multilineTextAlignment(.center)
-                Text("Chat with your bots away from home, without Tailscale. Your messages stay encrypted between this device and your Mac.")
+                Text("Chat with your bots and use their desktops away from home, without Tailscale. Your messages stay encrypted between this device and your Mac.")
                     .foregroundStyle(.secondary).multilineTextAlignment(.center)
                 Text("Only continue if you scanned this code from your own Mac.").font(.callout)
                 TextField("Device name", text: $deviceName).textFieldStyle(.roundedBorder)
@@ -50,7 +50,7 @@ struct PhoneConnectionSettings: View {
     @State private var error: String?
 
     var body: some View {
-        SettingsSection("Routi Connect", footnote: "Chat connects through the relay. Desktop viewing still requires a direct connection.") {
+        SettingsSection("Routi Connect", footnote: "Chat and desktop viewing are encrypted between this device and your Mac through Routi Connect.") {
             SettingsRow(title: "Status", isFirst: true) {
                 HStack(spacing: 6) {
                     Circle().fill(model.connection == .connected ? Color.green : .secondary).frame(width: 7, height: 7)

@@ -125,17 +125,19 @@ underneath.
 
 ### Routi Connect pilot
 
-A provisioned Mac supports phone chat over an outbound relay connection, without
-Tailscale. In Mac Settings → Routi Core → Routi Connect, connect and choose Pair
+A provisioned Mac supports phone chat and container desktop viewing over an
+outbound relay connection, without Tailscale. In Mac Settings → Routi Core → Routi Connect, connect and choose Pair
 device. Scan the code in the phone app and confirm the Mac’s Computer Name.
-Desktop viewing still requires a direct connection.
+The VNC viewer uses the same pinned mutual TLS transport as chat; the relay cannot
+read screen updates or input.
 
 The QR contains a five-minute, single-use claim and the Mac’s certificate, never a
 private key. The phone pins that certificate, redeems the claim over TLS, and stores
 its client identity in Keychain. Chat uses mutual TLS 1.3 through the relay; the
 relay cannot read it. Swift uses a loopback-only byte bridge so URLSession handles
 TLS and the existing chat WebSocket. The core exposes `/pair` to claim holders and
-`/chat` to paired identities, without forwarding arbitrary local ports.
+`/chat` and capability-protected `/vnc/` routes to paired identities, without
+forwarding arbitrary local ports.
 
 Each device receives a distinct relay credential and client certificate. Pairing
 another device preserves existing sessions. Mac settings list names supplied during

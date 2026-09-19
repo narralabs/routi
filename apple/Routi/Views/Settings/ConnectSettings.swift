@@ -39,7 +39,7 @@ struct ConnectSettings: View {
             if let status, status.configured || status.enabled {
                 SettingsSection(
                     "Routi Connect",
-                    footnote: "Chat from your paired phone without Tailscale. Desktop viewing still requires a direct connection."
+                    footnote: "Chat and use bot desktops from your paired devices without Tailscale."
                 ) {
                     SettingsRow(title: "Relay connection", isFirst: true) {
                         let available = model.connection == .connected && refreshError == nil

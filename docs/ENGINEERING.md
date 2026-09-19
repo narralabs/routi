@@ -123,6 +123,48 @@ Tailscale. The app's Info.plist allows cleartext connections, since `ws://` to a
 address is refused by App Transport Security otherwise — the encryption is WireGuard's,
 underneath.
 
+### Routi Connect pilot
+
+A provisioned Mac supports phone chat and container desktop viewing over an
+outbound relay connection, without Tailscale. In Mac Settings → Routi Core → Routi Connect, connect and choose Pair
+device. Scan the code in the phone app and confirm the Mac’s Computer Name.
+The VNC viewer uses the same pinned mutual TLS transport as chat; the relay cannot
+read screen updates or input.
+
+The QR contains a five-minute, single-use claim and the Mac’s certificate, never a
+private key. The phone pins that certificate, redeems the claim over TLS, and stores
+its client identity in Keychain. Chat uses mutual TLS 1.3 through the relay; the
+relay cannot read it. Swift uses a loopback-only byte bridge so URLSession handles
+TLS and the existing chat WebSocket. The core exposes `/pair` to claim holders and
+`/chat` and capability-protected `/vnc/` routes to paired identities, without
+forwarding arbitrary local ports.
+
+Each device receives a distinct relay credential and client certificate. Pairing
+another device preserves existing sessions. Mac settings list names supplied during
+pairing and revoke each independently. Revoke removes local trust immediately and
+removes that device’s relay credential; offline relay cleanup is retried before the
+next pairing. Forget this Mac removes the device’s local identity. Disconnect stops
+relay sessions and retries. An enabled connection resumes when the core restarts, independently of
+whether the Mac app is open.
+
+Provisioning uses the relay repository’s `pnpm pair`: register only `relay.json`
+token hashes on the relay. Locally, copy `host.json` to
+`<data-dir>/connect-host.json` (mode `0600`) and add `viewerToken` from `viewer.json`’s
+`token` field. `ROUTI_CONNECT_HOST_FILE` can override that path. Keep all device
+credentials private; never bundle them in releases. Test certificates expire after
+30 days; public enrollment and automatic certificate renewal are not implemented.
+The relay config’s `maxDevices` controls each provisioned Mac’s allowance (five by
+default). Registration requires that Mac’s host credential; the relay persists only
+device IDs and token hashes, and enforces the allowance independently of the app.
+Billing is not implemented yet. The original pilot phone retains access as
+“Previously paired device”; new pairings always receive separate credentials.
+Ordinary installations show no Connect section until provisioned.
+
+`pnpm test` covers pairing expiry/replay, device isolation, allowances, revocation, disconnect,
+and route restrictions using local test credentials, with no model calls. The
+explicit `test:live:relay` health check accepts an unrotated CLI viewer credential;
+a phone pairing replaces that identity.
+
 ## Updating an installed core from the app
 
 Settings › Routi Core shows "Update Routi Core" when a newer release exists, and the

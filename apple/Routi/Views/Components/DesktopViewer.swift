@@ -31,8 +31,20 @@ struct VNCCursor {
 struct VNCView: UIViewRepresentable {
     let url: URL
     var onCursor: (VNCCursor?) -> Void
+    var relayTrust: RelayTrust?
 
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+        var relayTrust: RelayTrust?
+        var endpoint: URL?
+
+        func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge,
+                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+            guard let relayTrust, challenge.protectionSpace.host == endpoint?.host,
+                  challenge.protectionSpace.port == endpoint?.port else {
+                completionHandler(.performDefaultHandling, nil); return
+            }
+            relayTrust.respond(to: challenge, completionHandler: completionHandler)
+        }
         var onCursor: (VNCCursor?) -> Void
         init(onCursor: @escaping (VNCCursor?) -> Void) { self.onCursor = onCursor }
 
@@ -57,6 +69,9 @@ struct VNCView: UIViewRepresentable {
         configuration.websiteDataStore = .nonPersistent()
         configuration.userContentController.add(context.coordinator, name: "cursor")
         let view = WKWebView(frame: .zero, configuration: configuration)
+        context.coordinator.endpoint = url
+        context.coordinator.relayTrust = relayTrust
+        view.navigationDelegate = context.coordinator
         // Native TouchLayer handles gestures, including the black margins.
         view.isUserInteractionEnabled = false
         view.scrollView.isScrollEnabled = false
@@ -88,6 +103,7 @@ struct DesktopViewer: View {
     #endif
     @State private var url: URL?
     @State private var error: String?
+    @State private var relayTrust: RelayTrust?
     @State private var retry = 0
 
     private var isVisible: Bool { scenePhase != .background }
@@ -98,7 +114,7 @@ struct DesktopViewer: View {
                 #if os(macOS)
                 VNCView(url: url).id(url)
                 #else
-                VNCView(url: url, onCursor: onCursor).id(url)
+                VNCView(url: url, onCursor: onCursor, relayTrust: relayTrust).id(url)
                 #endif
             } else if let error {
                 VStack(spacing: 8) {
@@ -112,11 +128,14 @@ struct DesktopViewer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.black)
         .task(id: "\(botID)-\(model.connection)-\(isVisible)-\(retry)") {
-            url = nil; error = nil
+            url = nil; error = nil; relayTrust = nil
             guard isVisible else { return }
             do {
                 let resolved = try await model.desktopViewerURL(botId: botID)
                 guard !Task.isCancelled else { return }
+                if let profile = model.relayViewerProfile {
+                    relayTrust = try RelayTrust(certificate: profile.certificate, pkcs12: profile.pkcs12)
+                }
                 url = interactive ? resolved : resolved.appending(queryItems: [URLQueryItem(name: "viewOnly", value: "1")])
             } catch {
                 if !Task.isCancelled { self.error = error.localizedDescription }

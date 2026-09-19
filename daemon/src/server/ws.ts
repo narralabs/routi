@@ -11,6 +11,7 @@ import { VERSION } from '../version.js'
 
 interface Client {
   ws: WebSocket
+  viaRelay: boolean
   name: string
   platform: string
   helloed: boolean
@@ -73,6 +74,10 @@ export class RoutiServer {
     this.wss = new WebSocketServer({ noServer: true })
     this.wss.on('connection', (ws) => this.onConnection(ws))
     this.adopt(this.http)
+    ctx.relay?.setDesktopHandler(this.vnc)
+    ctx.relay?.setChatHandler((req, socket, head) => {
+      this.wss.handleUpgrade(req, socket, head, ws => this.onConnection(ws, true))
+    })
   }
 
   private adopt(server: Server): void {
@@ -133,8 +138,8 @@ export class RoutiServer {
     }
   }
 
-  private onConnection(ws: WebSocket): void {
-    const client: Client = { ws, name: 'unknown', platform: 'probe', helloed: false, subscriptions: new Set() }
+  private onConnection(ws: WebSocket, viaRelay = false): void {
+    const client: Client = { ws, viaRelay, name: 'unknown', platform: 'probe', helloed: false, subscriptions: new Set() }
     this.clients.add(client)
 
     ws.on('message', (raw) => {
@@ -181,7 +186,7 @@ export class RoutiServer {
 
       case 'rpc': {
         try {
-          const result = await dispatch(parsed.method, parsed.params, this.ctx)
+          const result = await dispatch(parsed.method, parsed.params, { ...this.ctx, viaRelay: client.viaRelay })
           send(client.ws, { t: 'rpc_ok', id: parsed.id, result })
         } catch (err) {
           const isRpc = err instanceof RpcError

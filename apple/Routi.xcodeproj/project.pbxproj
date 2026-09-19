@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00F92FC08FE5D6F34ED03F26 /* PhonePairingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA2E1E9BA2B4C0A2354CD8DA /* PhonePairingSheet.swift */; };
 		08966B34941B3AE65C038BE8 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96A993519DC97B87C0F04A0 /* SettingsScreen.swift */; };
 		0FA55DA39E18EA4713EB053D /* Plugins.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B67CB1A9034BEB0658EDB3 /* Plugins.swift */; };
 		121F5D600BB09425082B33D3 /* FaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6132C9BD1682BD1B1B50464C /* FaceTests.swift */; };
@@ -19,6 +20,8 @@
 		26B5D26920B259D8504A71A5 /* PluginAccessCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B37A6ECB4A01AEBEEC5878 /* PluginAccessCard.swift */; };
 		2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */; };
 		2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F6D67DADD4D1871970741B /* ProfileMenu.swift */; };
+		2D60D01B129DC7EEFF709104 /* ConnectSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08237E41C7EBDCEAC9E65136 /* ConnectSettings.swift */; };
+		2F8B5099E81E6CC4324E6FBC /* RelayTunnel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B0E8E79F9AD029B3BC463C5 /* RelayTunnel.swift */; };
 		36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4DFC65D324CCCB7788FAC01 /* ChatView.swift */; };
 		3786843725D3C783B4F14C33 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F02CE3E96C03ACAE557A719 /* AppUpdater.swift */; };
 		39AE62A74C81E7C6A1A0B843 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */; };
@@ -29,6 +32,7 @@
 		5AC5D791694CFB6FB3A4DAC1 /* ModelName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E91F8038F61343E3273FD7 /* ModelName.swift */; };
 		5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */; };
 		73BE07686D0651C8596ABEA8 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = 5325234DD42598AE269B99EE /* Sparkle */; };
+		75A19DFAB67260DA17C5089B /* PhonePairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C2973FB64E6BD7D33937B /* PhonePairingScanner.swift */; };
 		7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5427100A411FDE8FAC97666 /* OnboardingSteps.swift */; };
 		7EA963BE5E76CFC3CE262D08 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 46A9147FFCAF8A5BE1C24F7B /* Assets.xcassets */; };
 		87FC4C93BBFD139AA2A0F595 /* InstallCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CC49000AD0941F4B4E281A /* InstallCommand.swift */; };
@@ -51,6 +55,7 @@
 		EC3CF43ED8865BB048129C3E /* ScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0128A80F54B6560A538AC1C /* ScreenView.swift */; };
 		EE7B1D28943762E8D0683800 /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F126D3177A0B31881954AE1 /* Effort.swift */; };
 		F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEA46F4858311831473C9EF7 /* Providers.swift */; };
+		FB22A15CE40A53AC3D647065 /* RelayPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E8497321961863E9412700 /* RelayPairing.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +72,7 @@
 		00B67CB1A9034BEB0658EDB3 /* Plugins.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plugins.swift; sourceTree = "<group>"; };
 		01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopTouchTests.swift; sourceTree = "<group>"; };
 		04C419477237E8F8F539AB6D /* ScreenWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenWindow.swift; sourceTree = "<group>"; };
+		08237E41C7EBDCEAC9E65136 /* ConnectSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectSettings.swift; sourceTree = "<group>"; };
 		099C9C1462D777FC014D22E1 /* Routi.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Routi.entitlements; sourceTree = "<group>"; };
 		0BDD1652BD89D0FF8E9E5053 /* DesktopHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopHostView.swift; sourceTree = "<group>"; };
 		0F02CE3E96C03ACAE557A719 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
@@ -90,11 +96,14 @@
 		84706E803B8FFFC6DFA36B93 /* Routi-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Routi-iOS.entitlements"; sourceTree = "<group>"; };
 		85E91F8038F61343E3273FD7 /* ModelName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelName.swift; sourceTree = "<group>"; };
 		87CC49000AD0941F4B4E281A /* InstallCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallCommand.swift; sourceTree = "<group>"; };
+		8B0E8E79F9AD029B3BC463C5 /* RelayTunnel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayTunnel.swift; sourceTree = "<group>"; };
+		8F6C2973FB64E6BD7D33937B /* PhonePairingScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePairingScanner.swift; sourceTree = "<group>"; };
 		97647FF55564F4B40332D6CA /* Routi.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Routi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F745F0678DD8714864203C0 /* Handover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Handover.swift; sourceTree = "<group>"; };
 		A0128A80F54B6560A538AC1C /* ScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenView.swift; sourceTree = "<group>"; };
 		A7B37A6ECB4A01AEBEEC5878 /* PluginAccessCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginAccessCard.swift; sourceTree = "<group>"; };
 		A829C4CB13084CF2DEEE912D /* NoteEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditor.swift; sourceTree = "<group>"; };
+		A9E8497321961863E9412700 /* RelayPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayPairing.swift; sourceTree = "<group>"; };
 		AE9EE469AEAC6433B4672D15 /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		B1FB096BDC5492777BE9AD63 /* PluginsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsPane.swift; sourceTree = "<group>"; };
 		B2D720880BAD6D2F0296D4A8 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -105,6 +114,7 @@
 		E531433B6982110683524454 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		E5427100A411FDE8FAC97666 /* OnboardingSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSteps.swift; sourceTree = "<group>"; };
 		E864489D80BFEA22D10DE997 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		EA2E1E9BA2B4C0A2354CD8DA /* PhonePairingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhonePairingSheet.swift; sourceTree = "<group>"; };
 		EA56FAD7115195CEA260370F /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
 		EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
@@ -206,6 +216,9 @@
 		D1EB7AB7352EEA9DE905879B /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				08237E41C7EBDCEAC9E65136 /* ConnectSettings.swift */,
+				8F6C2973FB64E6BD7D33937B /* PhonePairingScanner.swift */,
+				EA2E1E9BA2B4C0A2354CD8DA /* PhonePairingSheet.swift */,
 				B1FB096BDC5492777BE9AD63 /* PluginsPane.swift */,
 				DEA46F4858311831473C9EF7 /* Providers.swift */,
 				F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */,
@@ -263,6 +276,8 @@
 		E7C53597C76C9CFF1D60B6AB /* Client */ = {
 			isa = PBXGroup;
 			children = (
+				A9E8497321961863E9412700 /* RelayPairing.swift */,
+				8B0E8E79F9AD029B3BC463C5 /* RelayTunnel.swift */,
 				366F6379C430E013241DB531 /* RoutiClient.swift */,
 			);
 			path = Client;
@@ -407,6 +422,7 @@
 				3D42E355F685B12EA2B094F6 /* BotListView.swift in Sources */,
 				36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */,
 				2046900E789F1433535727F0 /* Composer.swift in Sources */,
+				2D60D01B129DC7EEFF709104 /* ConnectSettings.swift in Sources */,
 				CF6BE494A2D1ABEDD51F01BA /* DesktopHostView.swift in Sources */,
 				AAAF782A150C68DB48D03410 /* DesktopViewer.swift in Sources */,
 				5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */,
@@ -424,11 +440,15 @@
 				161C6ED5CC704F12603B50FB /* Notifier.swift in Sources */,
 				7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */,
 				23C50EA21D6AF85BA9B22CA5 /* OnboardingView.swift in Sources */,
+				75A19DFAB67260DA17C5089B /* PhonePairingScanner.swift in Sources */,
+				00F92FC08FE5D6F34ED03F26 /* PhonePairingSheet.swift in Sources */,
 				26B5D26920B259D8504A71A5 /* PluginAccessCard.swift in Sources */,
 				0FA55DA39E18EA4713EB053D /* Plugins.swift in Sources */,
 				4442FC1F9A92A89C3982D45E /* PluginsPane.swift in Sources */,
 				2C1E9E8DB25CEAE748188B8A /* ProfileMenu.swift in Sources */,
 				F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */,
+				FB22A15CE40A53AC3D647065 /* RelayPairing.swift in Sources */,
+				2F8B5099E81E6CC4324E6FBC /* RelayTunnel.swift in Sources */,
 				D70141640505B1F4BAA53171 /* RootView.swift in Sources */,
 				C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */,
 				8E79CDC70EF57C2C8B2B4694 /* RoutiClient.swift in Sources */,

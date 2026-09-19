@@ -23,6 +23,14 @@ const PluginAccessRequest = z.object({
   connected: z.boolean(), connecting: z.boolean(), expiresAt: z.number(),
 })
 
+export const RelayStatus = z.object({
+  canPair: z.boolean(), devices: z.array(z.object({ id: z.string(), name: z.string(), createdAt: z.number() })),
+  configured: z.boolean(), url: z.string(), enabled: z.boolean(),
+  state: z.enum(['disconnected', 'connecting', 'connected', 'reconnecting', 'rejected', 'error']),
+  error: z.string().nullable(),
+})
+export type RelayStatus = z.infer<typeof RelayStatus>
+
 export const RpcMethods = {
   'plugin.access.list': { params: z.object({ profileId: z.string() }), result: z.object({ requests: z.array(PluginAccessRequest) }) },
   'plugin.access.respond': { params: z.object({ pluginId: z.string(), profileId: z.string(), id: z.string(), allow: z.boolean() }), result: z.object({ url: z.string().optional() }) },
@@ -34,6 +42,11 @@ export const RpcMethods = {
   'plugin.finish': { params: z.object({ pluginId: z.string(), profileId: z.string(), callbackUrl: z.string().max(8192) }), result: z.object({ ok: z.literal(true) }) },
   'plugin.disconnect': { params: z.object({ pluginId: z.string(), profileId: z.string() }), result: z.object({ ok: z.literal(true) }) },
   'plugin.enable': { params: z.object({ pluginId: z.string(), profileId: z.string(), botId: z.string(), enabled: z.boolean() }), result: z.object({ ok: z.literal(true) }) },
+  'connect.pair': { params: z.object({}), result: z.object({ url: z.string(), expiresAt: z.number() }) },
+  'connect.cancelPairing': { params: z.object({}), result: z.object({ ok: z.literal(true) }) },
+  'connect.revokeDevice': { params: z.object({ id: z.string() }), result: z.object({ ok: z.literal(true) }) },
+  'connect.status': { params: z.object({}), result: z.object({ connection: RelayStatus }) },
+  'connect.configure': { params: z.object({ url: z.string().max(2048), enabled: z.boolean() }), result: z.object({ connection: RelayStatus }) },
   'robinhood.access.list': { params: z.object({ profileId: z.string() }), result: z.object({ requests: z.array(PluginAccessRequest) }) },
   'robinhood.access.respond': { params: z.object({ profileId: z.string(), id: z.string(), allow: z.boolean() }), result: z.object({ url: z.string().optional() }) },
   'robinhood.status': {

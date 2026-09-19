@@ -401,7 +401,7 @@ export class SessionManager {
             hasSurface: bot.surfaceMode !== 'none' && provider.supportsSurface,
             channel,
             memory,
-          }), this.plugins ? 'Prefer available plugins over browser automation for connected services. Discover tools through each plugin’s list_tools tool, then call_tool. If access is disabled or the person asks to connect, call request_plugin_access with the plugin ID and stop for the approval card. Do not request passwords or desktop takeover for a service with a plugin unless the person explicitly asks to use its website.' : ''].filter(Boolean).join('\n\n'),
+          }), this.plugins ? 'Prefer available plugins over browser automation for connected services. Discover tools through each plugin’s list_tools tool, then call_tool. Plugin tools can change: call list_tools again before claiming a capability is unavailable. Searching the outer tool registry does not search the tools inside a plugin. If access is disabled or the person asks to connect, call request_plugin_access with the plugin ID and stop for the approval card. Do not request passwords or desktop takeover for a service with a plugin unless the person explicitly asks to use its website.' : ''].filter(Boolean).join('\n\n'),
           // A bot schedules work for itself, in the conversation it is speaking in.
           toolContext: {
             ...this.plugins?.toolContext(bot.id, conversationId, ac.signal),

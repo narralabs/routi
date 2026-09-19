@@ -470,6 +470,7 @@ test('Gmail local tools share discovery, refreshed credentials, and bot access c
   })
   await f.plugin.finish('default', (await f.begin()).href)
   const ctx = f.plugin.context(f.bot.id, undefined, true)!
+  assert.match(ctx.specs.find(tool => tool.name === 'gmail_list_tools')!.description, /gmail_send_draft/ )
   const call = () => ctx.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
   assert.equal((await call()).ok, false)
   assert.deepEqual(tokens, [])

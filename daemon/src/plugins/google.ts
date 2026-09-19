@@ -35,7 +35,7 @@ export function googleDefinitions(): McpPluginDefinition[] {
   }))
 }
 
-/** Complements Google's draft-only MCP tools; never retries an ambiguous send. */
+/** Sends drafts when the connected Google MCP toolset lacks sending. Never retries. */
 export const gmailSendDraft: NonNullable<McpPluginDefinition['localTools']>[number] = {
   spec: {
     name: 'gmail_send_draft',

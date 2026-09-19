@@ -631,7 +631,9 @@ per service enter the model context; remote schemas are fetched on demand.
 
 For local testing, create a **Desktop app** OAuth client in Routi’s Google Cloud
 project. Enable each product API and MCP service, configure the consent screen and
-add test accounts. Google currently lists these MCP services as Developer Preview;
+add test accounts. Gmail needs both `gmailmcp.googleapis.com` for remote tools and
+`gmail.googleapis.com` for sending drafts through REST. Enabling MCP alone does not
+enable the REST send path. Google currently lists these MCP services as Developer Preview;
 project/account access must be enabled before a live test. Follow
 [Google’s MCP setup](https://developers.google.com/workspace/guides/configure-mcp-servers)
 and [installed-app OAuth](https://developers.google.com/identity/protocols/oauth2/native-app).

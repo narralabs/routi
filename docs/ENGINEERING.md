@@ -630,7 +630,8 @@ REST API because the tested Google MCP connection does not expose sending.
 Sending is never automatically retried; uncertain outcomes require checking Sent.
 
 Enable both `gmailmcp.googleapis.com` and `gmail.googleapis.com` in project
-`routi-bot`. Google MCP access and OAuth app verification are separate requirements.
+`routi-bot-508721` (Laboros AI, Inc; project number `860783733855`).
+Google MCP access and OAuth app verification are separate requirements.
 Gmail requests `gmail.readonly`, `gmail.compose`, and `gmail.modify`, plus
 `openid email` to display the connected address. Existing connections must
 reconnect when permissions change. Tokens remain in the core Mac’s Keychain.

@@ -645,9 +645,12 @@ The address is fetched from Google UserInfo and cached alongside the login in Ke
 older connections need one reconnect to grant identity access. A failed identity lookup
 does not fail the connection.
 
-The initial service scopes allow Gmail reads and drafts, Drive reads and app-authorized
-file writes, and Calendar reads/availability. Tool capabilities come from Google;
-the UI does not promise a send-mail or calendar-write tool. Other Google products
+Gmail adds `gmail_send_draft` to the shared discovery/call tools, using Google’s
+REST drafts/send API and the existing `gmail.compose` grant. It sends only an
+existing draft, requires bot access, and never automatically retries a send.
+The agent must have user authorization and check Sent mail after an uncertain outcome.
+Other capabilities come from Google: Drive reads and app-authorized file writes,
+and Calendar reads/availability. Other Google products
 can add definitions after their scopes and tools are validated. Distribution still
 requires configuring Routi’s OAuth client and Google’s applicable verification;
 this implementation alone does not complete that setup.

@@ -5,7 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { auth, UnauthorizedError, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { OAuthClientInformationMixed, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema, type Tool, type CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { Store } from '../db/store.js'
 import type { Credentials } from '../auth/credentials.js'
 import type { ToolContext } from '../surfaces/tools.js'
@@ -17,6 +17,7 @@ export interface McpPluginDefinition {
   /** Existing credential slot, when a plugin predates the shared MCP service. */
   credentialProvider?: string
   callInstructions?: string
+  localTools?: { spec: Tool; run: (args: Record<string, unknown>, accessToken: string, signal?: AbortSignal) => Promise<CallToolResult> }[]
   accountEmail?: (accessToken: string) => Promise<string | null>
   failedCallInstructions?: string
   oauth?: {
@@ -289,7 +290,7 @@ export class McpPlugin {
             await client.connect(transport)
             if (name === `${this.definition.id}_list_tools`) {
               stage = 'discover'
-              const tools = []
+              const tools: Tool[] = (this.definition.localTools ?? []).map(tool => tool.spec)
               let cursor: string | undefined
               let pages = 0
               do {
@@ -315,7 +316,10 @@ export class McpPlugin {
             // Recheck after network setup: access may have been revoked meanwhile.
             if (!this.store.pluginEnabled(this.definition.id, botId)) throw new Error('Access revoked')
             stage = 'call'
-            const result = await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })
+            const local = this.definition.localTools?.find(tool => tool.spec.name === args['name'])
+            const result = local
+              ? await local.run(args['arguments'] as Record<string, unknown>, saved.tokens!.access_token, signal)
+              : await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })
             return { ok: !result.isError, output: JSON.stringify(result), summary: `${this.definition.name}: ${args['name']}` }
           } catch (error) {
             const failure = mcpFailure(this.definition, error, signal?.aborted)

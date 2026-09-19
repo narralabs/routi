@@ -28,7 +28,7 @@ struct PluginInfo: Identifiable {
 
     static let all: [PluginInfo] = [
         .init(id: "robinhood", name: "Robinhood", summary: "Account information, market data, and trading", asset: "PluginRobinhood", accessDescription: "Includes account information and trading tools. Connecting does not place a trade."),
-        .init(id: "gmail", name: "Gmail", summary: "Search and read email, and create drafts", asset: "PluginGmail", accessDescription: "Allows reading email and composing drafts using Google’s MCP tools."),
+        .init(id: "gmail", name: "Gmail", summary: "Search, read, draft, and send email", asset: "PluginGmail", accessDescription: "Allows reading email, composing drafts, and sending emails you authorize."),
         .init(id: "google_drive", name: "Google Drive", summary: "Search, read, and work with files", asset: "PluginGoogleDrive", accessDescription: "Allows reading Drive files and working with files authorized for Routi."),
         .init(id: "google_calendar", name: "Google Calendar", summary: "Read calendars, events, and availability", asset: "PluginGoogleCalendar", accessDescription: "Allows reading calendar events and checking availability."),
     ]

@@ -457,3 +457,30 @@ test('connected account identity follows reconnect and is cleared by disconnect'
   await f.plugin.disconnect('default')
   assert.equal((await f.plugin.status('default')).accountEmail, null)
 })
+
+test('Gmail local tools share discovery, refreshed credentials, and bot access checks', async t => {
+  const tokens: string[] = []
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: undefined,
+    oauth: { ...definition.oauth!, client: { client_id: 'google-test', client_secret: 'test-client-secret' } },
+    localTools: [{ spec: definition.localTools![0]!.spec, run: async (_args, token) => {
+      tokens.push(token)
+      return { content: [{ type: 'text', text: 'sent' }] }
+    } }],
+  })
+  await f.plugin.finish('default', (await f.begin()).href)
+  const ctx = f.plugin.context(f.bot.id, undefined, true)!
+  const call = () => ctx.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
+  assert.equal((await call()).ok, false)
+  assert.deepEqual(tokens, [])
+  await f.plugin.enable('default', f.bot.id, true)
+  assert.match((await ctx.run('gmail_list_tools', {})).output, /gmail_send_draft/)
+  assert.match((await ctx.run('gmail_list_tools', { name: 'gmail_send_draft' })).output, /draftId/)
+  f.expire()
+  assert.equal((await call()).ok, true)
+  assert.deepEqual(tokens, ['refreshed-access'])
+  assert.deepEqual(f.calls, [], 'local tool is not submitted to the remote MCP server')
+  await f.plugin.enable('default', f.bot.id, false)
+  assert.equal((await call()).ok, false)
+  assert.equal(tokens.length, 1)
+})

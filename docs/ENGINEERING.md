@@ -640,6 +640,9 @@ Set `ROUTI_GOOGLE_CLIENT_ID` and, if issued for that client,
 Do not put credentials in source control. The localhost callback runs on the core’s
 Mac. Tokens stay in its Keychain, separately for each profile and service.
 
+Gmail also requests `gmail.modify` for labels and mailbox management; existing
+connections must reconnect to grant this permission.
+
 Google connections also request `openid email` to show the signed-in address in Plugins.
 The address is fetched from Google UserInfo and cached alongside the login in Keychain;
 older connections need one reconnect to grant identity access. A failed identity lookup

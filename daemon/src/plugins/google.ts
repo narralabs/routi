@@ -51,7 +51,14 @@ export const gmailSendDraft: NonNullable<McpPluginDefinition['localTools']>[numb
       body: JSON.stringify({ id: args.draftId }),
       signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(signal ? [signal] : [])]),
     })
-    if (!response.ok) return { isError: true, content: [{ type: 'text', text: `Gmail send failed (HTTP ${response.status}). Check Sent mail before retrying; the request was not replayed. If authorization expired, reconnect Gmail.` }] }
+    if (!response.ok) {
+      const error = await response.json().catch(() => null) as { error?: { details?: { reason?: string }[] } } | null
+      const disabled = error?.error?.details?.some(detail => detail.reason === 'SERVICE_DISABLED')
+      const text = disabled
+        ? 'Sending is blocked because the Gmail API (gmail.googleapis.com) is disabled in Routi’s Google Cloud project. The project administrator must enable it. Reconnecting Gmail will not fix this. Do not retry sending until it is enabled.'
+        : `Gmail send failed (HTTP ${response.status}). Do not retry automatically. Check Sent mail and resolve the error before another user-authorized attempt. Reconnect only if authentication has expired.`
+      return { isError: true, content: [{ type: 'text', text }] }
+    }
     const message = await response.json() as { id?: string; threadId?: string }
     return { content: [{ type: 'text', text: JSON.stringify({ sent: true, messageId: message.id, threadId: message.threadId }) }] }
   },

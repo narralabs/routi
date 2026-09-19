@@ -36,3 +36,14 @@ test('Gmail does not retry failures or disclose response bodies', async t => {
   await assert.rejects(gmailSendDraft.run({ draftId: 'draft' }, 'token'), /network lost/)
   assert.equal(calls, 2)
 })
+
+
+test('Gmail identifies a disabled API without suggesting reconnecting or retrying', async t => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ error: {
+    details: [{ reason: 'SERVICE_DISABLED' }],
+  } }, { status: 403 }))
+  const result = await gmailSendDraft.run({ draftId: 'draft' }, 'token')
+  assert.equal(result.isError, true)
+  assert.match(JSON.stringify(result), /gmail.googleapis.com/)
+  assert.match(JSON.stringify(result), /Reconnecting Gmail will not fix this/)
+})

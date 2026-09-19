@@ -4,6 +4,11 @@ struct PhonePairingSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let invitation: RelayInvitation
+    #if os(iOS)
+    @State private var deviceName = UIDevice.current.model
+    #else
+    @State private var deviceName = "Device"
+    #endif
     @State private var busy = false
     @State private var error: String?
 
@@ -15,19 +20,21 @@ struct PhonePairingSheet: View {
                 Text("Chat with your bots away from home, without Tailscale. Your messages stay encrypted between this device and your Mac.")
                     .foregroundStyle(.secondary).multilineTextAlignment(.center)
                 Text("Only continue if you scanned this code from your own Mac.").font(.callout)
+                TextField("Device name", text: $deviceName).textFieldStyle(.roundedBorder)
+                    .disabled(busy)
                 if let error { Text(error).foregroundStyle(.red).font(.callout) }
                 Button(busy ? "Pairing…" : "Pair with this Mac") {
                     busy = true
                     Task {
                         defer { busy = false }
                         do {
-                            let profile = try await RelayPairing.claim(invitation)
+                            let profile = try await RelayPairing.claim(invitation, deviceName: deviceName)
                             try model.useRelay(profile)
                             dismiss()
                         } catch { self.error = error.localizedDescription }
                     }
                 }
-                .buttonStyle(.borderedProminent).disabled(busy)
+                .buttonStyle(.borderedProminent).disabled(busy || deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || deviceName.count > 80)
                 Spacer()
             }
             .padding(28)

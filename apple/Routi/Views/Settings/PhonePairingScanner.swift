@@ -17,7 +17,7 @@ struct PhonePairingScanner: View {
         } else {
             NavigationStack {
                 VStack(spacing: 16) {
-                    Text("On your Mac, open Settings → Routi Core → Routi Connect and choose Pair iPhone.")
+                    Text("On your Mac, open Settings → Routi Core → Routi Connect and choose Pair device.")
                         .font(.callout).multilineTextAlignment(.center).padding(.horizontal)
                     if let cameraError {
                         ContentUnavailableView("Camera unavailable", systemImage: "camera", description: Text(cameraError))

@@ -27,12 +27,12 @@ const deviceSchema = z.object({
 /** Authenticated chat and single-use phone pairing over the outbound relay connection. */
 export class RelayConnection {
   private readonly pairing: PhonePairing
-  private readonly authenticated = new Set<TLSSocket>()
-  private readonly pairingHttp = createServer({ requestTimeout: 10_000, headersTimeout: 10_000 }, (req, res) => this.pairing.handle(req, res))
+  private readonly authenticated = new Map<TLSSocket, string | undefined>()
+  private readonly pairingHttp = createServer({ requestTimeout: 10_000, headersTimeout: 10_000 }, (req, res) => { void this.pairing.handle(req, res) })
   private chatUpgrade?: (req: IncomingMessage, socket: Duplex, head: Buffer) => void
   private host?: ReturnType<typeof startHost>
   private current: RelayStatus = {
-    configured: false, url: 'wss://connect.routibot.com', enabled: false, state: 'disconnected', error: null, canPair: false, phonePaired: false,
+    configured: false, url: 'wss://connect.routibot.com', enabled: false, state: 'disconnected', error: null, canPair: false, devices: [],
   }
   private readonly http = createServer({ requestTimeout: 10_000, headersTimeout: 10_000 }, (req, res) => {
     if (req.method !== 'GET' || req.url !== '/health') { res.writeHead(404).end(); return }
@@ -41,13 +41,15 @@ export class RelayConnection {
   })
 
   constructor(private readonly store: Pick<Store, 'getSettings' | 'setSettings'>, private readonly hostFile: string) {
-    this.pairing = new PhonePairing(store, hostFile, certificate => {
-      for (const stream of this.authenticated) stream.destroy()
-      if (certificate) this.host?.updatePeerCertificate(certificate)
+    this.pairing = new PhonePairing(store, hostFile, () => {
+      for (const [stream, id] of this.authenticated) {
+        if (id && !this.pairing.devices.some(device => device.id === id)) stream.destroy()
+      }
+      this.host?.updatePeerCertificate(this.readDevice().peerCert)
     })
     this.pairingHttp.on('upgrade', (_req, socket) => socket.destroy())
     this.http.on('upgrade', (req, socket, head) => {
-      if (req.url !== '/chat' || !this.pairing.paired || !this.chatUpgrade) { socket.destroy(); return }
+      if (req.url !== '/chat' || !this.authenticated.get(socket as TLSSocket) || !this.chatUpgrade) { socket.destroy(); return }
       this.chatUpgrade(req, socket, head)
     })
     const saved = configuration.safeParse(store.getSettings()['connect'])
@@ -56,7 +58,7 @@ export class RelayConnection {
   }
 
   status(): RelayStatus {
-    return { ...this.current, configured: existsSync(this.hostFile), canPair: this.pairing.available, phonePaired: this.pairing.paired }
+    return { ...this.current, configured: existsSync(this.hostFile), canPair: this.pairing.available, devices: this.pairing.devices.map(({ certificate: _certificate, ...device }) => device) }
   }
 
   setChatHandler(handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void): void { this.chatUpgrade = handler }
@@ -65,7 +67,7 @@ export class RelayConnection {
     return this.pairing.begin(this.current.url)
   }
   cancelPairing(): void { this.pairing.cancel() }
-  revokePhone(): void { this.pairing.revoke() }
+  async revokeDevice(id: string): Promise<void> { await this.pairing.revoke(id, this.current.url) }
 
   configure(input: { url: string; enabled: boolean }): RelayStatus {
     const parsed = configuration.safeParse(input)
@@ -89,11 +91,9 @@ export class RelayConnection {
   private readDevice() {
     try {
       const device = deviceSchema.parse(JSON.parse(readFileSync(this.hostFile, 'utf8')))
-      for (const pem of [device.cert, device.peerCert]) {
-        const cert = new X509Certificate(pem)
-        if (Date.parse(cert.validFrom) > Date.now() || Date.parse(cert.validTo) <= Date.now()) throw Error('Expired certificate')
-      }
-      return device
+      const cert = new X509Certificate(device.cert)
+      if (Date.parse(cert.validFrom) > Date.now() || Date.parse(cert.validTo) <= Date.now()) throw Error('Expired certificate')
+      return { ...device, peerCert: [device.peerCert, ...this.pairing.devices.map(device => device.certificate)].join('\n') }
     } catch {
       throw Error('Pilot credentials are missing, invalid, or expired. Configure this Mac’s connection first.')
     }
@@ -103,12 +103,8 @@ export class RelayConnection {
     try {
       this.host = startHost(this.current.url, this.readDevice(), {
         onConnection: stream => {
-          // Check the current pin even for resumed TLS sessions after re-pairing.
-          try {
-            const expected = new X509Certificate(this.readDevice().peerCert).raw
-            if (!stream.getPeerCertificate().raw?.equals(expected)) { stream.destroy(); return }
-          } catch { stream.destroy(); return }
-          this.authenticated.add(stream)
+          try { this.authenticated.set(stream, this.pairing.identify(stream.getPeerCertificate().raw)) }
+          catch { stream.destroy(); return }
           stream.on('close', () => this.authenticated.delete(stream))
           this.http.emit('connection', stream)
         },

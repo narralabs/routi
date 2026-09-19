@@ -53,9 +53,9 @@ const handlers: Record<RpcMethod, Handler> = {
     if (ctx.viaRelay || !ctx.relay) throw new RpcError('forbidden', 'Manage pairing from your Mac.')
     ctx.relay.cancelPairing(); return { ok: true }
   },
-  'connect.revokePhone': async (_p, ctx) => {
+  'connect.revokeDevice': async (p, ctx) => {
     if (ctx.viaRelay || !ctx.relay) throw new RpcError('forbidden', 'Manage pairing from your Mac.')
-    ctx.relay.revokePhone(); return { ok: true }
+    await ctx.relay.revokeDevice((p as { id: string }).id); return { ok: true }
   },
   'connect.status': async (_p, ctx) => {
     if (!ctx.relay) throw new RpcError('unavailable', 'Routi Connect is not available on this core.')

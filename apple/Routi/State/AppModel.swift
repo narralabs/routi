@@ -222,7 +222,7 @@ final class AppModel {
         return try JSONDecoder().decode(PhonePairCode.self, from: JSONSerialization.data(withJSONObject: result))
     }
     func cancelPhonePairing() async throws { try await client.rpc("connect.cancelPairing") }
-    func revokePhone() async throws { try await client.rpc("connect.revokePhone") }
+    func revokeDevice(_ id: String) async throws { try await client.rpc("connect.revokeDevice", ["id": id]) }
 
     func connectStatus() async throws -> ConnectStatus {
         try await client.rpc("connect.status", field: "connection", as: ConnectStatus.self)

@@ -16,7 +16,7 @@ import { PROTOCOL_VERSION } from '@routi/protocol'
 import { VERSION } from '../src/version.js'
 import { RelayConnection } from '../src/server/relay.js'
 
-async function setup(t: TestContext) {
+async function setup(t: TestContext, maxDevices = 5) {
   const pair = await createPairing()
   const directory = mkdtempSync(join(tmpdir(), 'routi-connect-test-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
@@ -27,7 +27,7 @@ async function setup(t: TestContext) {
     getSettings: () => settings,
     setSettings: (patch: Record<string, unknown>) => (settings = { ...settings, ...patch }),
   }
-  const relay = createRelay([pair.relay])
+  const relay = createRelay([{ ...pair.relay, maxDevices }])
   relay.server.listen(0, '127.0.0.1')
   await once(relay.server, 'listening')
   const url = `ws://127.0.0.1:${(relay.server.address() as AddressInfo).port}`
@@ -126,8 +126,8 @@ test('malformed saved relay address falls back to disabled without crashing star
   assert.equal(core.status().state, 'disconnected')
 })
 
-test('phone pairing is single-use, rotates trust, and revokes active sessions', { timeout: 15_000 }, async t => {
-  const { core, store, hostFile, pair, url } = await setup(t)
+test('devices pair independently, survive restart, and revoke without disconnecting each other', { timeout: 15_000 }, async t => {
+  const { core, store, hostFile, pair, url } = await setup(t, 3)
   writeFileSync(hostFile, JSON.stringify({ ...pair.host, viewerToken: pair.viewer.token }))
   store.setSettings({ connectPhonePaired: true })
   const wss = new WebSocketServer({ noServer: true })
@@ -140,43 +140,63 @@ test('phone pairing is single-use, rotates trust, and revokes active sessions', 
     assert.match((await ready)[0].toString(), /HTTP\/1.1 101/)
     return stream
   }
+  const unpaired = { ...pair.viewer, key: '', cert: '' }
+  const decode = (value: string) => JSON.parse(Buffer.from(new URL(value).searchParams.get('data')!, 'base64url').toString())
+  async function pairDevice() {
+    const payload = decode((await core.pairPhone()).url)
+    assert.equal(payload.pkcs12, undefined)
+    assert.equal(payload.key, undefined)
+    assert.match(await request(url, unpaired, '/health'), /HTTP\/1.1 403/)
+    assert.match(await request(url, unpaired, '/pair', 'POST', 'wrong'), /HTTP\/1.1 403/)
+    const response = await request(url, unpaired, '/pair', 'POST', payload.secret)
+    assert.match(response.slice(0, 32), /HTTP\/1.1 200/)
+    assert.match(await request(url, unpaired, '/pair', 'POST', payload.secret), /HTTP\/1.1 403/)
+    const body = JSON.parse(response.slice(response.indexOf('\r\n\r\n') + 4).replace(/^[a-f0-9]+\r\n/, '').replace(/\r\n0\r\n\r\n$/, ''))
+    const p12File = join(hostFile, '..', 'phone.p12')
+    writeFileSync(p12File, Buffer.from(body.pkcs12, 'base64'), { mode: 0o600 })
+    const pem = execFileSync('openssl', ['pkcs12', '-in', p12File, '-passin', 'pass:routi', '-nodes'], { encoding: 'utf8' })
+    return { ...pair.viewer, key: pem, cert: pem, token: body.token }
+  }
   core.configure({ url, enabled: true })
   await waitFor(core, 'connected')
   const original = await openChat(pair.viewer)
-  const originalClosed = once(original, 'close')
-  const code = await core.pairPhone()
-  const payload = JSON.parse(Buffer.from(new URL(code.url).searchParams.get('data')!, 'base64url').toString())
-  assert.ok(payload.expiresAt > Date.now())
-  assert.equal(payload.pkcs12, undefined)
-  assert.equal(payload.key, undefined)
-  const unpaired = { ...pair.viewer, key: '', cert: '' }
-  assert.match(await request(url, unpaired, '/health'), /HTTP\/1.1 403/)
-  assert.match(await request(url, unpaired, '/pair', 'POST', 'wrong'), /HTTP\/1.1 403/)
-  const response = await request(url, unpaired, '/pair', 'POST', payload.secret)
-  assert.match(response.slice(0, 32), /HTTP\/1.1 200/)
-  await originalClosed
-  assert.match(await request(url, pair.viewer), /HTTP\/1.1 403/)
-  assert.equal(core.status().phonePaired, true)
-  assert.match(await request(url, unpaired, '/pair', 'POST', payload.secret), /HTTP\/1.1 403/)
-  const encoded = response.match(/"pkcs12":"([^"]+)"/)?.[1]
-  assert.ok(encoded)
-  const p12File = join(hostFile, '..', 'phone.p12')
-  writeFileSync(p12File, Buffer.from(encoded, 'base64'), { mode: 0o600 })
-  const pem = execFileSync('openssl', ['pkcs12', '-in', p12File, '-passin', 'pass:routi', '-nodes'], { encoding: 'utf8' })
-  const phone = { ...pair.viewer, key: pem, cert: pem }
-  assert.match(await request(url, phone), /HTTP\/1.1 200/)
-  const stream = await openChat(phone)
-  const closed = once(stream, 'close')
-  core.revokePhone()
+  const phone = await pairDevice(), phoneStream = await openChat(phone)
+  const tablet = await pairDevice(), tabletStream = await openChat(tablet)
+  assert.notEqual(phone.token, tablet.token)
+  assert.notEqual(phone.cert, tablet.cert)
+  assert.equal(core.status().devices.length, 3)
+  const alive = [original, phoneStream, tabletStream].map(stream => once(stream, 'data'))
+  for (const ws of wss.clients) ws.send('all devices connected')
+  for (const [data] of await Promise.all(alive)) assert.ok(data.toString().includes('all devices connected'))
+  const overflow = decode((await core.pairPhone()).url)
+  assert.match(await request(url, unpaired, '/pair', 'POST', overflow.secret), /Device allowance reached/)
+  const closed = once(phoneStream, 'close')
+  const phoneId = core.status().devices[1]!.id
+  const fetch = globalThis.fetch
+  t.mock.method(globalThis, 'fetch', (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
+    init?.method === 'DELETE' ? Promise.resolve(new Response('{}', { status: 503 })) : fetch(input, init))
+  await assert.rejects(core.revokeDevice(phoneId), /Could not update devices/)
+  t.mock.restoreAll()
   await closed
-  assert.equal(core.status().phonePaired, false)
-  for (const method of ['connect.pair', 'connect.cancelPairing', 'connect.revokePhone', 'connect.configure']) {
-    await assert.rejects(dispatch(method, method === 'connect.configure' ? { url, enabled: false } : {}, { relay: core, viaRelay: true } as never), /from your Mac/)
+  assert.equal(core.status().devices.length, 2)
+  assert.match(await request(url, phone), /HTTP\/1.1 403/)
+  // Pairing cleans up the offline revocation's registry entry before adding a device.
+  await pairDevice()
+  await assert.rejects(connectViewer(url, phone))
+  await core.revokeDevice(core.status().devices.at(-1)!.id)
+  const remaining = once(tabletStream, 'data')
+  for (const ws of wss.clients) ws.send('tablet still connected')
+  assert.ok((await remaining)[0].toString().includes('tablet still connected'))
+  for (const method of ['connect.pair', 'connect.cancelPairing', 'connect.revokeDevice', 'connect.configure']) {
+    const params = method === 'connect.configure' ? { url, enabled: false } : method === 'connect.revokeDevice' ? { id: phoneId } : {}
+    await assert.rejects(dispatch(method, params, { relay: core, viaRelay: true } as never), /from your Mac/)
   }
-  const revoked = await connectViewer(url, phone)
-  const revokedClosed = once(revoked, 'close')
-  revoked.write('GET /chat HTTP/1.1\r\nHost: routi-host\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n')
-  await revokedClosed
+  core.stop()
+  const restarted = new RelayConnection(store, hostFile)
+  t.after(() => restarted.stop())
+  await waitFor(restarted, 'connected')
+  assert.equal(restarted.status().devices.length, 2)
+  assert.match(await request(url, tablet), /HTTP\/1.1 200/)
 })
 
 test('cancelled and expired pairing codes cannot be redeemed', { timeout: 15_000 }, async t => {

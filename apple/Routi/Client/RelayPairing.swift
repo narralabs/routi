@@ -51,7 +51,7 @@ private func validRelay(_ value: String) -> Bool {
 }
 
 enum RelayPairing {
-    static func claim(_ invitation: RelayInvitation) async throws -> RelayProfile {
+    static func claim(_ invitation: RelayInvitation, deviceName: String = "iPhone") async throws -> RelayProfile {
         let tunnel = RelayTunnel(relay: URL(string: invitation.relay)!, token: invitation.token)
         defer { tunnel.stop() }
         let base = try await tunnel.start()
@@ -60,19 +60,25 @@ enum RelayPairing {
         defer { session.invalidateAndCancel() }
         var request = URLRequest(url: base.appendingPathComponent("pair"))
         request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["name": deviceName])
         request.timeoutInterval = 20
         request.setValue("Bearer \(invitation.secret)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await session.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode
         guard status == 200 else {
+            if status == 400, let body = try? JSONDecoder().decode([String: String].self, from: data), let error = body["error"] {
+                throw PairingError(error)
+            }
             throw PairingError(status == 403
                 ? "This code expired or was already used. Create a new one on your Mac."
                 : "Your Mac could not complete pairing. Create a new code and try again.")
         }
-        struct Identity: Decodable { let pkcs12: Data }
+        struct Identity: Decodable { let pkcs12: Data; let token: String }
         let identity = try JSONDecoder().decode(Identity.self, from: data)
+        guard validToken(identity.token) else { throw PairingError("The Mac returned an invalid device credential.") }
         _ = try RelayTrust(certificate: invitation.certificate, pkcs12: identity.pkcs12)
-        return RelayProfile(relay: invitation.relay, token: invitation.token, certificate: invitation.certificate,
+        return RelayProfile(relay: invitation.relay, token: identity.token, certificate: invitation.certificate,
                             pkcs12: identity.pkcs12, name: invitation.name)
     }
 

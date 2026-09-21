@@ -6,12 +6,31 @@ set -euo pipefail
 STATE=/tmp/routi-screens
 mkdir -p "$STATE"
 
+# Serialize allocation and teardown across bots. -o keeps children from holding the lock.
+if [[ "${1:-}" == --locked ]]; then
+  shift
+elif [[ "${1:-}" == start || "${1:-}" == stop ]]; then
+  exec flock -o "$STATE/.lock" "$0" --locked "$@"
+fi
+
 FIRST=99
 LAST=148
 
 display_of() {
   local id=$1
   [ -f "$STATE/$id" ] && cat "$STATE/$id" || true
+}
+
+owns_display() {
+  local file
+  for file in "$STATE"/*; do
+    [[ "$file" == *.dbus || "$file" == "$STATE/$1" ]] && continue
+    [[ -f "$file" ]] || continue
+    if [[ "$(cat "$file")" == "$2" ]]; then
+      echo "Display :$2 has conflicting bot assignments; screen access refused." >&2
+      return 1
+    fi
+  done
 }
 
 is_live() {
@@ -21,7 +40,8 @@ is_live() {
 next_free() {
   local n
   for ((n = FIRST; n <= LAST; n++)); do
-    if [ ! -e "/tmp/.X${n}-lock" ] || ! is_live "$n"; then
+    if ! is_live "$n" && [[ ! -d "$HOME/.chromium-:$n" && ! -d "$HOME/chrome-profile-$n" ]] &&
+       ! grep -qx "$n" "$STATE"/* 2>/dev/null; then
       echo "$n"
       return 0
     fi
@@ -35,12 +55,15 @@ start() {
   local n
   n=$(display_of "$id")
 
+  if [ -n "$n" ]; then
+    owns_display "$id" "$n" || return 1
+  fi
   if [ -n "$n" ] && is_live "$n"; then
     echo "$n"
     return 0
   fi
 
-  n=$(next_free)
+  [ -n "$n" ] || n=$(next_free)
   rm -f "/tmp/.X${n}-lock"
 
   export DISPLAY=":$n"
@@ -72,21 +95,24 @@ stop() {
   n=$(display_of "$id") || true
   [ -n "$n" ] || return 0
 
-  pkill -f "Xvfb :$n" 2>/dev/null || true
+  owns_display "$id" "$n" || return 1
+
+  pkill -f "^Xvfb :$n( |$)" 2>/dev/null || true
   for pid in $(pgrep -u "$(id -u)" -f . 2>/dev/null || true); do
     if tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -qx "DISPLAY=:$n"; then
       kill "$pid" 2>/dev/null || true
     fi
   done
   [ -f "$STATE/$id.dbus" ] && kill "$(cat "$STATE/$id.dbus")" 2>/dev/null || true
-  rm -f "$STATE/$id" "$STATE/$id.dbus" "/tmp/.X${n}-lock"
+  # Keep the reservation: a future bot must not inherit this display's browser profile.
+  rm -f "$STATE/$id.dbus" "/tmp/.X${n}-lock"
 }
 
 case "${1:-}" in
   start) start "$2" ;;
   stop) stop "$2" ;;
-  display) display_of "$2" ;;
-  live) n=$(display_of "$2"); [ -n "$n" ] && is_live "$n" && echo "$n" ;;
+  display) n=$(display_of "$2"); [ -n "$n" ] && owns_display "$2" "$n" && echo "$n" ;;
+  live) n=$(display_of "$2"); [ -n "$n" ] && owns_display "$2" "$n" && is_live "$n" && echo "$n" ;;
   list)
     for f in "$STATE"/*; do
       [[ "$f" == *.dbus ]] && continue

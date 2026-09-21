@@ -23,7 +23,6 @@ type Emit = (event: ServerEvent) => void
 export class SessionManager {
   private readonly deletions = new Map<string, Promise<void>>()
   private readonly active = new Map<AbortController, { botId: string; conversationId: string; done: Promise<void>; finished?: boolean }>()
-  private readonly inFlight = new Map<string, AbortController>()
   /**
    * The message each running turn is writing, as it stands right now.
    *
@@ -101,7 +100,7 @@ export class SessionManager {
   }
 
   isBusy(conversationId: string): boolean {
-    return this.inFlight.has(conversationId)
+    return [...this.active.values()].some(turn => turn.conversationId === conversationId && !turn.finished)
   }
 
   /** What the running turn has written so far, if one is running. */
@@ -140,7 +139,7 @@ export class SessionManager {
   }
 
   interrupt(conversationId: string): boolean {
-    const ac = this.inFlight.get(conversationId)
+    const ac = [...this.active].findLast(([, turn]) => turn.conversationId === conversationId && !turn.finished)?.[0]
     if (!ac) return false
     ac.abort()
     return true
@@ -181,7 +180,7 @@ export class SessionManager {
      * about it but wait and retype. The message is written to the transcript either way;
      * only the answering waits.
      */
-    if (this.inFlight.has(conversationId)) {
+    if (this.isBusy(conversationId)) {
       const waiting = this.queued.get(conversationId) ?? []
       waiting.push(userMessage)
       this.queued.set(conversationId, waiting)
@@ -231,7 +230,7 @@ export class SessionManager {
    * spoke unprompted.
    */
   async runRoutine(routine: Routine, bot: Bot): Promise<void> {
-    if (this.inFlight.has(routine.conversationId)) return
+    if (this.isBusy(routine.conversationId)) return
 
     await this.runTurn(
       routine.conversationId,
@@ -288,7 +287,7 @@ export class SessionManager {
     // channel exists is four introductions nobody asked for.
     if (conv.kind === 'channel' || !conv.botId) return false
     if (!this.store.getBot(conv.botId)) return false
-    if (this.inFlight.has(conversationId)) return false
+    if (this.isBusy(conversationId)) return false
     return this.store.listMessages(conversationId, 1).length === 0
   }
 
@@ -383,16 +382,12 @@ export class SessionManager {
     const done = new Promise<void>(resolve => { finish = resolve })
     this.active.set(ac, { botId: bot.id, conversationId, done })
     try { await this.runTurnBody(conversationId, bot, input, channel, routine, ac) }
-    finally { this.finishFlight(conversationId, ac); this.active.delete(ac); finish() }
+    finally { this.markTurnFinished(ac); this.active.delete(ac); finish() }
   }
 
-  private finishFlight(conversationId: string, ac: AbortController): void {
+  private markTurnFinished(ac: AbortController): void {
     const turn = this.active.get(ac)
     if (turn) turn.finished = true
-    if (this.inFlight.get(conversationId) !== ac) return
-    const other = [...this.active].find(([key, turn]) => key !== ac && !turn.finished && turn.conversationId === conversationId)
-    if (other) this.inFlight.set(conversationId, other[0])
-    else this.inFlight.delete(conversationId)
   }
 
   private async runTurnBody(
@@ -410,7 +405,6 @@ export class SessionManager {
       return
     }
 
-    this.inFlight.set(conversationId, ac)
     this.emit({ e: 'conversation.busy', conversationId, busy: true, routineName: routine?.routineName })
 
     // Held for the whole turn, because a turn is many actions and interleaving two
@@ -421,7 +415,7 @@ export class SessionManager {
     if (surface) await waitForSurface(surface, conversationId, ac.signal)
     if (ac.signal.aborted) {
       surface?.release(conversationId)
-      this.finishFlight(conversationId, ac)
+      this.markTurnFinished(ac)
       this.emit({ e: 'conversation.busy', conversationId, busy: this.isBusy(conversationId) })
       return
     }
@@ -562,7 +556,7 @@ export class SessionManager {
     } finally {
       // Runs whatever the turn did, including throwing: a failed turn that kept the
       // lock or the queue would leave the conversation permanently stuck.
-      this.finishFlight(conversationId, ac)
+      this.markTurnFinished(ac)
       if (this.live.get(conversationId)?.messageId === messageId) this.live.delete(conversationId)
       surface?.release(conversationId)
 
@@ -612,7 +606,7 @@ export class SessionManager {
       // Finish this turn's status before queued work announces that it is busy.
       this.emit({ e: 'conversation.busy', conversationId, busy: this.isBusy(conversationId) })
 
-      // Deleted from inFlight first, so anything sent mid-turn starts now rather than
+      // Marked finished first, so anything sent mid-turn starts now rather than
       // queueing again behind a turn that has already finished.
       this.drainQueue(conversationId)
 

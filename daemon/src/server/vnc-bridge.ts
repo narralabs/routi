@@ -71,6 +71,7 @@ export function createVncBridge(options: {
         alive.add(ws)
         ws.on('pong', () => alive.add(ws))
         let disposed = false
+        let setupFinished = false
         let release: (() => void) | undefined
         let child: ChildProcessWithoutNullStreams | undefined
         let stream: ReturnType<typeof createWebSocketStream> | undefined
@@ -78,7 +79,7 @@ export function createVncBridge(options: {
           if (disposed) return
           disposed = true
           alive.delete(ws)
-          connections.delete(connection)
+          if (setupFinished) connections.delete(connection)
           release?.()
           child?.stdin.destroy()
           child?.kill()
@@ -114,7 +115,11 @@ export function createVncBridge(options: {
         })()
         connection.ready = setup
         pending.add(setup)
-        void setup.finally(() => pending.delete(setup))
+        void setup.finally(() => {
+          setupFinished = true
+          pending.delete(setup)
+          if (disposed) connections.delete(connection)
+        })
       })
     })().catch(() => socket.destroy())
   }

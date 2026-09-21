@@ -354,7 +354,7 @@ test('a stopped VNC server is invalidated before a viewer reconnects', async () 
   assert.equal(stops, 2)
 })
 
-test('deleting a bot disconnects its pending viewer before the display can be reused', async () => {
+for (const alreadyDisconnected of [false, true]) test(`deletion waits for pending viewer startup (already disconnected: ${alreadyDisconnected})`, async () => {
   let ready!: () => void
   const gate = new Promise<void>(resolve => { ready = resolve })
   let acquiring = false
@@ -378,7 +378,15 @@ test('deleting a bot disconnects its pending viewer before the display can be re
     await once(ws, 'open')
     await until(() => acquiring)
     const closed = once(ws, 'close')
-    const deletion = server.disconnectBot(bot)
+    if (alreadyDisconnected) {
+      ws.terminate()
+      await closed
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    let deleted = false
+    const deletion = server.disconnectBot(bot).then(() => { deleted = true })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(deleted, false, 'deletion must wait until the pending lease is released')
     ready()
     await deletion
     await closed

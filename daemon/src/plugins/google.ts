@@ -22,7 +22,7 @@ export function googleDefinitions(): McpPluginDefinition[] {
     accountEmail: googleAccountEmail,
     oauth: {
       client: clientId ? { client_id: clientId, ...(clientSecret ? { client_secret: clientSecret } : {}) } : bundledGoogleClient,
-      scope: ['openid', 'email', ...['gmail.readonly', 'gmail.compose', 'gmail.modify'].map(scope => `https://www.googleapis.com/auth/${scope}`)].join(' '),
+      scope: 'openid email https://www.googleapis.com/auth/gmail.modify',
       authorizationParams: { access_type: 'offline', prompt: 'consent' },
       setupMessage: 'Google sign-in is not configured on this core. Configure Routi’s Google OAuth client first; see docs/ENGINEERING.md.',
     },

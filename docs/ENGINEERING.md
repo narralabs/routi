@@ -632,9 +632,12 @@ Sending is never automatically retried; uncertain outcomes require checking Sent
 Enable both `gmailmcp.googleapis.com` and `gmail.googleapis.com` in project
 `routi-bot-508721` (Laboros AI, Inc; project number `860783733855`).
 Google MCP access and OAuth app verification are separate requirements.
-Gmail requests `gmail.readonly`, `gmail.compose`, and `gmail.modify`, plus
+Gmail requests only `gmail.modify` for mailbox access, plus
 `openid email` to display the connected address. Existing connections must
 reconnect when permissions change. Tokens remain in the core Mac’s Keychain.
+`gmail.modify` covers reading, drafting, sending, labels, and trash operations;
+read-only and compose scopes are redundant. Verified against Google MCP and
+REST draft sending using a token restricted to `gmail.modify`.
 
 Official core archives include Routi’s Desktop OAuth client. Set repository
 Actions secrets `ROUTI_GOOGLE_CLIENT_ID` and `ROUTI_GOOGLE_CLIENT_SECRET` for the

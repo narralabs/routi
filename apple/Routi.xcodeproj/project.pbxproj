@@ -55,6 +55,7 @@
 		EC3CF43ED8865BB048129C3E /* ScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0128A80F54B6560A538AC1C /* ScreenView.swift */; };
 		EE7B1D28943762E8D0683800 /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F126D3177A0B31881954AE1 /* Effort.swift */; };
 		F4856610B19A6EE3B29FA2E0 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEA46F4858311831473C9EF7 /* Providers.swift */; };
+		F85D0C2CB1DBCA2AB14C58C9 /* BuildStamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6000E865AEDE062799B61047 /* BuildStamp.swift */; };
 		FB22A15CE40A53AC3D647065 /* RelayPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E8497321961863E9412700 /* RelayPairing.swift */; };
 /* End PBXBuildFile section */
 
@@ -90,6 +91,7 @@
 		507438B7D0AA7E577BF5D59B /* RoutiUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutiUpdate.swift; sourceTree = "<group>"; };
 		5BD073724E27CFF96D741B5D /* NewBotSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBotSheet.swift; sourceTree = "<group>"; };
 		5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
+		6000E865AEDE062799B61047 /* BuildStamp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildStamp.swift; sourceTree = "<group>"; };
 		6132C9BD1682BD1B1B50464C /* FaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceTests.swift; sourceTree = "<group>"; };
 		75ECC9B53C46B40DF50283ED /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
 		7D95DDD971A18799D215D6EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -248,6 +250,7 @@
 			isa = PBXGroup;
 			children = (
 				EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */,
+				6000E865AEDE062799B61047 /* BuildStamp.swift */,
 				75ECC9B53C46B40DF50283ED /* Composer.swift */,
 				0BDD1652BD89D0FF8E9E5053 /* DesktopHostView.swift */,
 				46774C0C9055ED1150D62E43 /* DesktopViewer.swift */,
@@ -420,6 +423,7 @@
 				15C44DA114D533E687FB4811 /* Blocks.swift in Sources */,
 				D8116D3E00FBE96C2311F8F0 /* BotAvatar.swift in Sources */,
 				3D42E355F685B12EA2B094F6 /* BotListView.swift in Sources */,
+				F85D0C2CB1DBCA2AB14C58C9 /* BuildStamp.swift in Sources */,
 				36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */,
 				2046900E789F1433535727F0 /* Composer.swift in Sources */,
 				2D60D01B129DC7EEFF709104 /* ConnectSettings.swift in Sources */,

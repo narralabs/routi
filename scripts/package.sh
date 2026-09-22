@@ -165,8 +165,7 @@ fi
 
 echo "Packing the core"
 rm -f "$out/routi-core.tar.gz"
-git -C "$root" archive --format=tar.gz --prefix=routi-core/ -o "$out/routi-core.tar.gz" HEAD \
-  daemon protocol containers scripts package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json README.md
+python3 "$root/scripts/pack-core.py" "$out/routi-core.tar.gz"
 
 echo
 ls -la "$dmg" "$out/routi-core.tar.gz"

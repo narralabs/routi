@@ -5,7 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { auth, UnauthorizedError, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { OAuthClientInformationMixed, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js'
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolResultSchema, type Tool, type CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { Store } from '../db/store.js'
 import type { Credentials } from '../auth/credentials.js'
 import type { ToolContext } from '../surfaces/tools.js'
@@ -17,7 +17,15 @@ export interface McpPluginDefinition {
   /** Existing credential slot, when a plugin predates the shared MCP service. */
   credentialProvider?: string
   callInstructions?: string
+  localTools?: { spec: Tool; run: (args: Record<string, unknown>, accessToken: string, signal?: AbortSignal) => Promise<CallToolResult> }[]
+  accountEmail?: (accessToken: string) => Promise<string | null>
   failedCallInstructions?: string
+  oauth?: {
+    client?: OAuthClientInformationMixed
+    scope: string
+    authorizationParams?: Record<string, string>
+    setupMessage: string
+  }
 }
 export const MAX_PLUGIN_OUTPUT_BYTES = 24_000
 const LOGIN_TIMEOUT = 10 * 60_000
@@ -25,12 +33,12 @@ const networkFetch: typeof fetch = (url, init) => fetch(url, {
   ...init, signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(init?.signal ? [init.signal] : [])]),
 })
 
-type SavedLogin = { redirectUrl: string; client?: OAuthClientInformationMixed; tokens?: OAuthTokens }
+type SavedLogin = { redirectUrl: string; client?: OAuthClientInformationMixed; tokens?: OAuthTokens; accountEmail?: string | null }
 type Secrets = Pick<Credentials, 'getApiKey' | 'setApiKey' | 'clearApiKey'>
 type Pending = { provider: OAuthClientProvider; state: string; server: Server; timer: NodeJS.Timeout; redirectUrl: string; accessId?: string }
 
 export interface PluginAccessRequest {
-  id: string; botId: string; conversationId: string; profileId: string
+  pluginId: string; id: string; botId: string; conversationId: string; profileId: string
   connected: boolean; connecting: boolean; expiresAt: number
 }
 
@@ -73,8 +81,10 @@ export class McpPlugin {
 
   async status(profileId: string) {
     this.checkProfile(profileId)
+    const saved = await this.load(profileId)
     return {
-      connected: !!(await this.load(profileId))?.tokens,
+      connected: !!saved?.tokens,
+      accountEmail: saved?.tokens ? saved.accountEmail ?? null : null,
       connecting: this.pending.has(profileId),
       error: this.errors.get(profileId) ?? null,
       botIds: this.store.listBots(true, profileId).filter(b => this.store.pluginEnabled(this.definition.id, b.id)).map(b => b.id),
@@ -98,18 +108,26 @@ export class McpPlugin {
         token_endpoint_auth_method: 'none',
       },
       state: () => interactive?.state ?? randomBytes(32).toString('hex'),
-      clientInformation: () => saved.client,
+      clientInformation: () => this.definition.oauth?.client ?? saved.client,
       saveClientInformation: info => { saved.client = info },
       tokens: () => saved.tokens,
-      saveTokens: async tokens => { saved.tokens = tokens; await persist() },
+      saveTokens: async tokens => {
+        saved.tokens = tokens
+        if (this.definition.accountEmail) {
+          saved.accountEmail = await this.definition.accountEmail(tokens.access_token).catch(() => null) ?? saved.accountEmail ?? null
+        }
+        await persist()
+      },
       saveCodeVerifier: code => { verifier = code },
       codeVerifier: () => { if (!verifier) throw new Error('Login expired. Connect again.'); return verifier },
       redirectToAuthorization: url => {
         if (!interactive) throw new Error(`Reconnect ${this.definition.name} in Plugins.`)
+        if (this.definition.oauth) url.searchParams.set('scope', this.definition.oauth.scope)
+        for (const [key, value] of Object.entries(this.definition.oauth?.authorizationParams ?? {})) url.searchParams.set(key, value)
         interactive.redirect(url)
       },
       invalidateCredentials: async scope => {
-        if (scope === 'tokens' || scope === 'all') { delete saved.tokens; await persist() }
+        if (scope === 'tokens' || scope === 'all') { delete saved.tokens; delete saved.accountEmail; await persist() }
         if (scope === 'client' || scope === 'all') delete saved.client
         if (scope === 'verifier' || scope === 'all') verifier = undefined
       },
@@ -119,6 +137,7 @@ export class McpPlugin {
   async connect(profileId: string, accessId?: string): Promise<{ url: string }> {
     return this.serial(profileId, async () => {
       this.checkProfile(profileId)
+      if (this.definition.oauth && !this.definition.oauth.client) throw new Error(this.definition.oauth.setupMessage)
       if (accessId) this.findAccess(accessId, profileId)
       if (accessId && this.pending.has(profileId)) throw new Error(`${this.definition.name} sign-in is already in progress. Finish it, then allow this bot.`)
       this.cancel(profileId)
@@ -151,7 +170,7 @@ export class McpPlugin {
       timer.unref()
       this.pending.set(profileId, { provider, state, server, timer, redirectUrl, accessId })
       try {
-        await auth(provider, { serverUrl: this.definition.url, fetchFn: networkFetch })
+        await auth(provider, { serverUrl: this.definition.url, scope: this.definition.oauth?.scope, fetchFn: networkFetch })
         if (!url) throw new Error(`${this.definition.name} did not provide a login URL.`)
         return { url }
       } catch {
@@ -237,20 +256,11 @@ export class McpPlugin {
     })
   }
 
-  toolContext(botId: string, conversationId: string, signal?: AbortSignal): ToolContext {
-    return {
-      external: this.context(botId, signal, true),
-      requestPluginAccess: async plugin => plugin === this.definition.id
-        ? this.requestAccess(botId, conversationId)
-        : { ok: false, output: 'Unknown plugin.', summary: 'Unknown plugin' },
-    }
-  }
-
   context(botId: string, signal?: AbortSignal, includeLocked = false): ToolContext['external'] {
     if (!this.store.getBot(botId) || (!includeLocked && !this.store.pluginEnabled(this.definition.id, botId))) return undefined
     return {
       specs: [
-        { name: `${this.definition.id}_list_tools`, description: `Discover ${this.definition.name} tools. With no name, returns a compact index of exact tool names. Then pass one exact name to get its argument schema before calling ${this.definition.id}_call_tool. Do not guess tool names or arguments.`, parameters: { type: 'object', properties: { name: { type: 'string', description: 'Exact tool name from the index; omit to list names.' } }, additionalProperties: false } },
+        { name: `${this.definition.id}_list_tools`, description: `Discover ${this.definition.name} tools.${this.definition.localTools?.length ? ` Routi also provides: ${this.definition.localTools.map(tool => tool.spec.name).join(', ')}.` : ''} Refresh this list before claiming an action is unavailable; tools can change. With no name, returns a compact index of exact tool names. Then pass one exact name to get its argument schema before calling ${this.definition.id}_call_tool. Do not guess tool names or arguments.`, parameters: { type: 'object', properties: { name: { type: 'string', description: 'Exact tool name from the index; omit to list names.' } }, additionalProperties: false } },
         { name: `${this.definition.id}_call_tool`, description: `Call a ${this.definition.name} tool using the exact name and arguments returned by ${this.definition.id}_list_tools. ${this.definition.callInstructions ?? "Only perform actions the user has authorized. If a call fails, check its outcome before repeating it."}`, parameters: { type: 'object', properties: { name: { type: 'string' }, arguments: { type: 'object', additionalProperties: true } }, required: ['name', 'arguments'], additionalProperties: false } },
       ],
       run: async (name, args) => {
@@ -270,7 +280,7 @@ export class McpPlugin {
             await client.connect(transport)
             if (name === `${this.definition.id}_list_tools`) {
               stage = 'discover'
-              const tools = []
+              const tools: Tool[] = (this.definition.localTools ?? []).map(tool => tool.spec)
               let cursor: string | undefined
               let pages = 0
               do {
@@ -296,7 +306,10 @@ export class McpPlugin {
             // Recheck after network setup: access may have been revoked meanwhile.
             if (!this.store.pluginEnabled(this.definition.id, botId)) throw new Error('Access revoked')
             stage = 'call'
-            const result = await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })
+            const local = this.definition.localTools?.find(tool => tool.spec.name === args['name'])
+            const result = local
+              ? await local.run(args['arguments'] as Record<string, unknown>, saved.tokens!.access_token, signal)
+              : await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })
             return { ok: !result.isError, output: JSON.stringify(result), summary: `${this.definition.name}: ${args['name']}` }
           } catch (error) {
             const failure = mcpFailure(this.definition, error, signal?.aborted)
@@ -329,7 +342,7 @@ export class McpPlugin {
     const existing = this.accessList(bot.profileId).find(r => r.botId === botId && r.conversationId === conversationId)
     if (!existing) {
       const request: PluginAccessRequest = {
-        id: randomUUID(), botId, conversationId, profileId: bot.profileId,
+        pluginId: this.definition.id, id: randomUUID(), botId, conversationId, profileId: bot.profileId,
         connected: !!(await this.load(bot.profileId))?.tokens, connecting: false, expiresAt: Date.now() + LOGIN_TIMEOUT,
       }
       this.access.set(request.id, request)

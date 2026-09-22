@@ -1,5 +1,9 @@
+import { dispatch, type RpcContext } from '../src/server/rpc.js'
 import { mcpFailure } from '../src/plugins/mcp-error.js'
 import { McpPlugin, MAX_PLUGIN_OUTPUT_BYTES } from '../src/plugins/mcp-plugin.js'
+import { googleDefinitions } from '../src/plugins/google.js'
+import { Plugins } from '../src/plugins/registry.js'
+import type { McpPluginDefinition } from '../src/plugins/mcp-plugin.js'
 import { robinhoodDefinition } from '../src/plugins/robinhood.js'
 import assert from 'node:assert/strict'
 import { test, type TestContext } from 'node:test'
@@ -10,10 +14,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDb } from '../src/db/schema.js'
 import { Store } from '../src/db/store.js'
-import { Robinhood } from '../src/plugins/robinhood.js'
 import { desktopToolSpecs, runDesktopTool } from '../src/surfaces/tools.js'
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, definition: McpPluginDefinition = robinhoodDefinition) {
   const dir = mkdtempSync(join(tmpdir(), 'routi-robinhood-test-'))
   const db = openDb(join(dir, 'test.db'))
   const store = new Store(db)
@@ -36,7 +39,7 @@ async function fixture(t: TestContext) {
     if (path.includes('oauth-protected-resource')) return json({ resource: `${url}/mcp`, authorization_servers: [url] })
     if (path.includes('oauth-authorization-server') || path.includes('openid-configuration')) return json({
       issuer: url, authorization_endpoint: `${url}/authorize`, token_endpoint: `${url}/token`, registration_endpoint: `${url}/register`,
-      response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token'], code_challenge_methods_supported: ['S256'], token_endpoint_auth_methods_supported: ['none'],
+      response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token'], code_challenge_methods_supported: ['S256'], token_endpoint_auth_methods_supported: definition?.oauth ? ['client_secret_post'] : ['none'],
     })
     if (path === '/register') {
       const registration = JSON.parse(body)
@@ -46,6 +49,10 @@ async function fixture(t: TestContext) {
     if (path === '/token') {
       tokenCalls++
       const params = new URLSearchParams(body)
+      if (definition?.oauth?.client?.client_secret) {
+        assert.equal(params.get('client_id'), definition.oauth.client.client_id)
+        assert.equal(params.get('client_secret'), definition.oauth.client.client_secret)
+      }
       if (params.get('grant_type') === 'authorization_code') {
         assert.equal(params.get('code'), 'test-code')
         assert.equal(createHash('sha256').update(params.get('code_verifier')!).digest('base64url'), challenge)
@@ -83,7 +90,7 @@ async function fixture(t: TestContext) {
     setApiKey: async (value: string, _provider?: string, profile?: string) => { saved.set(`${_provider}:${profile}`, value) },
     clearApiKey: async (_provider?: string, profile?: string) => { saved.delete(`${_provider}:${profile}`) },
   }
-  const plugin = new Robinhood(store, secrets, dir, id => changed.push(id), `${url}/mcp`)
+  const plugin = new McpPlugin({ ...definition, url: `${url}/mcp` }, store, secrets, dir, id => changed.push(id))
   t.after(async () => { plugin.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); db.close(); rmSync(dir, { recursive: true, force: true }) })
   const callbackFor = (loginUrl: string) => {
     const login = new URL(loginUrl)
@@ -162,10 +169,10 @@ test('profile isolation, restart persistence, and permanent bot deletion', async
   const other = f.store.createProfile('Other')
   await assert.rejects(f.plugin.enable(other.id, f.bot.id, true), /does not belong/)
   assert.equal((await f.plugin.status(other.id)).connected, false)
-  const restarted = new Robinhood(f.store, f.secrets, f.dir, () => {}, `${f.url}/mcp`)
+  const restarted = new McpPlugin({ ...robinhoodDefinition, url: `${f.url}/mcp` }, f.store, f.secrets, f.dir, () => {})
   assert.equal((await restarted.status('default')).connected, true)
   assert.ok(restarted.context(f.bot.id))
-  const otherCore = new Robinhood(f.store, f.secrets, '/different/core', () => {}, `${f.url}/mcp`)
+  const otherCore = new McpPlugin({ ...robinhoodDefinition, url: `${f.url}/mcp` }, f.store, f.secrets, '/different/core', () => {})
   assert.equal((await otherCore.status('default')).connected, false)
   f.store.deleteBot(f.bot.id)
   assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
@@ -352,10 +359,7 @@ test('oversized schemas and results are withheld without replaying actions', asy
   const f = await fixture(t)
   await f.plugin.finish('default', (await f.begin()).href)
   await f.plugin.enable('default', f.bot.id, true)
-  const conversation = f.store.listConversations(f.bot.id)[0]!
-  const ctx = f.plugin.toolContext(f.bot.id, conversation.id)
-  assert.equal((await ctx.requestPluginAccess!('unknown')).ok, false)
-  assert.equal((await ctx.requestPluginAccess!('robinhood')).ok, true)
+  const ctx = { external: f.plugin.context(f.bot.id) }
   assert.equal(ctx.external!.specs.length, 2)
   // Multibyte text verifies the byte limit, not just a character count.
   f.setPayload('界'.repeat(MAX_PLUGIN_OUTPUT_BYTES / 2))
@@ -375,4 +379,104 @@ test('oversized schemas and results are withheld without replaying actions', asy
   const small = await runDesktopTool(null, 'robinhood_call_tool', { name: 'get_accounts', arguments: {} }, ctx)
   assert.equal(small.ok, true)
   assert.equal(JSON.parse(small.output).content[0].text, 'small response')
+})
+
+
+test('Google uses a registered OAuth client, narrow scopes and offline consent', async t => {
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: async () => 'test@example.com', oauth: { ...definition.oauth!, client: { client_id: 'google-test', client_secret: 'test-client-secret' } } })
+  const login = new URL((await f.plugin.connect('default')).url)
+  assert.equal(login.searchParams.get('client_id'), 'google-test')
+  assert.equal(login.searchParams.get('scope'), definition.oauth!.scope)
+  assert.equal(login.searchParams.get('access_type'), 'offline')
+  assert.equal(login.searchParams.get('prompt'), 'consent')
+  assert.equal(login.searchParams.get('code_challenge_method'), 'S256')
+  assert.equal(f.clients.length, 0, 'Google must not use dynamic client registration')
+  await f.plugin.finish('default', f.callbackFor(login.href).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  assert.equal(f.store.pluginEnabled('gmail', f.bot.id), true)
+  assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
+  assert.equal((await f.plugin.context(f.bot.id)!.run('gmail_list_tools', {})).ok, true)
+  f.expire()
+  assert.equal((await f.plugin.context(f.bot.id)!.run('gmail_list_tools', {})).ok, true)
+  assert.equal(f.tokenCalls(), 2, 'saved Google credentials refresh without a new sign-in')
+  assert.equal((await f.plugin.status('default')).accountEmail, 'test@example.com')
+})
+
+test('missing Google client fails before opening a login session', async t => {
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, oauth: { ...definition.oauth!, client: undefined } })
+  await assert.rejects(f.plugin.connect('default'), /Google sign-in is not configured/)
+  assert.equal((await f.plugin.status('default')).connecting, false)
+})
+
+test('plugin roster routes approvals and keeps service and profile grants separate', async t => {
+  const f = await fixture(t)
+  const plugins = new Plugins(f.store, f.secrets, f.dir, () => {})
+  t.after(() => plugins.close())
+  const conversation = f.store.listConversations().find(c => c.botId === f.bot.id)!
+  const ctx = plugins.toolContext(f.bot.id, conversation.id)
+  assert.equal(ctx.external!.specs.length, 4, 'two tools per service, not full remote schemas')
+  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail'])
+  await ctx.requestPluginAccess!('gmail')
+  const request = plugins.accessList('default')[0]!
+  assert.equal(request.pluginId, 'gmail')
+  const rpc = { plugins } as RpcContext
+  assert.deepEqual(await dispatch('robinhood.access.list', { profileId: 'default' }, rpc), { requests: [] })
+  assert.deepEqual(await dispatch('plugin.access.list', { profileId: 'default' }, rpc), { requests: [request] })
+  assert.deepEqual(await dispatch('robinhood.status', { profileId: 'default' }, rpc),
+    await dispatch('plugin.status', { profileId: 'default', pluginId: 'robinhood' }, rpc))
+  await assert.rejects(dispatch('plugin.status', { profileId: 'default', pluginId: 'missing' }, rpc), /Unknown plugin/)
+
+  assert.equal(plugins.get('robinhood').accessList('default').length, 0)
+  assert.equal(plugins.accessList('other-profile').length, 0)
+  await plugins.get('gmail').respondAccess('default', request.id, false)
+  assert.equal(plugins.accessList('default').length, 0)
+  assert.equal((await ctx.external!.run('gmail_list_tools', {})).ok, false)
+  assert.equal((await ctx.external!.run('robinhood_list_tools', {})).ok, false)
+})
+
+
+test('connected account identity follows reconnect and is cleared by disconnect', async t => {
+  let email: string | null = 'first@example.com'
+  const f = await fixture(t, { ...robinhoodDefinition, accountEmail: async () => email })
+  await f.plugin.finish('default', (await f.begin()).href)
+  assert.equal((await f.plugin.status('default')).accountEmail, 'first@example.com')
+  email = 'second@example.com'
+  await f.plugin.finish('default', (await f.begin()).href)
+  assert.equal((await f.plugin.status('default')).accountEmail, 'second@example.com')
+  email = null
+  await f.plugin.finish('default', (await f.begin()).href)
+  assert.equal((await f.plugin.status('default')).connected, true)
+  assert.equal((await f.plugin.status('default')).accountEmail, null, 'never show the previous account after reconnect')
+  await f.plugin.disconnect('default')
+  assert.equal((await f.plugin.status('default')).accountEmail, null)
+})
+
+test('Gmail local tools share discovery, refreshed credentials, and bot access checks', async t => {
+  const tokens: string[] = []
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: undefined,
+    oauth: { ...definition.oauth!, client: { client_id: 'google-test', client_secret: 'test-client-secret' } },
+    localTools: [{ spec: definition.localTools![0]!.spec, run: async (_args, token) => {
+      tokens.push(token)
+      return { content: [{ type: 'text', text: 'sent' }] }
+    } }],
+  })
+  await f.plugin.finish('default', (await f.begin()).href)
+  const ctx = f.plugin.context(f.bot.id, undefined, true)!
+  assert.match(ctx.specs.find(tool => tool.name === 'gmail_list_tools')!.description, /gmail_send_draft/ )
+  const call = () => ctx.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
+  assert.equal((await call()).ok, false)
+  assert.deepEqual(tokens, [])
+  await f.plugin.enable('default', f.bot.id, true)
+  assert.match((await ctx.run('gmail_list_tools', {})).output, /gmail_send_draft/)
+  assert.match((await ctx.run('gmail_list_tools', { name: 'gmail_send_draft' })).output, /draftId/)
+  f.expire()
+  assert.equal((await call()).ok, true)
+  assert.deepEqual(tokens, ['refreshed-access'])
+  assert.deepEqual(f.calls, [], 'local tool is not submitted to the remote MCP server')
+  await f.plugin.enable('default', f.bot.id, false)
+  assert.equal((await call()).ok, false)
+  assert.equal(tokens.length, 1)
 })

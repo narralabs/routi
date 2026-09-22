@@ -46,7 +46,7 @@ export class RoutiServer {
       (owner) => ctx.sessions.memoryChanged(owner, 'bot'),
       (botId) => ctx.sessions.routinesChanged(botId),
       (botId, conversationId, image) => ctx.sessions.attachImage(botId, conversationId, image),
-      ctx.robinhood,
+      ctx.plugins,
     )
 
     this.handle = (req, res) => {

@@ -628,3 +628,27 @@ orders or revoke Robinhood's server-side authorization.
 
 `daemon/tests/robinhood.test.ts` uses a local fake OAuth/MCP server: no accounts,
 model tokens, or live trades. Real account authorization remains a manual check.
+
+
+### Gmail
+
+Reading and drafting use Google’s MCP. `gmail_send_draft` sends through Gmail’s
+REST API because our tested MCP connection exposed no sending tool.
+Sends are never automatically retried; check Sent before retrying an uncertain result.
+
+Enable `gmailmcp.googleapis.com` and `gmail.googleapis.com` in your Google Cloud
+project and create a Desktop OAuth client. Gmail requests `gmail.modify` plus
+`openid email` for the connected address. OAuth uses PKCE and a localhost callback;
+user tokens stay in the core Mac’s Keychain. Reconnect after changing scopes.
+
+Set `ROUTI_GOOGLE_CLIENT_ID` and `ROUTI_GOOGLE_CLIENT_SECRET` in the core environment
+for source builds, or as repository Actions secrets for releases. Local packaging
+accepts `ROUTI_GOOGLE_CLIENT_FILE` pointing to the downloaded client JSON.
+`scripts/pack-core.py` bundles the Desktop client configuration, never user tokens,
+and fails if configuration is missing. Environment settings override the bundled
+client. Do not commit client credentials to source control.
+
+Google MCP access and OAuth verification are separate requirements. Before public
+release, confirm both and test with a non-test-user account. See
+[Google’s Gmail MCP setup](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)
+and [OAuth verification requirements](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification).

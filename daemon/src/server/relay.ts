@@ -104,7 +104,7 @@ export class RelayConnection {
     if (!existsSync(this.hostFile)) {
       const pair = await createPairing()
       mkdirSync(dirname(this.hostFile), { recursive: true, mode: 0o700 })
-      writeFileSync(this.hostFile, JSON.stringify({ ...pair.host, viewerToken: pair.viewer.token, relayUrl: url, enrolled: false }), { flag: 'wx', mode: 0o600 })
+      writeFileSync(this.hostFile, JSON.stringify({ ...pair.host, viewerToken: pair.viewer.token, relayUrl: url, enrolled: false, devices: [] }), { flag: 'wx', mode: 0o600 })
     }
     this.readDevice()
     const device = JSON.parse(readFileSync(this.hostFile, 'utf8'))

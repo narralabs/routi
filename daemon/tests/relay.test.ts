@@ -272,7 +272,7 @@ test('a fresh Mac enrolls without CLI setup and pairs a phone for a persistent t
   const directory = mkdtempSync(join(tmpdir(), 'routi-trial-test-'))
   const hostFile = join(directory, 'host.json')
   t.after(() => rmSync(directory, { recursive: true, force: true }))
-  let settings: Record<string, unknown> = {}
+  let settings: Record<string, unknown> = { connectPhonePaired: true }
   const store = { getSettings: () => settings, setSettings: (patch: Record<string, unknown>) => (settings = { ...settings, ...patch }) }
   let storageAvailable = false
   const relay = createRelay([], { saveTrials: () => { if (!storageAvailable) throw Error('Storage unavailable') }, heartbeatMs: 20 })
@@ -288,6 +288,7 @@ test('a fresh Mac enrolls without CLI setup and pairs a phone for a persistent t
   await waitFor(core, 'connected')
   assert.equal(core.status().configured, true)
   assert.equal(core.status().canPair, true)
+  assert.deepEqual(core.status().devices, [])
   assert.deepEqual((await core.refreshStatus()).access, { trial: true, expiresAt: null, expired: false })
   const payload = JSON.parse(Buffer.from(new URL((await core.pairPhone()).url).searchParams.get('data')!, 'base64url').toString())
   const host = JSON.parse(readFileSync(hostFile, 'utf8'))

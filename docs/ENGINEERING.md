@@ -632,8 +632,8 @@ model tokens, or live trades. Real account authorization remains a manual check.
 
 ### Gmail
 
-Gmail uses Google’s hosted MCP through the shared plugin registry. Routi adds
-`gmail_send_draft` through the Gmail REST API when remote sending is unavailable.
+Reading and drafting use Google’s MCP. `gmail_send_draft` sends through Gmail’s
+REST API because our tested MCP connection exposed no sending tool.
 Sends are never automatically retried; check Sent before retrying an uncertain result.
 
 Enable `gmailmcp.googleapis.com` and `gmail.googleapis.com` in your Google Cloud

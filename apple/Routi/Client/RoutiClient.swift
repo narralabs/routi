@@ -30,6 +30,7 @@ final class RoutiClient: NSObject {
     private(set) var state: ConnectionState = .disconnected {
         didSet { if oldValue != state { onStateChange?(state) } }
     }
+    private(set) var connectionMessage: String?
     private(set) var account: AccountInfo?
     /// What the core said it is, from the handshake. Shown in Settings so "which core
     /// is this" is answerable without a terminal.
@@ -78,6 +79,7 @@ final class RoutiClient: NSObject {
     }
 
     func useRelay(_ profile: RelayProfile?) {
+        connectionMessage = nil
         subscriptions.removeAll()
         relayProfile = profile
         reconnect(immediately: true)
@@ -131,7 +133,10 @@ final class RoutiClient: NSObject {
                     self.open(inner.webSocketTask(with: parts.url!))
                 } catch {
                     tunnel.stop()
-                    if !Task.isCancelled { self.handleDisconnect() }
+                    if !Task.isCancelled {
+                        self.connectionMessage = (error as NSError).domain == "RoutiConnect" ? error.localizedDescription : nil
+                        self.handleDisconnect()
+                    }
                 }
             }
             return
@@ -275,6 +280,7 @@ final class RoutiClient: NSObject {
                     "message": "routid speaks protocol v\(serverVersion); this app speaks v\(Self.protocolVersion).",
                 ]))
             }
+            connectionMessage = nil
             state = .connected
             for id in subscriptions {
                 send(["t": "subscribe", "conversationId": id])

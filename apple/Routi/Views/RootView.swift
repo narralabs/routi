@@ -219,12 +219,12 @@ private struct ConnectingView: View {
                 Image(systemName: "externaldrive.badge.xmark")
                     .font(.system(size: 34, weight: .light))
                     .foregroundStyle(.secondary)
-                Text(model.usesRelay ? "Can’t reach your paired Mac" : isLocal ? "Routi Core isn't running on this Mac" : "Can't reach Routi Core at \(host)")
+                Text(model.connectionMessage != nil ? "Routi Connect" : model.usesRelay ? "Can’t reach your paired Mac" : isLocal ? "Routi Core isn't running on this Mac" : "Can't reach Routi Core at \(host)")
                     .font(.system(size: 15, weight: .semibold))
-                Text(model.usesRelay ? "Check that your Mac is awake, online, and connected to Routi Connect."
+                Text(model.connectionMessage ?? (model.usesRelay ? "Check that your Mac is awake, online, and connected to Routi Connect."
                      : isLocal
                      ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; this screen carries on by itself once the core answers."
-                     : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works.")
+                     : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works."))
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

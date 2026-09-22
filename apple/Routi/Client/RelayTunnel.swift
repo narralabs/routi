@@ -19,7 +19,24 @@ final class RelayTunnel: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     }
 
     func start() async throws -> URL {
-        try await withTaskCancellationHandler {
+        var components = URLComponents(url: relay.appendingPathComponent("v1/access"), resolvingAgainstBaseURL: false)!
+        components.scheme = relay.scheme == "wss" ? "https" : "http"
+        var request = URLRequest(url: components.url!, timeoutInterval: 10)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let accessSession = URLSession(configuration: .ephemeral, delegate: self, delegateQueue: nil)
+        defer { accessSession.invalidateAndCancel() }
+        let (data, response) = try await accessSession.data(for: request)
+        if (response as? HTTPURLResponse)?.statusCode == 200 {
+            struct Access: Decodable { let expired: Bool }
+            if try JSONDecoder().decode(Access.self, from: data).expired {
+                throw NSError(domain: "RoutiConnect", code: 402, userInfo: [NSLocalizedDescriptionKey:
+                    "Your Connect trial has ended. You can still use Routi on your Mac or connect through Tailscale."])
+            }
+        } else if ![403, 404].contains((response as? HTTPURLResponse)?.statusCode ?? 0) {
+            throw URLError(.userAuthenticationRequired)
+        }
+        // Older relay proxies have no access endpoint; the WebSocket still authenticates.
+        return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 queue.async {
                     guard !self.stopped else { continuation.resume(throwing: CancellationError()); return }

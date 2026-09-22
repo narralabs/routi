@@ -209,12 +209,37 @@ private struct ConnectingView: View {
     @State private var slow = false
     #if os(iOS)
     @State private var showingScanner = false
+    @State private var showingManualConnection = false
+    @AppStorage("manualCoreConnection") private var manualConnection = false
     #endif
 
     private var isLocal: Bool { host == "127.0.0.1" || host == "localhost" }
 
     var body: some View {
         VStack(spacing: 14) {
+            #if os(iOS)
+            Image(systemName: "laptopcomputer.and.iphone")
+                .font(.system(size: 34, weight: .light))
+            Text(model.usesRelay ? "Routi Connect" : "Connect to your Mac")
+                .font(.title2.bold())
+            Text(model.connectionMessage ?? (model.usesRelay
+                ? "Connecting to \(model.pairedMacName ?? "your Mac"). Keep it awake, online, and connected to Routi Connect."
+                : "On your Mac, open Settings → Routi Core → Routi Connect and choose Pair device. Then scan the code here."))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+            if manualConnection && !model.usesRelay {
+                Text("Manual connection: \(host)")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Button { showingScanner = true } label: {
+                Label("Scan Routi Connect code", systemImage: "qrcode.viewfinder")
+            }
+            .buttonStyle(.borderedProminent)
+            Button("Connect manually…") { showingManualConnection = true }
+                .accessibilityIdentifier("manualCoreConnection")
+            Text("Use a Routi Core address through Tailscale.")
+                .font(.caption).foregroundStyle(.secondary)
+            #else
             if model.connectionFailed {
                 Image(systemName: "externaldrive.badge.xmark")
                     .font(.system(size: 34, weight: .light))
@@ -235,24 +260,23 @@ private struct ConnectingView: View {
                 Button("Connect to a different Mac…") { model.isShowingSettings = true }
                     .controlSize(.small)
                     .padding(.top, 4)
-                #if os(iOS)
-                Button { showingScanner = true } label: {
-                    Label("Scan pairing code", systemImage: "qrcode.viewfinder")
-                }
-                .buttonStyle(.borderedProminent)
-                #endif
             } else if slow {
                 ProgressView().controlSize(.large)
                 Text("Connecting to Routi Core…")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
+            #endif
         }
+        .padding()
         #if os(macOS)
         .frame(minWidth: 460, minHeight: 320)
         #endif
         #if os(iOS)
         .sheet(isPresented: $showingScanner) { PhonePairingScanner() }
+        .sheet(isPresented: $showingManualConnection) {
+            EndpointStep(onBack: { showingManualConnection = false }, onConnected: { showingManualConnection = false })
+        }
         #endif
         .animation(.snappy(duration: 0.25), value: model.connectionFailed)
         .task { await model.watchForCore() }

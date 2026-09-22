@@ -63,7 +63,9 @@ final class RoutiClient: NSObject {
         self.host = host
         self.port = port
         #if !os(macOS)
-        self.relayProfile = try? RelayPairing.load()
+        if !UserDefaults.standard.bool(forKey: "manualCoreConnection") {
+            self.relayProfile = try? RelayPairing.load()
+        }
         #endif
         super.init()
         self.session = URLSession(configuration: .default)
@@ -79,6 +81,7 @@ final class RoutiClient: NSObject {
     }
 
     func useRelay(_ profile: RelayProfile?) {
+        UserDefaults.standard.set(false, forKey: "manualCoreConnection")
         connectionMessage = nil
         subscriptions.removeAll()
         relayProfile = profile
@@ -86,6 +89,10 @@ final class RoutiClient: NSObject {
     }
 
     func updateEndpoint(host: String, port: Int) {
+        #if os(iOS)
+        UserDefaults.standard.set(true, forKey: "manualCoreConnection")
+        #endif
+        connectionMessage = nil
         // The same address typed again is a request to try it again, not a no-op —
         // onboarding's Connect button would otherwise sit through its whole wait.
         guard host != self.host || port != self.port else {
@@ -113,6 +120,9 @@ final class RoutiClient: NSObject {
 
     func connect() {
         guard !isStopped, state == .disconnected else { return }
+        #if os(iOS)
+        guard relayProfile != nil || UserDefaults.standard.bool(forKey: "manualCoreConnection") else { return }
+        #endif
         state = .connecting
 
         if let profile = relayProfile {

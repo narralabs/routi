@@ -12,7 +12,7 @@ import XCTest
 final class PhoneNavigationTests: XCTestCase {
     func testBackFromTheScreenThenTheListThenTheSameBotAgain() {
         let app = XCUIApplication()
-        app.launchArguments = ["-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
+        app.launchArguments = ["-manualCoreConnection", "YES", "-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
         app.launch()
         let firstBot = app.cells.firstMatch
         XCTAssertTrue(firstBot.waitForExistence(timeout: 30), "no bots listed; is the core running?")
@@ -35,7 +35,7 @@ final class PhoneNavigationTests: XCTestCase {
     /// what General shows. Needs a core whose first profile is the one showing.
     func testProfileMenuHoldsSwitchAndSettings() {
         let app = XCUIApplication()
-        app.launchArguments = ["-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
+        app.launchArguments = ["-manualCoreConnection", "YES", "-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
         app.launch()
         XCTAssertTrue(app.cells.firstMatch.waitForExistence(timeout: 30), "no bots listed; is the core running?")
         let menu = app.buttons["profileMenu"]
@@ -72,7 +72,7 @@ final class DesktopTouchTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-showScreen", "-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
+        app.launchArguments = ["-manualCoreConnection", "YES", "-showScreen", "-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
         app.launch()
         desktop = app.otherElements["desktop"]
         XCTAssertTrue(desktop.waitForExistence(timeout: 60), "the desktop never appeared; is the core running with a bot that has a screen?")

@@ -112,6 +112,9 @@ final class AppModel {
     /// setup is where installing the core, or pointing at one, is offered — so that
     /// a spinner is never the first thing a new person sees.
     var needsOnboarding: Bool {
+        #if os(iOS)
+        if !authKnown { return false }
+        #endif
         if !hasCompletedSetup && !authKnown { return true }
         guard authKnown else { return false }
         return !coreConfigured || !onboardingDismissed
@@ -689,6 +692,7 @@ final class AppModel {
     }
 
     func updateEndpoint(host: String, port: Int) {
+        if usesRelay { switchRelay(nil) }
         client.updateEndpoint(host: host, port: port)
     }
 

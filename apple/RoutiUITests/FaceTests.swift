@@ -6,7 +6,7 @@ import XCTest
 final class FaceTests: XCTestCase {
     func testPokingTheHeaderFaceMakesItAngry() {
         let app = XCUIApplication()
-        app.launchArguments = ["-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
+        app.launchArguments = ["-manualCoreConnection", "YES", "-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
         app.launch()
 
         // Open the first bot's chat.
@@ -30,7 +30,7 @@ final class FaceTests: XCTestCase {
     func testPokingAListFaceOnIPad() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "the list leaves the screen on a phone")
         let app = XCUIApplication()
-        app.launchArguments = ["-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
+        app.launchArguments = ["-manualCoreConnection", "YES", "-daemonHost", "127.0.0.1", "-daemonPort", "7171"]
         app.launch()
 
         let firstBot = app.cells.firstMatch

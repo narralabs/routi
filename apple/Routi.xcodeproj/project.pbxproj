@@ -51,6 +51,7 @@
 		D70141640505B1F4BAA53171 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D720880BAD6D2F0296D4A8 /* RootView.swift */; };
 		D8116D3E00FBE96C2311F8F0 /* BotAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */; };
 		DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB45665E5E45F01F8945DBB6 /* MessageRow.swift */; };
+		DEC2100F19A10860A2C2EB2A /* ConnectEntryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D559DAE5F902C998682603 /* ConnectEntryTests.swift */; };
 		DEF29F89225C5F255ECEA1FD /* RoutiUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 507438B7D0AA7E577BF5D59B /* RoutiUpdate.swift */; };
 		EC3CF43ED8865BB048129C3E /* ScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0128A80F54B6560A538AC1C /* ScreenView.swift */; };
 		EE7B1D28943762E8D0683800 /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F126D3177A0B31881954AE1 /* Effort.swift */; };
@@ -118,6 +119,7 @@
 		EA56FAD7115195CEA260370F /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
 		EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
+		F1D559DAE5F902C998682603 /* ConnectEntryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectEntryTests.swift; sourceTree = "<group>"; };
 		F4DFC65D324CCCB7788FAC01 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		F674CA7B76558EF0A3FA15A7 /* RoutiUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = RoutiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
@@ -267,6 +269,7 @@
 		E3A5557C2BEA2D63961175F4 /* RoutiUITests */ = {
 			isa = PBXGroup;
 			children = (
+				F1D559DAE5F902C998682603 /* ConnectEntryTests.swift */,
 				01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */,
 				6132C9BD1682BD1B1B50464C /* FaceTests.swift */,
 			);
@@ -405,6 +408,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DEC2100F19A10860A2C2EB2A /* ConnectEntryTests.swift in Sources */,
 				2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */,
 				121F5D600BB09425082B33D3 /* FaceTests.swift in Sources */,
 			);

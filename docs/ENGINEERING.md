@@ -632,40 +632,23 @@ model tokens, or live trades. Real account authorization remains a manual check.
 
 ### Gmail
 
-Gmail uses Google’s remote MCP endpoint, matching cursor/plugins. The shared
-plugin registry routes Gmail and Robinhood through profile connections, Keychain
-storage and per-bot approvals. Each plugin exposes two discovery/call tools;
-remote schemas are fetched on demand. Routi adds `gmail_send_draft` using Gmail’s
-REST API because the tested Google MCP connection does not expose sending.
-Sending is never automatically retried; uncertain outcomes require checking Sent.
+Gmail uses Google’s hosted MCP through the shared plugin registry. Routi adds
+`gmail_send_draft` through the Gmail REST API when remote sending is unavailable.
+Sends are never automatically retried; check Sent before retrying an uncertain result.
 
-Enable both `gmailmcp.googleapis.com` and `gmail.googleapis.com` in project
-`routi-bot-508721` (Laboros AI, Inc; project number `860783733855`).
-Google MCP access and OAuth app verification are separate requirements.
-Gmail requests only `gmail.modify` for mailbox access, plus
-`openid email` to display the connected address. Existing connections must
-reconnect when permissions change. Tokens remain in the core Mac’s Keychain.
-`gmail.modify` covers reading, drafting, sending, labels, and trash operations;
-read-only and compose scopes are redundant. Verified against Google MCP and
-REST draft sending using a token restricted to `gmail.modify`.
+Enable `gmailmcp.googleapis.com` and `gmail.googleapis.com` in your Google Cloud
+project and create a Desktop OAuth client. Gmail requests `gmail.modify` plus
+`openid email` for the connected address. OAuth uses PKCE and a localhost callback;
+user tokens stay in the core Mac’s Keychain. Reconnect after changing scopes.
 
-Official core archives include Routi’s Desktop OAuth client. Set repository
-Actions secrets `ROUTI_GOOGLE_CLIENT_ID` and `ROUTI_GOOGLE_CLIENT_SECRET` for the
-release workflow. For local packaging, set `ROUTI_GOOGLE_CLIENT_FILE` to the
-Google-downloaded Desktop client JSON before running `scripts/package.sh` or
-`python3 scripts/pack-core.py OUTPUT.tar.gz`. Packaging fails without the client.
-The client values ship in the downloadable core: a Desktop client is a public
-OAuth client, not a confidential backend credential. User tokens are never bundled.
-Do not use a Web application client or commit client credentials to source control.
+Set `ROUTI_GOOGLE_CLIENT_ID` and `ROUTI_GOOGLE_CLIENT_SECRET` in the core environment
+for source builds, or as repository Actions secrets for releases. Local packaging
+accepts `ROUTI_GOOGLE_CLIENT_FILE` pointing to the downloaded client JSON.
+`scripts/pack-core.py` bundles the Desktop client configuration, never user tokens,
+and fails if configuration is missing. Environment settings override the bundled
+client. Do not commit client credentials to source control.
 
-Source builds can set `ROUTI_GOOGLE_CLIENT_ID` and `ROUTI_GOOGLE_CLIENT_SECRET` in
-the core environment. An explicit client ID overrides the bundled client, so
-self-hosted builds use their own project. OAuth uses PKCE and a localhost callback
-on the core Mac. No OAuth client configuration is needed in the iPhone/iPad app.
-
-Before public release, complete Google’s consent branding, authorized domain,
-privacy policy, requested-scope justification, and applicable verification in
-Google Auth Platform. Confirm external production access and test with an account
-outside the test-user list. A successful developer-account test alone is not
-public-release validation. See [Google’s Gmail MCP setup](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)
-and [OAuth verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification).
+Google MCP access and OAuth verification are separate requirements. Before public
+release, confirm both and test with a non-test-user account. See
+[Google’s Gmail MCP setup](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)
+and [OAuth verification requirements](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification).

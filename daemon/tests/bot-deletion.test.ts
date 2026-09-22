@@ -102,7 +102,7 @@ test('the delete RPC reports cleanup failure and blocks new messages while clean
   } finally { finish(); f.db.close() }
 })
 
-test('deleting a bot waiting for the Mac never starts its provider or stops the shared surface', async () => {
+test('deleting a bot configured to use This Mac cancels its waiting turn before the AI starts', async () => {
   const f = setup(async () => {})
   let releases = 0
   const bot = f.store.updateBot(f.a.bot.id, { surfaceMode: 'host' })!

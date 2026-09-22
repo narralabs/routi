@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         adwaita-icon-theme \
         ca-certificates \
         procps \
+        util-linux \
         socat \
         python3 \
     && apt-get clean \
@@ -46,6 +47,7 @@ RUN useradd -ms /bin/bash routi \
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY renderer-watchdog.py /usr/local/bin/renderer-watchdog.py
+COPY delete-screen.py /usr/local/bin/delete-screen.py
 COPY screenctl /usr/local/bin/screenctl
 COPY start-screen.sh /usr/local/bin/start-screen.sh
 COPY chrome-wrapper.sh /usr/local/bin/chrome-wrapper.sh

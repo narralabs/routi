@@ -16,6 +16,7 @@ function createTestServer(options: Parameters<typeof createVncBridge>[0]) {
   http.on('upgrade', bridge.upgrade)
   return {
     http,
+    disconnectBot: bridge.disconnectBot,
     async close() {
       await bridge.close()
       await new Promise<void>(resolve => http.close(() => resolve()))
@@ -233,6 +234,7 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     let originalUpdates = 0
     let focuses = 0
     const timers: Array<() => void> = []
+    const handshakes = new Set<() => void>()
     const documentEvents = new Map<string, () => void>()
     class RFB {
       constructor() { instance = this }
@@ -245,7 +247,12 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     let instance!: RFB
     const context = {
       RFB, location: { host: 'localhost', protocol: 'http:', search: '' }, Uint8ClampedArray, URLSearchParams,
-      clearTimeout() {}, setTimeout(callback: () => void) { timers.push(callback) },
+      clearTimeout(callback: () => void) { handshakes.delete(callback) },
+      setTimeout(callback: () => void, delay: number) {
+        if (delay === 15000) handshakes.add(callback)
+        else timers.push(callback)
+        return callback
+      },
       ImageData: class { constructor(..._args: unknown[]) {} },
       document: {
         hidden: false,
@@ -277,6 +284,9 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     const second = instance
     documentEvents.get('visibilitychange')!()
     assert.notEqual(instance, second)
+    context.document.hidden = true
+    documentEvents.get('visibilitychange')!()
+    context.document.hidden = false
     runInNewContext(script.replace(/^import .*;$/m, ''), { ...context, window: { addEventListener() {} } })
     assert.equal(instance._updateCursor, RFB.prototype._updateCursor, 'Mac has no native cursor hook')
     instance.events.get('connect')!()
@@ -285,6 +295,16 @@ test('viewer forwards cursor shapes and reconnects without retaining stale conne
     runInNewContext(script.replace(/^import .*;$/m, ''), { ...context, window: { addEventListener() {} } })
     instance.events.get('connect')!()
     assert.equal(focuses, 1, 'sidebar preview must not steal keyboard focus')
+    assert.equal(handshakes.size, 0, 'successful connection clears the handshake deadline')
+    documentEvents.get('visibilitychange')!()
+    const stalled = instance
+    assert.equal(handshakes.size, 1)
+    const retries = timers.length
+    ;[...handshakes][0]!()
+    assert.equal(timers.length, retries + 1, 'stalled handshake disconnects and schedules a retry')
+    timers.at(-1)!()
+    assert.notEqual(instance, stalled)
+
   } finally { await server.close() }
 })
 
@@ -297,7 +317,7 @@ test('the normal core listener resolves and serves VNC without starting Docker',
   const store = new Store(db)
   store.ensureDefaultProfile()
   const { bot: desktop } = store.createBot({ name: 'Viewer', surfaceMode: 'container' })
-  const server = new RoutiServer({ store, desktops: { for: () => ({}) } } as unknown as import('../src/server/rpc.js').RpcContext)
+  const server = new RoutiServer({ store, desktops: { assertAvailable() {}, for: () => ({}) } } as unknown as import('../src/server/rpc.js').RpcContext)
   await server.listen(0, '127.0.0.1')
   const address = server['http'].address()
   assert.ok(address && typeof address === 'object')
@@ -332,4 +352,45 @@ test('a stopped VNC server is invalidated before a viewer reconnects', async () 
     fresh.release()
   } finally { await viewers.close() }
   assert.equal(stops, 2)
+})
+
+for (const alreadyDisconnected of [false, true]) test(`deletion waits for pending viewer startup (already disconnected: ${alreadyDisconnected})`, async () => {
+  let ready!: () => void
+  const gate = new Promise<void>(resolve => { ready = resolve })
+  let acquiring = false
+  let released = false
+  let opened = false
+  const server = createTestServer({
+    token: 'delete-test', displayFor: async () => ':99',
+    acquireDisplay: async () => {
+      acquiring = true
+      await gate
+      return { release() { released = true }, open() { opened = true; throw new Error('Must not reconnect') } }
+    },
+  })
+  server.http.listen(0, '127.0.0.1')
+  await once(server.http, 'listening')
+  const address = server.http.address()
+  assert.ok(address && typeof address === 'object')
+  const origin = `http://127.0.0.1:${address.port}`
+  const ws = new WebSocket(`${origin.replace('http', 'ws')}/vnc/delete-test/connect/${bot}`, { origin })
+  try {
+    await once(ws, 'open')
+    await until(() => acquiring)
+    const closed = once(ws, 'close')
+    if (alreadyDisconnected) {
+      ws.terminate()
+      await closed
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    let deleted = false
+    const deletion = server.disconnectBot(bot).then(() => { deleted = true })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(deleted, false, 'deletion must wait until the pending lease is released')
+    ready()
+    await deletion
+    await closed
+    assert.equal(released, true)
+    assert.equal(opened, false)
+  } finally { ready(); ws.terminate(); await server.close() }
 })

@@ -15,11 +15,11 @@ export type Surface = Desktop | HostSurface
  * One desktop per bot, created on first mention and kept afterwards.
  *
  * The pool exists so nothing else has to know whether a bot's container has been
- * built yet: callers ask for a bot's desktop and get one, running or not. Entries are
- * never evicted — a `Desktop` with a stopped container costs nothing, and dropping it
- * would lose the name that lets a restart find the same container again.
+ * built yet: callers ask for a bot's desktop and get one, running or not. Entries
+ * are retained while stopped and evicted after permanent deletion.
  */
 export class DesktopPool {
+  private readonly deleting = new Set<string>()
   private readonly byBot = new Map<string, Desktop>()
   /**
    * One host surface for everyone who asks for it.
@@ -34,7 +34,24 @@ export class DesktopPool {
     this.host = new HostSurface(dataDir)
   }
 
+  assertAvailable(botId: string): void {
+    if (this.deleting.has(botId) || (this.store && !this.store.getBot(botId))) {
+      throw new Error('This bot is deleted or being deleted.')
+    }
+  }
+
+  beginDeletion(botId: string): void { this.deleting.add(botId) }
+  endDeletion(botId: string): void { this.deleting.delete(botId) }
+
+  async destroy(botId: string): Promise<void> {
+    // Never destroy the shared host surface, even if the bot used This Mac.
+    const desktop = this.byBot.get(botId) ?? new Desktop(botId)
+    await desktop.destroy()
+    this.byBot.delete(botId)
+  }
+
   for(botId: string): Surface {
+    this.assertAvailable(botId)
     if (this.store?.getBot(botId)?.surfaceMode === 'host') return this.host
 
     let desktop = this.byBot.get(botId)
@@ -64,7 +81,7 @@ export class DesktopPool {
     let reaped = 0
     for (const botId of listed) {
       if (liveBotIds.has(botId)) continue
-      await this.for(botId).stop().catch(() => {})
+      await (this.byBot.get(botId) ?? new Desktop(botId)).stop().catch(() => {})
       reaped++
     }
     return reaped

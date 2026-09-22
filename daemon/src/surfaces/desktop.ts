@@ -1,5 +1,6 @@
 import { execFile, spawn, type ExecFileOptions } from 'node:child_process'
 import { promisify } from 'node:util'
+import { dockerFailure } from './docker-error.js'
 
 const run = promisify(execFile)
 
@@ -165,7 +166,7 @@ export type DesktopInput =
  * So there is exactly one container. It starts empty and holds itself open; screens
  * come and go inside it in a couple of seconds each.
  */
-class Host {
+export class Host {
   private ensuring: Promise<string | null> | null = null
   /** Set for the life of a build; what setup reads while it waits. */
   private build: BuildProgress | null = null
@@ -214,8 +215,10 @@ class Host {
   }
 
   private async ensureOnce(): Promise<string | null> {
-    if (!(await this.dockerAvailable())) {
-      return 'Docker is not running on the Mac hosting Routi Core. Start Docker Desktop there; Settings → Screens shows the state.'
+    try {
+      await docker(['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
+    } catch (error) {
+      return dockerFailure(error)
     }
     if (!(await this.imageExists())) {
       const built = await this.buildImage()
@@ -266,15 +269,6 @@ class Host {
       return null
     } catch (err) {
       return err instanceof Error ? err.message : String(err)
-    }
-  }
-
-  private async dockerAvailable(): Promise<boolean> {
-    try {
-      await docker(['info', '--format', '{{.ServerVersion}}'], { timeout: 8_000 })
-      return true
-    } catch {
-      return false
     }
   }
 
@@ -404,6 +398,22 @@ class Host {
     }
   }
 
+  async destroyScreen(botId: string): Promise<void> {
+    // Do not build/recreate a container just to delete a bot. Absence is already clean;
+    // Docker errors must propagate, since an offline container may still hold files.
+    const { stdout } = await docker(['ps', '-aq', '--filter', `name=^/${CONTAINER}$`], { timeout: 8_000 })
+    if (!stdout.trim()) return
+    const dir = this.dockerfileDir()
+    if (!dir) throw new Error('Desktop cleanup script is missing from this core.')
+    // Run the shipped helper even in older containers; never rebuild away their files.
+    const script = readFileSync(join(dir, 'delete-screen.py'), 'utf8')
+    try { await this.exec(['python3', '-c', script, botId], 30_000) }
+    catch (error) {
+      const stderr = (error as { stderr?: string }).stderr?.trim()
+      throw new Error(stderr || dockerFailure(error))
+    }
+  }
+
   async exec(args: string[], timeout = 20_000): Promise<string> {
     const { stdout } = await docker(['exec', CONTAINER, ...args], { timeout })
     return stdout.trim()
@@ -442,6 +452,8 @@ export const desktopHost = {
  * screen, turns still take the pointer in order.
  */
 export class Desktop {
+  private destroyed = false
+  private starting: Promise<DesktopStatus> | undefined
   private state: DesktopState = 'stopped'
   private detail: string | undefined
   private display: string | null = null
@@ -456,6 +468,7 @@ export class Desktop {
   constructor(readonly botId: string) {}
 
   async status(): Promise<DesktopStatus> {
+    if (this.destroyed) return { state: 'stopped', width: this.width, height: this.height }
     /**
      * Remembering a screen is not the same as having one.
      *
@@ -500,11 +513,17 @@ export class Desktop {
     if (failure) {
       return { state: 'unavailable', width: this.width, height: this.height, detail: failure }
     }
-    return { state: this.state, width: this.width, height: this.height }
+    return { state: this.state, width: this.width, height: this.height, detail: this.detail }
   }
 
   /** Idempotent: safe to call on every attach. */
   async start(): Promise<DesktopStatus> {
+    if (this.destroyed) throw new Error('This desktop is being deleted.')
+    this.starting ??= this.startOnce().finally(() => { this.starting = undefined })
+    return this.starting
+  }
+
+  private async startOnce(): Promise<DesktopStatus> {
     if (this.state === 'running' && this.display) return this.status()
 
     this.state = 'starting'
@@ -539,6 +558,21 @@ export class Desktop {
       .split('\n')
       .map((line) => line.trim().split(/\s+/)[0] ?? '')
       .filter(Boolean)
+  }
+
+  async destroy(): Promise<void> {
+    this.destroyed = true
+    try {
+      // Any already-started allocation must finish before its reservation is removed.
+      await this.starting
+      await host.destroyScreen(this.botId)
+      this.display = null
+      this.heldBy = null
+      this.state = 'stopped'
+    } catch (error) {
+      this.destroyed = false
+      throw error
+    }
   }
 
   /** Stops this bot's screen. The machine stays up for everyone else. */
@@ -584,7 +618,7 @@ export class Desktop {
    * text ends and the image begins.
    */
   async captureFrame(quality = 6): Promise<{ jpeg: Buffer; pointer: { x: number; y: number } | null } | null> {
-    if (this.state !== 'running' || !this.display) return null
+    if (this.destroyed || this.state !== 'running' || !this.display) return null
     const display = this.display
 
     return new Promise((resolve) => {
@@ -647,19 +681,19 @@ export class Desktop {
    * the browser has started and stays the same across restarts of it.
    */
   get cdpPort(): number | null {
-    if (!this.display) return null
+    if (this.destroyed || !this.display) return null
     const n = Number(this.display.slice(1))
     return Number.isFinite(n) ? 9222 + (n - 99) : null
   }
 
   /** What is on the desktop's clipboard, for copying out of it. */
   async readClipboard(): Promise<string> {
-    if (this.state !== 'running' || !this.display) return ''
+    if (this.destroyed || this.state !== 'running' || !this.display) return ''
     return host.execOn(this.display, ['act', 'clipget'], 10_000).catch(() => '')
   }
 
   async send(input: DesktopInput): Promise<void> {
-    if (this.state !== 'running' || !this.display) throw new Error('This bot has no screen running.')
+    if (this.destroyed || this.state !== 'running' || !this.display) throw new Error('This bot has no screen running.')
 
     // A drag is one xdotool chain rather than an `act` verb, so the container image
     // needs no change for it: down at the start, a move, up at the end.

@@ -25,10 +25,10 @@ async function setup(t: TestContext, robinhood?: Robinhood) {
     status: async () => ({ state: 'running', width: 800, height: 600 }),
     captureFrame: async () => ({ jpeg: Buffer.from('test-image') }),
   } as unknown as Surface
-  const desktops = { for: (botId: string) => {
+  const desktops = { assertAvailable() {}, for: (botId: string) => {
     assert.equal(botId, screen.bot.id, 'screenless tools must not resolve a desktop')
     return surface
-  } } as DesktopPool
+  } } as unknown as DesktopPool
   const events: ServerEvent[] = []
   const sessions = new SessionManager(store, new Map(), (event) => events.push(event))
   const mcp = new McpHttp(desktops, store, new Handovers(() => {}),
@@ -182,4 +182,13 @@ test('HTTP harnesses discover and execute an external plugin without a screen', 
   assert.ok(!(await other.listTools()).tools.some(t => t.name === 'robinhood_list_tools'))
   grantedBot = ''
   assert.equal((await client.callTool({ name: 'robinhood_list_tools', arguments: {} })).isError, true)
+})
+
+test('a deleted bot cannot keep using its old MCP URL', async t => {
+  const f = await setup(t)
+  f.store.deleteBot(f.first.bot.id)
+  const response = await fetch(f.urlFor(f.first), {
+    method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  })
+  assert.equal(response.status, 404)
 })

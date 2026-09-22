@@ -15,6 +15,7 @@ export interface RpcContext {
   plugins?: Plugins
   viaRelay?: boolean
   relay?: RelayConnection
+  disconnectViewer?: (botId: string) => Promise<void>
   viewerPath?: (botId: string) => string
   store: Store
   sessions: SessionManager
@@ -160,9 +161,9 @@ const handlers: Record<RpcMethod, Handler> = {
 
   'bots.delete': async (p, ctx) => {
     const { id } = p as { id: string }
-    if (!ctx.store.deleteBot(id)) throw new RpcError('not_found', `No such bot: ${id}`)
-    // The bot is gone; its container should not outlive it.
-    void ctx.desktops.for(id).stop().catch(() => {})
+    if (!ctx.store.getBot(id)) throw new RpcError('not_found', `No such bot: ${id}`)
+    try { await ctx.sessions.deleteBot(id, () => ctx.disconnectViewer?.(id) ?? Promise.resolve()) }
+    catch (error) { throw new RpcError('cleanup_failed', error instanceof Error ? error.message : String(error)) }
     return { ok: true as const }
   },
 

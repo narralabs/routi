@@ -21,6 +21,7 @@ export function createVncBridge(options: {
 }) {
   const prefix = `/vnc/${options.token}`
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024, perMessageDeflate: false })
+  const connections = new Set<{ bot: string; cleanup: () => void; ready?: Promise<void> }>()
   let closing = false
   const alive = new Set<import('ws').WebSocket>()
   const pending = new Set<Promise<void>>()
@@ -70,6 +71,7 @@ export function createVncBridge(options: {
         alive.add(ws)
         ws.on('pong', () => alive.add(ws))
         let disposed = false
+        let setupFinished = false
         let release: (() => void) | undefined
         let child: ChildProcessWithoutNullStreams | undefined
         let stream: ReturnType<typeof createWebSocketStream> | undefined
@@ -77,12 +79,15 @@ export function createVncBridge(options: {
           if (disposed) return
           disposed = true
           alive.delete(ws)
+          if (setupFinished) connections.delete(connection)
           release?.()
           child?.stdin.destroy()
           child?.kill()
           stream?.destroy()
           ws.terminate()
         }
+        const connection = { bot, cleanup, ready: undefined as Promise<void> | undefined }
+        connections.add(connection)
         ws.on('close', cleanup)
         ws.on('error', cleanup)
         // Stop ws from buffering client data while Docker starts the display server.
@@ -108,8 +113,13 @@ export function createVncBridge(options: {
             ws.resume()
           } catch { cleanup() }
         })()
+        connection.ready = setup
         pending.add(setup)
-        void setup.finally(() => pending.delete(setup))
+        void setup.finally(() => {
+          setupFinished = true
+          pending.delete(setup)
+          if (disposed) connections.delete(connection)
+        })
       })
     })().catch(() => socket.destroy())
   }
@@ -117,6 +127,11 @@ export function createVncBridge(options: {
     handle,
     upgrade,
     prefix,
+    async disconnectBot(bot: string) {
+      const owned = [...connections].filter(connection => connection.bot === bot)
+      for (const connection of owned) connection.cleanup()
+      await Promise.all(owned.map(connection => connection.ready))
+    },
     async close() {
       closing = true
       clearInterval(heartbeat)

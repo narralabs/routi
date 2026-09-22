@@ -79,6 +79,10 @@ export class McpHttp {
     if (req.method !== 'POST') return this.fail(res, 405, 'POST a JSON-RPC request.')
 
     const body = await this.readBody(req)
+    if (!this.store.getBot(botId)) return this.fail(res, 404, 'No such bot.')
+    try { this.desktops.assertAvailable(botId) }
+    catch { return this.fail(res, 409, 'This bot is being deleted.') }
+
     let request: { id?: unknown; method?: string; params?: Record<string, unknown> }
     try {
       request = JSON.parse(body)

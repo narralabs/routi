@@ -32,15 +32,15 @@ export class Plugins {
   }
   close(): void { for (const plugin of this.entries.values()) plugin.close() }
   toolContext(botId: string, conversationId: string, signal?: AbortSignal): ToolContext {
-    const contexts = [...this.entries.values()].map(plugin => plugin.toolContext(botId, conversationId, signal))
+    const tools = [...this.entries.values()].flatMap(plugin => plugin.context(botId, signal, true) ?? [])
     return {
       pluginIds: [...this.entries.keys()],
       requestPluginAccess: async id => this.get(id).requestAccess(botId, conversationId),
       external: {
-        specs: contexts.flatMap(ctx => ctx.external?.specs ?? []),
+        specs: tools.flatMap(tool => tool.specs),
         run: async (name, args) => {
-          const tools = contexts.find(ctx => ctx.external?.specs.some(spec => spec.name === name))?.external
-          return tools ? tools.run(name, args) : { ok: false, output: 'Unknown plugin tool.', summary: 'Unknown tool' }
+          const plugin = tools.find(tool => tool.specs.some(spec => spec.name === name))
+          return plugin ? plugin.run(name, args) : { ok: false, output: 'Unknown plugin tool.', summary: 'Unknown tool' }
         },
       },
     }

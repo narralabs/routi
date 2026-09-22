@@ -256,16 +256,6 @@ export class McpPlugin {
     })
   }
 
-  toolContext(botId: string, conversationId: string, signal?: AbortSignal): ToolContext {
-    return {
-      pluginIds: [this.definition.id],
-      external: this.context(botId, signal, true),
-      requestPluginAccess: async plugin => plugin === this.definition.id
-        ? this.requestAccess(botId, conversationId)
-        : { ok: false, output: 'Unknown plugin.', summary: 'Unknown plugin' },
-    }
-  }
-
   context(botId: string, signal?: AbortSignal, includeLocked = false): ToolContext['external'] {
     if (!this.store.getBot(botId) || (!includeLocked && !this.store.pluginEnabled(this.definition.id, botId))) return undefined
     return {

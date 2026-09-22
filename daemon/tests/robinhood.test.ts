@@ -14,10 +14,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDb } from '../src/db/schema.js'
 import { Store } from '../src/db/store.js'
-import { Robinhood } from '../src/plugins/robinhood.js'
 import { desktopToolSpecs, runDesktopTool } from '../src/surfaces/tools.js'
 
-async function fixture(t: TestContext, definition?: McpPluginDefinition) {
+async function fixture(t: TestContext, definition: McpPluginDefinition = robinhoodDefinition) {
   const dir = mkdtempSync(join(tmpdir(), 'routi-robinhood-test-'))
   const db = openDb(join(dir, 'test.db'))
   const store = new Store(db)
@@ -91,9 +90,7 @@ async function fixture(t: TestContext, definition?: McpPluginDefinition) {
     setApiKey: async (value: string, _provider?: string, profile?: string) => { saved.set(`${_provider}:${profile}`, value) },
     clearApiKey: async (_provider?: string, profile?: string) => { saved.delete(`${_provider}:${profile}`) },
   }
-  const plugin = definition
-    ? new McpPlugin({ ...definition, url: `${url}/mcp` }, store, secrets, dir, id => changed.push(id))
-    : new Robinhood(store, secrets, dir, id => changed.push(id), `${url}/mcp`)
+  const plugin = new McpPlugin({ ...definition, url: `${url}/mcp` }, store, secrets, dir, id => changed.push(id))
   t.after(async () => { plugin.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); db.close(); rmSync(dir, { recursive: true, force: true }) })
   const callbackFor = (loginUrl: string) => {
     const login = new URL(loginUrl)
@@ -172,10 +169,10 @@ test('profile isolation, restart persistence, and permanent bot deletion', async
   const other = f.store.createProfile('Other')
   await assert.rejects(f.plugin.enable(other.id, f.bot.id, true), /does not belong/)
   assert.equal((await f.plugin.status(other.id)).connected, false)
-  const restarted = new Robinhood(f.store, f.secrets, f.dir, () => {}, `${f.url}/mcp`)
+  const restarted = new McpPlugin({ ...robinhoodDefinition, url: `${f.url}/mcp` }, f.store, f.secrets, f.dir, () => {})
   assert.equal((await restarted.status('default')).connected, true)
   assert.ok(restarted.context(f.bot.id))
-  const otherCore = new Robinhood(f.store, f.secrets, '/different/core', () => {}, `${f.url}/mcp`)
+  const otherCore = new McpPlugin({ ...robinhoodDefinition, url: `${f.url}/mcp` }, f.store, f.secrets, '/different/core', () => {})
   assert.equal((await otherCore.status('default')).connected, false)
   f.store.deleteBot(f.bot.id)
   assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
@@ -362,10 +359,7 @@ test('oversized schemas and results are withheld without replaying actions', asy
   const f = await fixture(t)
   await f.plugin.finish('default', (await f.begin()).href)
   await f.plugin.enable('default', f.bot.id, true)
-  const conversation = f.store.listConversations(f.bot.id)[0]!
-  const ctx = f.plugin.toolContext(f.bot.id, conversation.id)
-  assert.equal((await ctx.requestPluginAccess!('unknown')).ok, false)
-  assert.equal((await ctx.requestPluginAccess!('robinhood')).ok, true)
+  const ctx = { external: f.plugin.context(f.bot.id) }
   assert.equal(ctx.external!.specs.length, 2)
   // Multibyte text verifies the byte limit, not just a character count.
   f.setPayload('界'.repeat(MAX_PLUGIN_OUTPUT_BYTES / 2))

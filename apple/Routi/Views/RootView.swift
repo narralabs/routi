@@ -19,6 +19,9 @@ import SwiftUI
 /// reconstructed with width breakpoints.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    #if os(iOS)
+    @State private var subscription = ConnectSubscription()
+    #endif
     @State private var showingRailSettings = false
     @State private var showingNewBot = false
 
@@ -38,7 +41,7 @@ struct RootView: View {
                 // Setup comes first on a fresh install — before any connection, since
                 // finding or installing a core is what setup is for.
                 OnboardingView()
-            } else if !model.authKnown {
+            } else if !model.authKnown || (model.usesRelay && model.connectionMessage != nil) {
                 // Neither chat nor an error is correct until the handshake lands.
                 ConnectingView()
             } else {
@@ -60,6 +63,16 @@ struct RootView: View {
         )) {
             SettingsScreen()
         }
+        #if os(iOS)
+        .environment(subscription)
+        .task(id: model.relayViewerProfile?.token) {
+            subscription = ConnectSubscription()
+            if let profile = model.relayViewerProfile { await subscription.observe(profile) }
+        }
+        .onChange(of: subscription.access?.billing?.subscribed) { _, paid in
+            if paid == true { model.connectNow() }
+        }
+        #endif
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
         .animation(.snappy(duration: 0.3), value: model.authKnown)
         .animation(.snappy(duration: 0.3), value: model.isSettling)
@@ -227,6 +240,9 @@ private struct ConnectingView: View {
                 : "On your Mac, open Settings → Routi Core → Routi Connect and choose Pair device. Then scan the code here."))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+            if let profile = model.relayViewerProfile, model.connectionMessage != nil {
+                ConnectSubscriptionView(profile: profile)
+            }
             if manualConnection && !model.usesRelay {
                 Text("Manual connection: \(host)")
                     .font(.caption).foregroundStyle(.secondary)

@@ -18,7 +18,7 @@ final class RelayTunnel: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         self.token = token
     }
 
-    func start() async throws -> URL {
+    func start(pairing: Bool = false) async throws -> URL {
         var components = URLComponents(url: relay.appendingPathComponent("v1/access"), resolvingAgainstBaseURL: false)!
         components.scheme = relay.scheme == "wss" ? "https" : "http"
         var request = URLRequest(url: components.url!, timeoutInterval: 10)
@@ -28,9 +28,9 @@ final class RelayTunnel: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         let (data, response) = try await accessSession.data(for: request)
         if (response as? HTTPURLResponse)?.statusCode == 200 {
             struct Access: Decodable { let expired: Bool }
-            if try JSONDecoder().decode(Access.self, from: data).expired {
+            if try !pairing && JSONDecoder().decode(Access.self, from: data).expired {
                 throw NSError(domain: "RoutiConnect", code: 402, userInfo: [NSLocalizedDescriptionKey:
-                    "Your Connect trial has ended. You can still use Routi on your Mac or connect through Tailscale."])
+                    "Connect access has ended. Subscribe or restore your purchase to reconnect. You can still use Routi on your Mac or through Tailscale."])
             }
         } else if ![403, 404].contains((response as? HTTPURLResponse)?.statusCode ?? 0) {
             throw URLError(.userAuthenticationRequired)

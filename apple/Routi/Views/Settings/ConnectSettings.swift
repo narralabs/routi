@@ -15,7 +15,7 @@ struct ConnectStatus: Decodable {
     let error: String?
 
     var indicator: (label: String, color: Color) {
-        if access?.expired == true { return ("Trial ended", .secondary) }
+        if access?.expired == true { return ("Access ended", .secondary) }
         return switch state {
         case "connected": ("Connected", .green)
         case "connecting": ("Connecting…", .orange)
@@ -61,8 +61,10 @@ struct ConnectSettings: View {
                             .disabled(status.enabled || busy)
                     }
                     if status.access?.expired == true {
-                        Text("Your three-day Connect trial has ended. You can still use Routi on your Mac or connect through Tailscale.")
+                        Text("Connect access has ended. Subscribe or restore purchases on your paired iPhone or iPad. Mac use and Tailscale remain available.")
                             .font(.caption).foregroundStyle(.secondary).padding(14)
+                    } else if status.access?.trial == false {
+                        Text("Connect access is active.").font(.caption).foregroundStyle(.secondary).padding(14)
                     } else if let expiry = status.access?.expiresAt {
                         Text("Connect trial ends \(Date(timeIntervalSince1970: expiry / 1000).formatted(date: .abbreviated, time: .shortened)).")
                             .font(.caption).foregroundStyle(.secondary).padding(14)
@@ -76,7 +78,7 @@ struct ConnectSettings: View {
                     if status.canPair {
                         SettingsRow(title: "Paired devices", detail: "Each device has its own access.") {
                             Button("Pair device") { Task { await pair() } }
-                                .disabled(busy || status.state != "connected" || status.access?.expired == true)
+                                .disabled(busy || status.state != "connected")
                         }
                         ForEach(status.devices) { device in
                             SettingsRow(title: device.name) {
@@ -88,7 +90,7 @@ struct ConnectSettings: View {
                         Button(status.enabled ? "Disconnect" : "Connect") {
                             Task { await configure(status) }
                         }
-                        .disabled(busy || model.connection != .connected || (!status.enabled && status.access?.expired == true))
+                        .disabled(busy || model.connection != .connected)
                     }
                 }
             }

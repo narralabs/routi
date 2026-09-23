@@ -27,7 +27,7 @@
     "@routi/protocol": "workspace:^",
     "better-sqlite3": "^13.0.3",
     "openai": "^7.10.0",
-    "routi-relay": "github:laborosai/routi-relay#49e47775ad69c62d47a1ebefb0844abc2eaa2da7",
+    "routi-relay": "github:laborosai/routi-relay#3c0831754d5e091d820891818a66ae8b2228118f",
     "ws": "^8.21.3",
     "zod": "^4.5.4",
     "@novnc/novnc": "1.7.0",

@@ -31,7 +31,7 @@ final class RoutiClient: NSObject {
         didSet { if oldValue != state { onStateChange?(state) } }
     }
     private(set) var connectionMessage: String?
-    private(set) var connectAccessExpired = false
+    private(set) var relayAccess: ConnectAccess?
     private(set) var account: AccountInfo?
     /// What the core said it is, from the handshake. Shown in Settings so "which core
     /// is this" is answerable without a terminal.
@@ -83,7 +83,7 @@ final class RoutiClient: NSObject {
 
     func useRelay(_ profile: RelayProfile?) {
         UserDefaults.standard.set(false, forKey: "manualCoreConnection")
-        connectAccessExpired = false
+        relayAccess = nil
         connectionMessage = nil
         subscriptions.removeAll()
         relayProfile = profile
@@ -94,7 +94,7 @@ final class RoutiClient: NSObject {
         #if os(iOS)
         UserDefaults.standard.set(true, forKey: "manualCoreConnection")
         #endif
-        connectAccessExpired = false
+        relayAccess = nil
         connectionMessage = nil
         // The same address typed again is a request to try it again, not a no-op —
         // onboarding's Connect button would otherwise sit through its whole wait.
@@ -136,6 +136,8 @@ final class RoutiClient: NSObject {
                 do {
                     let base = try await tunnel.start()
                     try Task.checkCancellation()
+                    self.relayAccess = tunnel.access
+                    self.connectionMessage = nil
                     self.relayBaseURL = base
                     let trust = try RelayTrust(certificate: profile.certificate, pkcs12: profile.pkcs12)
                     let inner = URLSession(configuration: .ephemeral, delegate: trust, delegateQueue: nil)
@@ -148,8 +150,9 @@ final class RoutiClient: NSObject {
                     tunnel.stop()
                     if !Task.isCancelled {
                         let failure = error as NSError
-                        self.connectAccessExpired = failure.domain == "RoutiConnect" && failure.code == 402
-                        self.connectionMessage = failure.domain == "RoutiConnect" ? error.localizedDescription : nil
+                        self.relayAccess = tunnel.access
+                        self.connectionMessage = failure.domain == "RoutiConnect" ? error.localizedDescription
+                            : "Can’t reach Routi Connect. Check your internet connection and try again."
                         self.handleDisconnect()
                     }
                 }
@@ -295,7 +298,6 @@ final class RoutiClient: NSObject {
                     "message": "routid speaks protocol v\(serverVersion); this app speaks v\(Self.protocolVersion).",
                 ]))
             }
-            connectAccessExpired = false
             connectionMessage = nil
             state = .connected
             for id in subscriptions {

@@ -32,8 +32,6 @@ struct ConnectSubscriptionView: View {
                         } else {
                             Text("Subscriptions are currently unavailable.")
                                 .font(.subheadline).foregroundStyle(.secondary)
-                            Button("Try again") { Task { await subscription.refresh(profile) } }
-                                .frame(minHeight: 44)
                         }
                         Button {
                             Task { await subscription.restore(profile) }
@@ -71,19 +69,15 @@ struct ConnectSubscriptionView: View {
                     .font(.footnote)
                 }
                 .padding(.horizontal, 8)
+            } else if subscription.access != nil {
+                Text("Subscriptions are not available on this relay.")
+                    .font(.subheadline).foregroundStyle(.secondary)
             } else {
-                if let message = subscription.message {
-                    Text(message).font(.subheadline).foregroundStyle(.secondary)
-                    Button("Retry subscription options") { Task { await subscription.refresh(profile) } }
-                        .frame(minHeight: 44)
-                } else {
-                    ProgressView("Loading subscription options…")
-                }
+                ProgressView("Loading subscription options…")
             }
         }
         .multilineTextAlignment(.center)
         .disabled(subscription.busy)
-        .task(id: profile.token) { await subscription.refresh(profile) }
     }
 }
 #endif

@@ -2,16 +2,6 @@
 import Foundation
 import StoreKit
 
-struct ConnectAccess: Decodable {
-    struct Billing: Decodable {
-        let productId: String
-        let appAccountToken: UUID
-        let subscribed: Bool
-    }
-    let expired: Bool
-    let billing: Billing?
-}
-
 @MainActor @Observable
 final class ConnectSubscription {
     static let productId = "com.routibot.connect.monthly"
@@ -22,17 +12,15 @@ final class ConnectSubscription {
     private(set) var busy = false
     private(set) var message: String?
 
-    private func request(_ profile: RelayProfile, signedPayload: String? = nil) async throws -> ConnectAccess {
+    private func request(_ profile: RelayProfile, signedPayload: String) async throws -> ConnectAccess {
         var url = URLComponents(string: profile.relay)!
         url.scheme = "https"
-        url.path = signedPayload == nil ? "/v1/access" : "/v1/subscription"
+        url.path = "/v1/subscription"
         var request = URLRequest(url: url.url!, timeoutInterval: 20)
         request.setValue("Bearer \(profile.token)", forHTTPHeaderField: "Authorization")
-        if let signedPayload {
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(["signedPayload": signedPayload])
-        }
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["signedPayload": signedPayload])
         // Reuse the relay's redirect rejection so credentials never follow redirects.
         let delegate = RelayTunnel(relay: URL(string: profile.relay)!, token: profile.token)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
@@ -45,10 +33,10 @@ final class ConnectSubscription {
         return try JSONDecoder().decode(ConnectAccess.self, from: data)
     }
 
-    func refresh(_ profile: RelayProfile) async {
+    func updateAccess(_ access: ConnectAccess?) async {
+        self.access = access
+        product = nil; message = nil
         do {
-            access = try await request(profile)
-            message = nil
             if let billing = access?.billing {
                 guard billing.productId == Self.productId else { throw PairingError("This relay does not offer Routi Connect subscriptions.") }
                 product = try await Product.products(for: [billing.productId]).first
@@ -105,12 +93,11 @@ final class ConnectSubscription {
         } catch { message = error.localizedDescription }
     }
 
-    func observe(_ profile: RelayProfile) async {
-        access = nil; product = nil; message = nil
-        await refresh(profile)
+    func observe(_ profile: RelayProfile, access: ConnectAccess) async {
+        await updateAccess(access)
         for await result in Transaction.currentEntitlements {
             if Task.isCancelled { return }
-            if case .verified(let tx) = result, tx.appAccountToken == access?.billing?.appAccountToken {
+            if case .verified(let tx) = result, tx.appAccountToken == access.billing?.appAccountToken {
                 do { _ = try await submit(result, profile: profile) }
                 catch { message = error.localizedDescription }
             }

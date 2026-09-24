@@ -47,7 +47,7 @@ final class AppModel {
     /// as an alert — an alert that fires while you are looking elsewhere is lost.
     var conversationErrors: [String: String] = [:]
     var connectionMessage: String?
-    var connectAccessExpired = false
+    var relayAccess: ConnectAccess?
     var connection: RoutiClient.ConnectionState = .disconnected
     /// Local notifications for bots the person is not watching.
     let notifier = Notifier()
@@ -150,7 +150,7 @@ final class AppModel {
         client.onStateChange = { [weak self] state in
             guard let self else { return }
             self.connectionMessage = self.client.connectionMessage
-            self.connectAccessExpired = self.client.connectAccessExpired
+            self.relayAccess = self.client.relayAccess
             self.connection = state
             switch state {
             case .connected: self.connectionFailed = false; self.isSettling = false

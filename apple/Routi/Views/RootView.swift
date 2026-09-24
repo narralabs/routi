@@ -65,9 +65,11 @@ struct RootView: View {
         }
         #if os(iOS)
         .environment(subscription)
-        .task(id: model.relayViewerProfile?.token) {
+        .task(id: model.relayAccess) {
             subscription = ConnectSubscription()
-            if let profile = model.relayViewerProfile { await subscription.observe(profile) }
+            if let profile = model.relayViewerProfile, let access = model.relayAccess {
+                await subscription.observe(profile, access: access)
+            }
         }
         .onChange(of: subscription.access?.billing?.subscribed) { _, paid in
             if paid == true { model.connectNow() }
@@ -296,7 +298,7 @@ private struct ConnectingView: View {
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(.tint)
             if let profile = model.relayViewerProfile {
-                if model.connectAccessExpired || subscription.access?.expired == true {
+                if model.relayAccess?.expired == true {
                     VStack(spacing: 12) {
                         Text("Connect access has ended").font(.title2.bold())
                         Text("Your bots are still running on your Mac. Subscribe to access them from here.")
@@ -305,7 +307,8 @@ private struct ConnectingView: View {
                     .padding(.bottom, 12)
                     ConnectSubscriptionView(profile: profile)
                 } else {
-                    Text("Connecting to \(profile.name)").font(.title2.bold())
+                    Text(model.connectionFailed ? (model.relayAccess == nil ? "Can’t reach Routi Connect" : "Can’t reach \(profile.name)") : "Connecting to \(profile.name)")
+                        .font(.title2.bold())
                     Text(model.connectionMessage ?? "Keep your Mac awake, online, and connected to Routi Connect.")
                         .foregroundStyle(.secondary)
                     if model.connectionMessage == nil { ProgressView() }

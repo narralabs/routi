@@ -9,10 +9,19 @@ private final class BillingProtocol: URLProtocol, @unchecked Sendable {
     static var rejectClaim = false
     static var activateClaim = true
     static var claims = 0
+    static var accessRequests = 0
+    static var failAccess = false
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let claim = request.url!.path == "/v1/subscription"
+        if !claim {
+            Self.accessRequests += 1
+            if Self.failAccess {
+                client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+                return
+            }
+        }
         if claim { Self.claims += 1; if !Self.rejectClaim { Self.subscribed = Self.activateClaim } }
         let rejected = claim && Self.rejectClaim
         let body: [String: Any] = rejected
@@ -29,6 +38,32 @@ private final class BillingProtocol: URLProtocol, @unchecked Sendable {
 
 @MainActor
 final class ConnectSubscriptionTests: XCTestCase {
+    func testExpiredRelayReturnsBillingButUnreachableRelayDoesNot() async throws {
+        BillingProtocol.subscribed = false
+        BillingProtocol.failAccess = false
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [BillingProtocol.self]
+        let tunnel = RelayTunnel(relay: URL(string: "wss://relay.example")!, token: "test", configuration: config)
+        do {
+            _ = try await tunnel.start()
+            XCTFail("Expired access must not open a Mac tunnel")
+        } catch {
+            XCTAssertEqual((error as NSError).code, 402)
+        }
+        XCTAssertEqual(tunnel.access?.expired, true)
+        XCTAssertEqual(tunnel.access?.billing?.productId, ConnectSubscription.productId)
+        BillingProtocol.failAccess = true
+        defer { BillingProtocol.failAccess = false }
+        let offline = RelayTunnel(relay: URL(string: "wss://relay.example")!, token: "test", configuration: config)
+        do {
+            _ = try await offline.start()
+            XCTFail("An unreachable relay must report a connection failure")
+        } catch {
+            XCTAssertEqual((error as NSError).code, URLError.notConnectedToInternet.rawValue)
+        }
+        XCTAssertNil(offline.access)
+    }
+
     func testPurchaseRestoreAndWrongMac() async throws {
         let store = try SKTestSession(configurationFileNamed: "Connect")
         store.disableDialogs = true
@@ -39,12 +74,17 @@ final class ConnectSubscriptionTests: XCTestCase {
         BillingProtocol.rejectClaim = false
         BillingProtocol.activateClaim = true
         BillingProtocol.claims = 0
+        BillingProtocol.accessRequests = 0
+        BillingProtocol.failAccess = false
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [BillingProtocol.self]
         let profile = RelayProfile(relay: "wss://relay.example", token: String(repeating: "x", count: 43),
             certificate: Data(), pkcs12: Data(), name: "Test Mac")
         let billing = ConnectSubscription(configuration: config)
-        await billing.refresh(profile)
+        let tunnel = RelayTunnel(relay: URL(string: profile.relay)!, token: profile.token, configuration: config)
+        let access = try await tunnel.checkAccess()
+        await billing.updateAccess(access)
+        XCTAssertEqual(BillingProtocol.accessRequests, 1)
         _ = try XCTUnwrap(billing.product, billing.message ?? "StoreKit returned no product")
         await billing.purchase(profile)
         XCTAssertNil(billing.message)
@@ -56,7 +96,7 @@ final class ConnectSubscriptionTests: XCTestCase {
         }
         // Another install restores the existing purchase; it doesn't charge again.
         let restored = ConnectSubscription(configuration: config)
-        await restored.refresh(profile)
+        await restored.updateAccess(access)
         await restored.restore(profile)
         XCTAssertEqual(restored.access?.billing?.subscribed, true)
         XCTAssertNil(restored.message)
@@ -70,7 +110,7 @@ final class ConnectSubscriptionTests: XCTestCase {
         // The server binding, rather than local StoreKit ownership, decides which Mac is covered.
         BillingProtocol.rejectClaim = true
         BillingProtocol.subscribed = false
-        await restored.refresh(profile)
+        await restored.updateAccess(access)
         await restored.purchase(profile)
         XCTAssertEqual(restored.access?.billing?.subscribed, false)
         XCTAssertTrue(restored.message?.contains("another Mac") == true)

@@ -115,7 +115,7 @@ struct EndpointStep: View {
         OnboardingScaffold(
             icon: "network",
             title: "Connect manually",
-            subtitle: "Enter the Routi Core address shown on your Mac. For a Tailscale address, connect both devices to Tailscale first.",
+            subtitle: "Connect directly using a Tailscale hostname or IP address. No Routi Connect subscription is needed. For Tailscale, connect both devices first.",
             onBack: onBack
         ) {
             VStack(spacing: 14) {

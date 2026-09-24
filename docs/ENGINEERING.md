@@ -152,9 +152,13 @@ and registers token hashes with the relay. The three-day trial starts with the f
 remote device connection; its deadline persists on the relay. Expiration closes
 remote sessions without stopping bots or local/Tailscale access. Additional devices
 share that deadline. Existing manually provisioned connections are unaffected.
-Billing is separate. The relay must enable trial enrollment; see its deployment README.
+Apple StoreKit purchases and Restore Purchases on iPhone/iPad cover the paired Mac.
+The relay verifies Apple transactions and current subscription status; an existing
+purchase cannot unlock another Mac. Pairing remains available after expiry so a
+replacement phone can restore access. Configure billing in the relay's `docs/ENGINEERING.md`;
+use a sandbox relay for purchase tests. Product: `com.routibot.connect.monthly`.
 `ROUTI_CONNECT_HOST_FILE` overrides the local credential path. Certificates currently
-last 30 days; renewal remains required for longer-lived connections.
+last one year. Automatic renewal is not implemented yet.
 
 `pnpm test` covers pairing expiry/replay, device isolation, allowances, revocation, disconnect,
 and route restrictions using local test credentials, with no model calls. The

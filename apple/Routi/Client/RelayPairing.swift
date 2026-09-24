@@ -54,7 +54,7 @@ enum RelayPairing {
     static func claim(_ invitation: RelayInvitation, deviceName: String = "iPhone") async throws -> RelayProfile {
         let tunnel = RelayTunnel(relay: URL(string: invitation.relay)!, token: invitation.token)
         defer { tunnel.stop() }
-        let base = try await tunnel.start()
+        let base = try await tunnel.start(pairing: true)
         let trust = try RelayTrust(certificate: invitation.certificate)
         let session = URLSession(configuration: .ephemeral, delegate: trust, delegateQueue: nil)
         defer { session.invalidateAndCancel() }

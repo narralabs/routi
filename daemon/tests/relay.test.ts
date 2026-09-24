@@ -317,4 +317,10 @@ test('a fresh Mac enrolls without CLI setup and pairs a phone for a persistent t
   assert.equal((await core.refreshStatus()).access?.expired, true)
   await assert.rejects(connectViewer(url, phone), /402/)
   assert.equal(core.status().devices.length, 1)
+  assert.equal(core.status().state, 'connected')
+  // Expiry blocks tools/chat but still permits pairing a replacement phone for restore.
+  const replacement = JSON.parse(Buffer.from(new URL((await core.pairPhone()).url).searchParams.get('data')!, 'base64url').toString())
+  const replacementResponse = await request(url, bootstrap, '/pair', 'POST', replacement.secret)
+  assert.match(replacementResponse.slice(0, 32), /HTTP\/1.1 200/)
+  assert.equal(core.status().devices.length, 2)
 })

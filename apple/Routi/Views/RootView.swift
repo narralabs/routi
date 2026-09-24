@@ -296,7 +296,7 @@ private struct ConnectingView: View {
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(.tint)
             if let profile = model.relayViewerProfile {
-                if subscription.access?.expired == true {
+                if model.connectAccessExpired || subscription.access?.expired == true {
                     VStack(spacing: 12) {
                         Text("Connect access has ended").font(.title2.bold())
                         Text("Your bots are still running on your Mac. Subscribe to access them from here.")

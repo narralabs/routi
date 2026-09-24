@@ -31,6 +31,7 @@ final class RoutiClient: NSObject {
         didSet { if oldValue != state { onStateChange?(state) } }
     }
     private(set) var connectionMessage: String?
+    private(set) var connectAccessExpired = false
     private(set) var account: AccountInfo?
     /// What the core said it is, from the handshake. Shown in Settings so "which core
     /// is this" is answerable without a terminal.
@@ -82,6 +83,7 @@ final class RoutiClient: NSObject {
 
     func useRelay(_ profile: RelayProfile?) {
         UserDefaults.standard.set(false, forKey: "manualCoreConnection")
+        connectAccessExpired = false
         connectionMessage = nil
         subscriptions.removeAll()
         relayProfile = profile
@@ -92,6 +94,7 @@ final class RoutiClient: NSObject {
         #if os(iOS)
         UserDefaults.standard.set(true, forKey: "manualCoreConnection")
         #endif
+        connectAccessExpired = false
         connectionMessage = nil
         // The same address typed again is a request to try it again, not a no-op —
         // onboarding's Connect button would otherwise sit through its whole wait.
@@ -144,7 +147,9 @@ final class RoutiClient: NSObject {
                 } catch {
                     tunnel.stop()
                     if !Task.isCancelled {
-                        self.connectionMessage = (error as NSError).domain == "RoutiConnect" ? error.localizedDescription : nil
+                        let failure = error as NSError
+                        self.connectAccessExpired = failure.domain == "RoutiConnect" && failure.code == 402
+                        self.connectionMessage = failure.domain == "RoutiConnect" ? error.localizedDescription : nil
                         self.handleDisconnect()
                     }
                 }
@@ -290,6 +295,7 @@ final class RoutiClient: NSObject {
                     "message": "routid speaks protocol v\(serverVersion); this app speaks v\(Self.protocolVersion).",
                 ]))
             }
+            connectAccessExpired = false
             connectionMessage = nil
             state = .connected
             for id in subscriptions {

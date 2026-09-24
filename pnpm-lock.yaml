@@ -35,8 +35,8 @@ importers:
         specifier: ^7.10.0
         version: 7.10.0(ws@8.21.3)(zod@4.5.4)
       routi-relay:
-        specifier: github:laborosai/routi-relay#49e47775ad69c62d47a1ebefb0844abc2eaa2da7
-        version: https://codeload.github.com/laborosai/routi-relay/tar.gz/49e47775ad69c62d47a1ebefb0844abc2eaa2da7
+        specifier: github:laborosai/routi-relay#3c0831754d5e091d820891818a66ae8b2228118f
+        version: https://codeload.github.com/laborosai/routi-relay/tar.gz/3c0831754d5e091d820891818a66ae8b2228118f
       ws:
         specifier: ^8.21.3
         version: 8.21.3
@@ -913,8 +913,8 @@ packages:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
 
-  routi-relay@https://codeload.github.com/laborosai/routi-relay/tar.gz/49e47775ad69c62d47a1ebefb0844abc2eaa2da7:
-    resolution: {tarball: https://codeload.github.com/laborosai/routi-relay/tar.gz/49e47775ad69c62d47a1ebefb0844abc2eaa2da7}
+  routi-relay@https://codeload.github.com/laborosai/routi-relay/tar.gz/3c0831754d5e091d820891818a66ae8b2228118f:
+    resolution: {tarball: https://codeload.github.com/laborosai/routi-relay/tar.gz/3c0831754d5e091d820891818a66ae8b2228118f}
     version: 0.1.0
     engines: {node: '>=22'}
 
@@ -1750,7 +1750,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  routi-relay@https://codeload.github.com/laborosai/routi-relay/tar.gz/49e47775ad69c62d47a1ebefb0844abc2eaa2da7:
+  routi-relay@https://codeload.github.com/laborosai/routi-relay/tar.gz/3c0831754d5e091d820891818a66ae8b2228118f:
     dependencies:
       '@apple/app-store-server-library': 3.1.0
       ws: 8.21.3

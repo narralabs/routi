@@ -312,19 +312,14 @@ private struct ConnectingView: View {
                     Button("Try again") { model.connectNow() }
                         .buttonStyle(.borderedProminent)
                 }
-                DisclosureGroup("Other connection options") {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Button("Pair a different Mac") { showingScanner = true }
-                        manualConnectionButton
-                        Text("Manual connections don’t require a Connect subscription.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    .padding(.top, 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(spacing: 8) {
+                    Divider().padding(.bottom, 16)
+                    manualConnectionButton
+                    Text("No Routi Connect subscription required.")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 .font(.subheadline)
                 .padding(.top, 8)
-                .padding(.vertical, 12)
             } else {
                 Text("Connect to your Mac").font(.title2.bold())
                 Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")
@@ -349,8 +344,10 @@ private struct ConnectingView: View {
     }
 
     private var manualConnectionButton: some View {
-        Button("Use Tailscale or an IP address") { showingManualConnection = true }
-            .accessibilityIdentifier("manualCoreConnection")
+        Button { showingManualConnection = true } label: {
+            Text("Use Tailscale or an IP address").frame(minHeight: 44)
+        }
+        .accessibilityIdentifier("manualCoreConnection")
     }
     #endif
 }

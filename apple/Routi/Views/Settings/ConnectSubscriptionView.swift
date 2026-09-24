@@ -58,6 +58,7 @@ struct ConnectSubscriptionView: View {
                     if !billing.subscribed {
                         Text("Renews monthly until canceled. Manage or cancel in your Apple Account settings.")
                             .font(.footnote).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     HStack(spacing: 24) {
                         Link(destination: URL(string: "https://routibot.com/privacy")!) {

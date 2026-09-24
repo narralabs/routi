@@ -315,8 +315,6 @@ private struct ConnectingView: View {
                 VStack(spacing: 8) {
                     Divider().padding(.bottom, 16)
                     manualConnectionButton
-                    Text("No Routi Connect subscription required.")
-                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 .font(.subheadline)
                 .padding(.top, 8)
@@ -345,7 +343,9 @@ private struct ConnectingView: View {
 
     private var manualConnectionButton: some View {
         Button { showingManualConnection = true } label: {
-            Text("Use Tailscale or an IP address").frame(minHeight: 44)
+            Text("Connect using Tailscale or IP address")
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(minHeight: 44)
         }
         .accessibilityIdentifier("manualCoreConnection")
     }

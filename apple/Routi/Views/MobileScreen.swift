@@ -50,6 +50,9 @@ struct MobileScreen: View {
             }
             screen
             bottomBar
+            #if DEBUG
+            BuildStamp()
+            #endif
         }
         .background(Color.black.ignoresSafeArea())
         #if DEBUG

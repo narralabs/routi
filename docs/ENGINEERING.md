@@ -158,7 +158,7 @@ purchase cannot unlock another Mac. Pairing remains available after expiry so a
 replacement phone can restore access. Configure billing in the relay's README;
 use a sandbox relay for purchase tests. Product: `com.routibot.connect.monthly`.
 `ROUTI_CONNECT_HOST_FILE` overrides the local credential path. Certificates currently
-last one year; existing certificates keep their original expiry. Automatic renewal is not implemented yet.
+last one year. Automatic renewal is not implemented yet.
 
 `pnpm test` covers pairing expiry/replay, device isolation, allowances, revocation, disconnect,
 and route restrictions using local test credentials, with no model calls. The

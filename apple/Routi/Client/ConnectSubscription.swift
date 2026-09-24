@@ -4,7 +4,7 @@ import StoreKit
 
 @MainActor @Observable
 final class ConnectSubscription {
-    static let productId = "com.routibot.connect.monthly"
+    nonisolated static let productId = "com.routibot.connect.monthly"
     @ObservationIgnored private let configuration: URLSessionConfiguration
     init(configuration: URLSessionConfiguration = .ephemeral) { self.configuration = configuration }
     private(set) var access: ConnectAccess?
@@ -12,7 +12,9 @@ final class ConnectSubscription {
     private(set) var busy = false
     private(set) var message: String?
 
-    private func request(_ profile: RelayProfile, signedPayload: String) async throws -> ConnectAccess {
+    private func submit(_ result: VerificationResult<Transaction>, profile: RelayProfile) async throws {
+        guard case .verified(let transaction) = result else { throw PairingError("Apple could not verify this purchase.") }
+        guard transaction.productID == access?.billing?.productId else { return }
         var url = URLComponents(string: profile.relay)!
         url.scheme = "https"
         url.path = "/v1/subscription"
@@ -20,7 +22,7 @@ final class ConnectSubscription {
         request.setValue("Bearer \(profile.token)", forHTTPHeaderField: "Authorization")
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(["signedPayload": signedPayload])
+        request.httpBody = try JSONEncoder().encode(["signedPayload": result.jwsRepresentation])
         // Reuse the relay's redirect rejection so credentials never follow redirects.
         let delegate = RelayTunnel(relay: URL(string: profile.relay)!, token: profile.token)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
@@ -30,7 +32,11 @@ final class ConnectSubscription {
             let error = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
             throw PairingError(error ?? "Could not confirm Connect access. Please try again.")
         }
-        return try JSONDecoder().decode(ConnectAccess.self, from: data)
+        access = try JSONDecoder().decode(ConnectAccess.self, from: data)
+        await transaction.finish()
+        guard access?.billing?.subscribed == true else {
+            throw PairingError("Connect access is still inactive. Check your Apple subscription status and try Restore Purchases.")
+        }
     }
 
     func updateAccess(_ access: ConnectAccess?) async {
@@ -48,15 +54,8 @@ final class ConnectSubscription {
         } catch { message = error.localizedDescription }
     }
 
-    private func submit(_ result: VerificationResult<Transaction>, profile: RelayProfile) async throws -> Bool {
-        guard case .verified(let transaction) = result else { throw PairingError("Apple could not verify this purchase.") }
-        guard transaction.productID == access?.billing?.productId else { return false }
-        access = try await request(profile, signedPayload: result.jwsRepresentation)
-        await transaction.finish()
-        guard access?.billing?.subscribed == true else {
-            throw PairingError("Connect access is still inactive. Check your Apple subscription status and try Restore Purchases.")
-        }
-        return true
+    private func currentPurchase() async throws -> VerificationResult<Transaction>? {
+        try await Transaction.currentEntitlements.first { try $0.payloadValue.productID == Self.productId }
     }
 
     func purchase(_ profile: RelayProfile) async {
@@ -65,14 +64,12 @@ final class ConnectSubscription {
         defer { busy = false }
         do {
             // An existing subscription must be restored, never silently assigned to another Mac.
-            for await result in Transaction.currentEntitlements {
-                if case .verified(let tx) = result, tx.productID == product.id {
-                    _ = try await submit(result, profile: profile)
-                    return
-                }
+            if let result = try await currentPurchase() {
+                try await submit(result, profile: profile)
+                return
             }
             switch try await product.purchase(options: [.appAccountToken(billing.appAccountToken)]) {
-            case .success(let result): _ = try await submit(result, profile: profile)
+            case .success(let result): try await submit(result, profile: profile)
             case .pending: message = "Your purchase is awaiting Apple’s approval."
             case .userCancelled: break
             @unknown default: break
@@ -86,25 +83,25 @@ final class ConnectSubscription {
         defer { busy = false }
         do {
             try await AppStore.sync()
-            for await result in Transaction.currentEntitlements {
-                if try await submit(result, profile: profile) { return }
+            guard let result = try await currentPurchase() else {
+                throw PairingError("No active Connect subscription was found for this Mac.")
             }
-            message = "No active Connect subscription was found for this Mac."
+            try await submit(result, profile: profile)
         } catch { message = error.localizedDescription }
     }
 
     func observe(_ profile: RelayProfile, access: ConnectAccess) async {
         await updateAccess(access)
-        for await result in Transaction.currentEntitlements {
-            if Task.isCancelled { return }
-            if case .verified(let tx) = result, tx.appAccountToken == access.billing?.appAccountToken {
-                do { _ = try await submit(result, profile: profile) }
-                catch { message = error.localizedDescription }
+        do {
+            if let result = try await currentPurchase(),
+               try result.payloadValue.appAccountToken == access.billing?.appAccountToken {
+                try Task.checkCancellation()
+                try await submit(result, profile: profile)
             }
-        }
+        } catch { if !Task.isCancelled { message = error.localizedDescription } }
         for await result in Transaction.updates {
             if Task.isCancelled { return }
-            do { _ = try await submit(result, profile: profile) }
+            do { try await submit(result, profile: profile) }
             catch { message = error.localizedDescription }
         }
     }

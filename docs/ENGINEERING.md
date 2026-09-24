@@ -155,7 +155,7 @@ share that deadline. Existing manually provisioned connections are unaffected.
 Apple StoreKit purchases and Restore Purchases on iPhone/iPad cover the paired Mac.
 The relay verifies Apple transactions and current subscription status; an existing
 purchase cannot unlock another Mac. Pairing remains available after expiry so a
-replacement phone can restore access. Configure billing in the relay's README;
+replacement phone can restore access. Configure billing in the relay's `docs/ENGINEERING.md`;
 use a sandbox relay for purchase tests. Product: `com.routibot.connect.monthly`.
 `ROUTI_CONNECT_HOST_FILE` overrides the local credential path. Certificates currently
 last one year. Automatic renewal is not implemented yet.

@@ -223,7 +223,6 @@ private struct ConnectingView: View {
     @AppStorage("daemonHost") private var host = "127.0.0.1"
     @State private var slow = false
     #if os(iOS)
-    @Environment(ConnectSubscription.self) private var subscription
     @State private var showingScanner = false
     @State private var showingManualConnection = false
     @AppStorage("manualCoreConnection") private var manualConnection = false

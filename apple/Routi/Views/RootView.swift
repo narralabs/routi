@@ -297,9 +297,12 @@ private struct ConnectingView: View {
                 .foregroundStyle(.tint)
             if let profile = model.relayViewerProfile {
                 if subscription.access?.expired == true {
-                    Text("Connect access has ended").font(.title2.bold())
-                    Text("Your bots are still running on your Mac. Subscribe to access them from here.")
-                        .foregroundStyle(.secondary)
+                    VStack(spacing: 12) {
+                        Text("Connect access has ended").font(.title2.bold())
+                        Text("Your bots are still running on your Mac. Subscribe to access them from here.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.bottom, 12)
                     ConnectSubscriptionView(profile: profile)
                 } else {
                     Text("Connecting to \(profile.name)").font(.title2.bold())
@@ -320,7 +323,8 @@ private struct ConnectingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .font(.subheadline)
-                .padding(.top, 12)
+                .padding(.top, 8)
+                .padding(.vertical, 12)
             } else {
                 Text("Connect to your Mac").font(.title2.bold())
                 Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")

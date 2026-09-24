@@ -7,12 +7,13 @@ private final class BillingProtocol: URLProtocol, @unchecked Sendable {
     static var accountToken = UUID()
     static var subscribed = false
     static var rejectClaim = false
+    static var activateClaim = true
     static var claims = 0
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let claim = request.url!.path == "/v1/subscription"
-        if claim { Self.claims += 1; if !Self.rejectClaim { Self.subscribed = true } }
+        if claim { Self.claims += 1; if !Self.rejectClaim { Self.subscribed = Self.activateClaim } }
         let rejected = claim && Self.rejectClaim
         let body: [String: Any] = rejected
             ? ["error": "This subscription covers another Mac. Restore it on that Mac."]
@@ -36,6 +37,7 @@ final class ConnectSubscriptionTests: XCTestCase {
         BillingProtocol.accountToken = UUID()
         BillingProtocol.subscribed = false
         BillingProtocol.rejectClaim = false
+        BillingProtocol.activateClaim = true
         BillingProtocol.claims = 0
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [BillingProtocol.self]
@@ -59,6 +61,12 @@ final class ConnectSubscriptionTests: XCTestCase {
         XCTAssertEqual(restored.access?.billing?.subscribed, true)
         XCTAssertNil(restored.message)
         XCTAssertEqual(store.allTransactions().count, 1)
+        // An accepted receipt that does not activate access must explain why chat stays locked.
+        BillingProtocol.activateClaim = false
+        await restored.purchase(profile)
+        XCTAssertEqual(restored.access?.billing?.subscribed, false)
+        XCTAssertTrue(restored.message?.contains("still inactive") == true)
+        BillingProtocol.activateClaim = true
         // The server binding, rather than local StoreKit ownership, decides which Mac is covered.
         BillingProtocol.rejectClaim = true
         BillingProtocol.subscribed = false

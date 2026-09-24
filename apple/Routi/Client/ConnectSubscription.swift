@@ -65,7 +65,10 @@ final class ConnectSubscription {
         guard transaction.productID == access?.billing?.productId else { return false }
         access = try await request(profile, signedPayload: result.jwsRepresentation)
         await transaction.finish()
-        return access?.billing?.subscribed == true
+        guard access?.billing?.subscribed == true else {
+            throw PairingError("Connect access is still inactive. Check your Apple subscription status and try Restore Purchases.")
+        }
+        return true
     }
 
     func purchase(_ profile: RelayProfile) async {

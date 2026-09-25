@@ -382,7 +382,7 @@ private struct SidebarFooter: View {
 
     private var fullFooter: some View {
         VStack(spacing: 0) {
-            #if DEBUG
+            #if DEBUG && os(macOS)
             BuildStamp()
             #endif
 
@@ -466,30 +466,3 @@ private struct FooterRowLabel<Leading: View>: View {
         .onHover { isHovering = $0 }
     }
 }
-
-
-#if DEBUG
-/// Which build is actually on screen.
-///
-/// Debug only. Reading it off the window beats inferring it from file timestamps,
-/// which is what we were reduced to whenever a change did not seem to have landed.
-private struct BuildStamp: View {
-    private var stamp: String {
-        let info = Bundle.main.infoDictionary
-        let time = info?["RoutiBuildTime"] as? String ?? "?"
-        let commit = info?["RoutiBuildCommit"] as? String ?? "?"
-        return "build \(time) · \(commit)"
-    }
-
-    var body: some View {
-        Text(stamp)
-            .font(.system(size: 10, design: .monospaced))
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
-            .padding(.bottom, 4)
-            .textSelection(.enabled)
-            .help("Debug build stamp")
-    }
-}
-#endif

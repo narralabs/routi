@@ -57,11 +57,17 @@ struct RootView: View {
                 #endif
             }
         }
+        #if DEBUG && os(iOS)
+        .safeAreaInset(edge: .bottom, spacing: 0) { BuildStamp() }
+        #endif
         .sheet(isPresented: Binding(
             get: { model.isShowingSettings },
             set: { model.isShowingSettings = $0 }
         )) {
             SettingsScreen()
+                #if DEBUG && os(iOS)
+                .safeAreaInset(edge: .bottom, spacing: 0) { BuildStamp() }
+                #endif
         }
         #if os(iOS)
         .environment(subscription)

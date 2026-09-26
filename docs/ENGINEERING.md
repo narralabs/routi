@@ -123,9 +123,9 @@ Tailscale. The app's Info.plist allows cleartext connections, since `ws://` to a
 address is refused by App Transport Security otherwise — the encryption is WireGuard's,
 underneath.
 
-### Routi Connect pilot
+### Routi Connect
 
-A provisioned Mac supports phone chat and container desktop viewing over an
+Routi supports phone chat and container desktop viewing over an
 outbound relay connection, without Tailscale. In Mac Settings → Routi Core → Routi Connect, connect and choose Pair
 device. Scan the code in the phone app and confirm the Mac’s Computer Name.
 The VNC viewer uses the same pinned mutual TLS transport as chat; the relay cannot
@@ -147,18 +147,18 @@ next pairing. Forget this Mac removes the device’s local identity. Disconnect 
 relay sessions and retries. An enabled connection resumes when the core restarts, independently of
 whether the Mac app is open.
 
-Provisioning uses the relay repository’s `pnpm pair`: register only `relay.json`
-token hashes on the relay. Locally, copy `host.json` to
-`<data-dir>/connect-host.json` (mode `0600`) and add `viewerToken` from `viewer.json`’s
-`token` field. `ROUTI_CONNECT_HOST_FILE` can override that path. Keep all device
-credentials private; never bundle them in releases. Test certificates expire after
-30 days; public enrollment and automatic certificate renewal are not implemented.
-The relay config’s `maxDevices` controls each provisioned Mac’s allowance (five by
-default). Registration requires that Mac’s host credential; the relay persists only
-device IDs and token hashes, and enforces the allowance independently of the app.
-Billing is not implemented yet. The original pilot phone retains access as
-“Previously paired device”; new pairings always receive separate credentials.
-Ordinary installations show no Connect section until provisioned.
+Connect creates credentials locally in `<data-dir>/connect-host.json` (mode `0600`)
+and registers token hashes with the relay. The three-day trial starts with the first
+remote device connection; its deadline persists on the relay. Expiration closes
+remote sessions without stopping bots or local/Tailscale access. Additional devices
+share that deadline. Existing manually provisioned connections are unaffected.
+Apple StoreKit purchases and Restore Purchases on iPhone/iPad cover the paired Mac.
+The relay verifies Apple transactions and current subscription status; an existing
+purchase cannot unlock another Mac. Pairing remains available after expiry so a
+replacement phone can restore access. Configure billing in the relay's `docs/ENGINEERING.md`;
+use a sandbox relay for purchase tests. Product: `com.routibot.connect.monthly`.
+`ROUTI_CONNECT_HOST_FILE` overrides the local credential path. Certificates currently
+last one year. Automatic renewal is not implemented yet.
 
 `pnpm test` covers pairing expiry/replay, device isolation, allowances, revocation, disconnect,
 and route restrictions using local test credentials, with no model calls. The

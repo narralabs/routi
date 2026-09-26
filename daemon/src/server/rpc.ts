@@ -60,12 +60,12 @@ const handlers: Record<RpcMethod, Handler> = {
   },
   'connect.status': async (_p, ctx) => {
     if (!ctx.relay) throw new RpcError('unavailable', 'Routi Connect is not available on this core.')
-    return { connection: ctx.relay.status() }
+    return { connection: await ctx.relay.refreshStatus() }
   },
   'connect.configure': async (p, ctx) => {
     if (ctx.viaRelay) throw new RpcError('forbidden', 'Configure the relay from your Mac.')
     if (!ctx.relay) throw new RpcError('unavailable', 'Routi Connect is not available on this core.')
-    try { return { connection: ctx.relay.configure(p as { url: string; enabled: boolean }) } }
+    try { return { connection: await ctx.relay.configure(p as { url: string; enabled: boolean }) } }
     catch (error) { throw new RpcError('connect_error', error instanceof Error ? error.message : 'Connection failed.') }
   },
   'plugin.access.list': async (p, ctx) => ({ requests: ctx.plugins?.accessList((p as { profileId: string }).profileId) ?? [] }),

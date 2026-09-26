@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { createVncBridge } from '../src/server/vnc-bridge.js'
 import { dispatch } from '../src/server/rpc.js'
 import { once } from 'node:events'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
@@ -57,7 +57,7 @@ async function request(url: string, device: Awaited<ReturnType<typeof createPair
 test('paired relay client reads core health; other routes and methods are unavailable', { timeout: 10_000 }, async t => {
   const { core, pair, url } = await setup(t)
   assert.equal(core.status().enabled, false)
-  core.configure({ url, enabled: true })
+  await core.configure({ url, enabled: true })
   await waitFor(core, 'connected')
   const result = await request(url, pair.viewer)
   assert.match(result, /HTTP\/1.1 200/)
@@ -70,7 +70,7 @@ test('paired relay client reads core health; other routes and methods are unavai
 
 test('disconnect closes active sessions; preference survives core restart', { timeout: 10_000 }, async t => {
   const { core, store, hostFile, pair, url } = await setup(t)
-  core.configure({ url, enabled: true })
+  await core.configure({ url, enabled: true })
   await waitFor(core, 'connected')
   const stream = await connectViewer(url, pair.viewer)
   const closed = once(stream, 'close')
@@ -79,7 +79,7 @@ test('disconnect closes active sessions; preference survives core restart', { ti
   const restarted = new RelayConnection(store, hostFile)
   t.after(() => restarted.stop())
   await waitFor(restarted, 'connected')
-  restarted.configure({ url, enabled: false })
+  await restarted.configure({ url, enabled: false })
   assert.equal(restarted.status().state, 'disconnected')
   const disabled = new RelayConnection(store, hostFile)
   t.after(() => disabled.stop())
@@ -90,11 +90,11 @@ test('disconnect closes active sessions; preference survives core restart', { ti
 test('invalid addresses and missing credentials do not save an enabled connection', async t => {
   const { core, store, hostFile, url } = await setup(t)
   for (const invalid of ['', 'not a URL', 'http://example.com', 'ws://example.com', 'wss://user:secret@example.com', 'wss://example.com/path', 'wss://example.com?token=x']) {
-    assert.throws(() => core.configure({ url: invalid, enabled: true }), /wss/)
+    await assert.rejects(() => core.configure({ url: invalid, enabled: true }), /wss/)
   }
   rmSync(hostFile)
   assert.equal(core.status().configured, false)
-  assert.throws(() => core.configure({ url, enabled: true }), /credentials/)
+  await assert.rejects(() => core.configure({ url, enabled: true }), /set up Routi Connect/)
   assert.deepEqual(store.getSettings(), {})
 })
 
@@ -106,14 +106,14 @@ test('bad persisted credentials do not prevent core startup or leak secrets in s
   t.after(() => core.stop())
   assert.equal(core.status().state, 'error')
   assert.ok(!JSON.stringify(core.status()).includes('private-sentinel'))
-  core.configure({ url, enabled: false })
+  await core.configure({ url, enabled: false })
   assert.equal(core.status().state, 'disconnected')
 })
 
 test('relay rejects invalid credentials and reports failure instead of Connected', { timeout: 5000 }, async t => {
   const { core, hostFile, pair, url } = await setup(t)
   writeFileSync(hostFile, JSON.stringify({ ...pair.host, token: 'x'.repeat(43) }))
-  core.configure({ url, enabled: true })
+  await core.configure({ url, enabled: true })
   await waitFor(core, 'rejected')
   assert.match(core.status().error!, /rejected/)
 })
@@ -158,7 +158,7 @@ test('devices pair independently, survive restart, and revoke without disconnect
     const pem = execFileSync('openssl', ['pkcs12', '-in', p12File, '-passin', 'pass:routi', '-nodes'], { encoding: 'utf8' })
     return { ...pair.viewer, key: pem, cert: pem, token: body.token }
   }
-  core.configure({ url, enabled: true })
+  await core.configure({ url, enabled: true })
   await waitFor(core, 'connected')
   const original = await openChat(pair.viewer)
   const phone = await pairDevice(), phoneStream = await openChat(phone)
@@ -203,7 +203,7 @@ test('devices pair independently, survive restart, and revoke without disconnect
 test('cancelled and expired pairing codes cannot be redeemed', { timeout: 15_000 }, async t => {
   const { core, hostFile, pair, url } = await setup(t)
   writeFileSync(hostFile, JSON.stringify({ ...pair.host, viewerToken: pair.viewer.token }))
-  core.configure({ url, enabled: true })
+  await core.configure({ url, enabled: true })
   await waitFor(core, 'connected')
   const unpaired = { ...pair.viewer, key: '', cert: '' }
   const decode = (value: string) => JSON.parse(Buffer.from(new URL(value).searchParams.get('data')!, 'base64url').toString())
@@ -231,7 +231,7 @@ test('paired VNC uses encrypted relay transport; revocation closes the viewer an
   })
   core.setDesktopHandler(bridge)
   t.after(() => bridge.close())
-  core.configure({ url, enabled: true })
+  await core.configure({ url, enabled: true })
   await waitFor(core, 'connected')
   const prefix = bridge.prefix
   assert.match(await request(url, pair.viewer, `${prefix}/viewer/${bot}`), /HTTP\/1.1 200/)
@@ -266,4 +266,61 @@ test('paired VNC uses encrypted relay transport; revocation closes the viewer an
   for (let i = 0; i < 100 && !released; i++) await sleep(10)
   assert.equal(released, 1)
   assert.match(await request(url, pair.viewer, `${prefix}/viewer/${bot}`), /HTTP\/1.1 403/)
+})
+
+test('a fresh Mac enrolls without CLI setup and pairs a phone for a persistent three-day trial', { timeout: 15_000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'routi-trial-test-'))
+  const hostFile = join(directory, 'host.json')
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  let settings: Record<string, unknown> = { connectPhonePaired: true }
+  const store = { getSettings: () => settings, setSettings: (patch: Record<string, unknown>) => (settings = { ...settings, ...patch }) }
+  let storageAvailable = false
+  const relay = createRelay([], { saveTrials: () => { if (!storageAvailable) throw Error('Storage unavailable') }, heartbeatMs: 20 })
+  relay.server.listen(0, '127.0.0.1')
+  await once(relay.server, 'listening')
+  const url = `ws://127.0.0.1:${(relay.server.address() as AddressInfo).port}`
+  const core = new RelayConnection(store, hostFile)
+  t.after(async () => { core.stop(); await relay.close() })
+  await assert.rejects(core.configure({ url, enabled: true }), /set up Routi Connect/)
+  const originalToken = JSON.parse(readFileSync(hostFile, 'utf8')).token
+  storageAvailable = true
+  await core.configure({ url, enabled: true })
+  await waitFor(core, 'connected')
+  assert.equal(core.status().configured, true)
+  assert.equal(core.status().canPair, true)
+  assert.deepEqual(core.status().devices, [])
+  assert.deepEqual((await core.refreshStatus()).access, { trial: true, expiresAt: null, expired: false })
+  const payload = JSON.parse(Buffer.from(new URL((await core.pairPhone()).url).searchParams.get('data')!, 'base64url').toString())
+  const host = JSON.parse(readFileSync(hostFile, 'utf8'))
+  assert.equal(host.token, originalToken)
+  assert.equal(statSync(hostFile).mode & 0o777, 0o600)
+  const bootstrap = { token: payload.token, peerCert: host.cert, key: '', cert: '' }
+  const response = await request(url, bootstrap, '/pair', 'POST', payload.secret)
+  assert.match(response.slice(0, 32), /HTTP\/1.1 200/)
+  const body = JSON.parse(response.slice(response.indexOf('\r\n\r\n') + 4).replace(/^[a-f0-9]+\r\n/, '').replace(/\r\n0\r\n\r\n$/, ''))
+  const p12 = join(directory, 'phone.p12')
+  writeFileSync(p12, Buffer.from(body.pkcs12, 'base64'), { mode: 0o600 })
+  const pem = execFileSync('openssl', ['pkcs12', '-in', p12, '-passin', 'pass:routi', '-nodes'], { encoding: 'utf8' })
+  const phone = { token: body.token, peerCert: host.cert, key: pem, cert: pem }
+  assert.match(await request(url, phone), /HTTP\/1.1 200/)
+  const accessURL = url.replace('ws:', 'http:') + '/v1/access'
+  const access = await (await fetch(accessURL, { headers: { Authorization: `Bearer ${phone.token}` } })).json() as { expiresAt: number }
+  assert.ok(Math.abs(access.expiresAt - Date.now() - 3 * 86400_000) < 2000)
+  await core.configure({ url, enabled: false })
+  await core.configure({ url, enabled: true })
+  await waitFor(core, 'connected')
+  assert.equal(JSON.parse(readFileSync(hostFile, 'utf8')).token, host.token)
+  const stream = await connectViewer(url, phone)
+  const closed = once(stream, 'close')
+  t.mock.method(Date, 'now', () => access.expiresAt + 1)
+  await closed
+  assert.equal((await core.refreshStatus()).access?.expired, true)
+  await assert.rejects(connectViewer(url, phone), /402/)
+  assert.equal(core.status().devices.length, 1)
+  assert.equal(core.status().state, 'connected')
+  // Expiry blocks tools/chat but still permits pairing a replacement phone for restore.
+  const replacement = JSON.parse(Buffer.from(new URL((await core.pairPhone()).url).searchParams.get('data')!, 'base64url').toString())
+  const replacementResponse = await request(url, bootstrap, '/pair', 'POST', replacement.secret)
+  assert.match(replacementResponse.slice(0, 32), /HTTP\/1.1 200/)
+  assert.equal(core.status().devices.length, 2)
 })

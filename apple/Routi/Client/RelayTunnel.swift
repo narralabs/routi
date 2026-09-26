@@ -2,24 +2,62 @@ import Foundation
 import Network
 import Security
 
+struct ConnectAccess: Decodable, Equatable {
+    struct Billing: Decodable, Equatable {
+        let productId: String
+        let appAccountToken: UUID
+        let subscribed: Bool
+    }
+    let expired: Bool
+    let billing: Billing?
+}
+
 /// Adapts an opaque relay WebSocket to a loopback byte stream. URLSession still
 /// performs end-to-end TLS; this bridge only sees encrypted records.
 final class RelayTunnel: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private let relay: URL
     private let token: String
+    private let configuration: URLSessionConfiguration
+    private(set) var access: ConnectAccess?
     private let queue = DispatchQueue(label: "Routi.RelayTunnel")
     private var listener: NWListener?
     private var stopped = false
     private var pipes: [UUID: RelayPipe] = [:]
     private var session: URLSession?
 
-    init(relay: URL, token: String) {
+    init(relay: URL, token: String, configuration: URLSessionConfiguration = .ephemeral) {
         self.relay = relay
         self.token = token
+        self.configuration = configuration
     }
 
-    func start() async throws -> URL {
-        try await withTaskCancellationHandler {
+    func checkAccess() async throws -> ConnectAccess? {
+        var components = URLComponents(url: relay.appendingPathComponent("v1/access"), resolvingAgainstBaseURL: false)!
+        components.scheme = relay.scheme == "wss" ? "https" : "http"
+        var request = URLRequest(url: components.url!, timeoutInterval: 10)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let accessSession = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+        defer { accessSession.invalidateAndCancel() }
+        let (data, response) = try await accessSession.data(for: request)
+        if (response as? HTTPURLResponse)?.statusCode == 200 {
+            return try JSONDecoder().decode(ConnectAccess.self, from: data)
+        } else if (response as? HTTPURLResponse)?.statusCode == 401 {
+            throw NSError(domain: "RoutiConnect", code: 401, userInfo: [NSLocalizedDescriptionKey:
+                "This device’s access was revoked. Pair with your Mac again to reconnect."])
+        } else if [403, 404].contains((response as? HTTPURLResponse)?.statusCode ?? 0) {
+            // Older relay proxies authenticate on the WebSocket instead.
+            return nil
+        }
+        throw URLError(.userAuthenticationRequired)
+    }
+
+    func start(pairing: Bool = false) async throws -> URL {
+        access = try await checkAccess()
+        if !pairing && access?.expired == true {
+            throw NSError(domain: "RoutiConnect", code: 402, userInfo: [NSLocalizedDescriptionKey:
+                "Connect access has ended."])
+        }
+        return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 queue.async {
                     guard !self.stopped else { continuation.resume(throwing: CancellationError()); return }

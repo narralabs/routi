@@ -14,32 +14,47 @@ struct PhonePairingSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Image(systemName: "desktopcomputer").font(.system(size: 44)).foregroundStyle(.tint)
-                Text("Connect to \(invitation.name)").font(.title2.bold()).multilineTextAlignment(.center)
-                Text("Chat with your bots and use their desktops away from home, without Tailscale. Your messages stay encrypted between this device and your Mac.")
-                    .foregroundStyle(.secondary).multilineTextAlignment(.center)
-                Text("Only continue if you scanned this code from your own Mac.").font(.callout)
-                TextField("Device name", text: $deviceName).textFieldStyle(.roundedBorder)
-                    .disabled(busy)
-                if let error { Text(error).foregroundStyle(.red).font(.callout) }
-                Button(busy ? "Pairing…" : "Pair with this Mac") {
-                    busy = true
-                    Task {
-                        defer { busy = false }
-                        do {
-                            let profile = try await RelayPairing.claim(invitation, deviceName: deviceName)
-                            try model.useRelay(profile)
-                            dismiss()
-                        } catch { self.error = error.localizedDescription }
-                    }
+            if busy {
+                VStack(spacing: 20) {
+                    ProgressView().controlSize(.large)
+                    Text("Pairing with \(invitation.name)…")
+                        .font(.title2.bold())
+                    Text("Setting up your secure connection.")
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.borderedProminent).disabled(busy || deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || deviceName.count > 80)
-                Spacer()
+                .multilineTextAlignment(.center)
+                .padding(28)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle("Routi Connect")
+                .interactiveDismissDisabled()
+            } else {
+                VStack(spacing: 20) {
+                    Image(systemName: "desktopcomputer").font(.system(size: 44)).foregroundStyle(.tint)
+                    Text("Connect to \(invitation.name)").font(.title2.bold()).multilineTextAlignment(.center)
+                    Text("Chat with your bots and use their desktops away from home, without Tailscale. Your messages stay encrypted between this device and your Mac.")
+                        .foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    Text("Only continue if you scanned this code from your own Mac.").font(.callout)
+                    TextField("Device name", text: $deviceName).textFieldStyle(.roundedBorder)
+                    if let error { Text(error).foregroundStyle(.red).font(.callout) }
+                    Button("Pair with this Mac") {
+                        error = nil
+                        busy = true
+                        Task {
+                            defer { busy = false }
+                            do {
+                                let profile = try await RelayPairing.claim(invitation, deviceName: deviceName)
+                                try model.useRelay(profile)
+                                dismiss()
+                            } catch { self.error = error.localizedDescription }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent).disabled(deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || deviceName.count > 80)
+                    Spacer()
+                }
+                .padding(28)
+                .navigationTitle("Routi Connect")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
             }
-            .padding(28)
-            .navigationTitle("Routi Connect")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) } }
         }
     }
 }

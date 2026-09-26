@@ -19,6 +19,9 @@ import SwiftUI
 /// reconstructed with width breakpoints.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    #if os(iOS)
+    @State private var subscription = ConnectSubscription()
+    #endif
     @State private var showingRailSettings = false
     @State private var showingNewBot = false
 
@@ -38,7 +41,7 @@ struct RootView: View {
                 // Setup comes first on a fresh install — before any connection, since
                 // finding or installing a core is what setup is for.
                 OnboardingView()
-            } else if !model.authKnown {
+            } else if !model.authKnown || (model.usesRelay && model.connectionMessage != nil) {
                 // Neither chat nor an error is correct until the handshake lands.
                 ConnectingView()
             } else {
@@ -66,6 +69,18 @@ struct RootView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) { BuildStamp() }
                 #endif
         }
+        #if os(iOS)
+        .environment(subscription)
+        .task(id: model.relayAccess) {
+            subscription = ConnectSubscription()
+            if let profile = model.relayViewerProfile, let access = model.relayAccess {
+                await subscription.observe(profile, access: access)
+            }
+        }
+        .onChange(of: subscription.access?.billing?.subscribed) { _, paid in
+            if paid == true { model.connectNow() }
+        }
+        #endif
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
         .animation(.snappy(duration: 0.3), value: model.authKnown)
         .animation(.snappy(duration: 0.3), value: model.isSettling)
@@ -215,50 +230,65 @@ private struct ConnectingView: View {
     @State private var slow = false
     #if os(iOS)
     @State private var showingScanner = false
+    @State private var showingManualConnection = false
+    @State private var pairingError: String?
+    @AppStorage("manualCoreConnection") private var manualConnection = false
     #endif
 
     private var isLocal: Bool { host == "127.0.0.1" || host == "localhost" }
 
     var body: some View {
-        VStack(spacing: 14) {
-            if model.connectionFailed {
-                Image(systemName: "externaldrive.badge.xmark")
-                    .font(.system(size: 34, weight: .light))
-                    .foregroundStyle(.secondary)
-                Text(model.usesRelay ? "Can’t reach your paired Mac" : isLocal ? "Routi Core isn't running on this Mac" : "Can't reach Routi Core at \(host)")
-                    .font(.system(size: 15, weight: .semibold))
-                Text(model.usesRelay ? "Check that your Mac is awake, online, and connected to Routi Connect."
-                     : isLocal
-                     ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; this screen carries on by itself once the core answers."
-                     : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works.")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 400)
-                if isLocal && !model.usesRelay {
-                    InstallCommand()
+        Group {
+            #if os(iOS)
+            GeometryReader { geometry in
+                ScrollView {
+                    phoneContent
+                        .frame(maxWidth: 420)
+                        .padding(24)
+                        .frame(maxWidth: .infinity, minHeight: geometry.size.height)
                 }
-                Button("Connect to a different Mac…") { model.isShowingSettings = true }
-                    .controlSize(.small)
-                    .padding(.top, 4)
-                #if os(iOS)
-                Button { showingScanner = true } label: {
-                    Label("Scan pairing code", systemImage: "qrcode.viewfinder")
-                }
-                .buttonStyle(.borderedProminent)
-                #endif
-            } else if slow {
-                ProgressView().controlSize(.large)
-                Text("Connecting to Routi Core…")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
             }
+            #else
+            VStack(spacing: 14) {
+                if model.connectionFailed {
+                    Image(systemName: "externaldrive.badge.xmark")
+                        .font(.system(size: 34, weight: .light))
+                        .foregroundStyle(.secondary)
+                    Text(model.connectionMessage != nil ? "Routi Connect" : model.usesRelay ? "Can’t reach your paired Mac" : isLocal ? "Routi Core isn't running on this Mac" : "Can't reach Routi Core at \(host)")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(model.connectionMessage ?? (model.usesRelay ? "Check that your Mac is awake, online, and connected to Routi Connect."
+                         : isLocal
+                         ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; this screen carries on by itself once the core answers."
+                         : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works."))
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 400)
+                    if isLocal && !model.usesRelay {
+                        InstallCommand()
+                    }
+                    Button("Connect to a different Mac…") { model.isShowingSettings = true }
+                        .controlSize(.small)
+                        .padding(.top, 4)
+                } else if slow {
+                    ProgressView().controlSize(.large)
+                    Text("Connecting to Routi Core…")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+            .frame(minWidth: 460, minHeight: 320)
+            #endif
         }
-        #if os(macOS)
-        .frame(minWidth: 460, minHeight: 320)
-        #endif
         #if os(iOS)
         .sheet(isPresented: $showingScanner) { PhonePairingScanner() }
+        .sheet(isPresented: $showingManualConnection) {
+            EndpointStep(onBack: { showingManualConnection = false }, onConnected: { showingManualConnection = false })
+        }
+        .alert("Could not remove pairing", isPresented: Binding(get: { pairingError != nil }, set: { if !$0 { pairingError = nil } })) {
+            Button("OK") { pairingError = nil }
+        } message: { Text(pairingError ?? "") }
         #endif
         .animation(.snappy(duration: 0.25), value: model.connectionFailed)
         .task { await model.watchForCore() }
@@ -269,4 +299,85 @@ private struct ConnectingView: View {
             slow = true
         }
     }
+
+    #if os(iOS)
+    private var phoneContent: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "laptopcomputer.and.iphone")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(.tint)
+            if let profile = model.relayViewerProfile {
+                if model.relayRevoked {
+                    Text("This device’s access was revoked").font(.title2.bold())
+                    Text("Scan a new pairing code from your Mac to reconnect, or pair with another Mac.")
+                        .foregroundStyle(.secondary)
+                    Button("Pair a Mac") {
+                        do {
+                            try model.forgetRelay()
+                            showingScanner = true
+                        } catch { pairingError = error.localizedDescription }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    manualConnectionButton.font(.subheadline)
+                } else if model.relayAccess?.expired != true && model.connectionMessage == nil && (model.connection == .connecting || !model.connectionFailed) {
+                    ProgressView().controlSize(.large)
+                    Text("Connecting to \(profile.name)…")
+                        .font(.title2.bold())
+                    Text("Opening your bots.").foregroundStyle(.secondary)
+                } else {
+                    if model.relayAccess?.expired == true {
+                        VStack(spacing: 12) {
+                            Text("Connect access has ended").font(.title2.bold())
+                            Text("Your bots are still running on your Mac. Subscribe to access them from here.")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.bottom, 12)
+                        ConnectSubscriptionView(profile: profile)
+                    } else {
+                        Text(model.relayAccess == nil ? "Can’t reach Routi Connect" : "Can’t reach \(profile.name)")
+                            .font(.title2.bold())
+                        Text(model.connectionMessage ?? "Keep your Mac awake, online, and connected to Routi Connect.")
+                            .foregroundStyle(.secondary)
+                        Button("Try again") { model.connectNow() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    VStack(spacing: 8) {
+                        Divider().padding(.bottom, 16)
+                        manualConnectionButton
+                    }
+                    .font(.subheadline)
+                    .padding(.top, 8)
+                }
+            } else {
+                Text("Connect to your Mac").font(.title2.bold())
+                Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")
+                    .foregroundStyle(.secondary)
+                Text("On your Mac, open Settings → Routi Core → Routi Connect → Pair device.")
+                    .font(.callout)
+                Button { showingScanner = true } label: {
+                    Label("Scan pairing code", systemImage: "qrcode.viewfinder")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                manualConnectionButton.font(.subheadline)
+                if manualConnection {
+                    Text("Can’t reach \(host). Check the address and your network connection.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Retry manual connection") { model.connectNow() }
+                        .font(.subheadline)
+                }
+            }
+        }
+        .multilineTextAlignment(.center)
+    }
+
+    private var manualConnectionButton: some View {
+        Button { showingManualConnection = true } label: {
+            Text("Connect using Tailscale or IP address")
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(minHeight: 44)
+        }
+        .accessibilityIdentifier("manualCoreConnection")
+    }
+    #endif
 }

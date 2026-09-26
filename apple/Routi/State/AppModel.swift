@@ -717,7 +717,7 @@ final class AppModel {
     func watchForCore() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(2))
-            if connection == .disconnected { connectNow() }
+            if !usesRelay && connection == .disconnected { connectNow() }
         }
     }
 

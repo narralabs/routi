@@ -319,7 +319,7 @@ private struct ConnectingView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     manualConnectionButton.font(.subheadline)
-                } else if model.relayAccess?.expired != true && (model.connection == .connecting || !model.connectionFailed) {
+                } else if model.relayAccess?.expired != true && model.connectionMessage == nil && (model.connection == .connecting || !model.connectionFailed) {
                     ProgressView().controlSize(.large)
                     Text("Connecting to \(profile.name)…")
                         .font(.title2.bold())

@@ -1037,6 +1037,24 @@ final class AppModel {
         guard !hasCompletedSetup else { return }
         hasCompletedSetup = true
         UserDefaults.standard.set(true, forKey: "hasCompletedSetup")
+        #if os(macOS)
+        let endpoint = client.endpoint
+        guard !usesRelay,
+              let host = URL(string: "http://\(endpoint)")?.host,
+              ["127.0.0.1", "localhost", "[::1]"].contains(host) else { return }
+        Task {
+            do {
+                let result = try await client.rpc("settings.get")
+                guard let settings = result["settings"] as? [String: Any],
+                      settings["connect"] == nil, client.endpoint == endpoint else { return }
+                let status = try await connectStatus()
+                guard !status.configured, client.endpoint == endpoint else { return }
+                _ = try await configureConnect(url: status.url, enabled: true)
+            } catch {
+                errorMessage = "Local chat is ready, but Routi Connect could not be set up. Try Connect in Settings. \(error.localizedDescription)"
+            }
+        }
+        #endif
     }
 
     // MARK: - Loading

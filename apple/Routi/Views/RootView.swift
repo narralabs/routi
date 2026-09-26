@@ -303,29 +303,35 @@ private struct ConnectingView: View {
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(.tint)
             if let profile = model.relayViewerProfile {
-                if model.relayAccess?.expired == true {
-                    VStack(spacing: 12) {
-                        Text("Connect access has ended").font(.title2.bold())
-                        Text("Your bots are still running on your Mac. Subscribe to access them from here.")
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.bottom, 12)
-                    ConnectSubscriptionView(profile: profile)
-                } else {
-                    Text(model.connectionFailed ? (model.relayAccess == nil ? "Can’t reach Routi Connect" : "Can’t reach \(profile.name)") : "Connecting to \(profile.name)")
+                if model.relayAccess?.expired != true && (model.connection == .connecting || !model.connectionFailed) {
+                    ProgressView().controlSize(.large)
+                    Text("Connecting to \(profile.name)…")
                         .font(.title2.bold())
-                    Text(model.connectionMessage ?? "Keep your Mac awake, online, and connected to Routi Connect.")
-                        .foregroundStyle(.secondary)
-                    if model.connectionMessage == nil { ProgressView() }
-                    Button("Try again") { model.connectNow() }
-                        .buttonStyle(.borderedProminent)
+                    Text("Opening your bots.").foregroundStyle(.secondary)
+                } else {
+                    if model.relayAccess?.expired == true {
+                        VStack(spacing: 12) {
+                            Text("Connect access has ended").font(.title2.bold())
+                            Text("Your bots are still running on your Mac. Subscribe to access them from here.")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.bottom, 12)
+                        ConnectSubscriptionView(profile: profile)
+                    } else {
+                        Text(model.relayAccess == nil ? "Can’t reach Routi Connect" : "Can’t reach \(profile.name)")
+                            .font(.title2.bold())
+                        Text(model.connectionMessage ?? "Keep your Mac awake, online, and connected to Routi Connect.")
+                            .foregroundStyle(.secondary)
+                        Button("Try again") { model.connectNow() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    VStack(spacing: 8) {
+                        Divider().padding(.bottom, 16)
+                        manualConnectionButton
+                    }
+                    .font(.subheadline)
+                    .padding(.top, 8)
                 }
-                VStack(spacing: 8) {
-                    Divider().padding(.bottom, 16)
-                    manualConnectionButton
-                }
-                .font(.subheadline)
-                .padding(.top, 8)
             } else {
                 Text("Connect to your Mac").font(.title2.bold())
                 Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")

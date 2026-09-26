@@ -41,6 +41,9 @@ final class RelayTunnel: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         let (data, response) = try await accessSession.data(for: request)
         if (response as? HTTPURLResponse)?.statusCode == 200 {
             return try JSONDecoder().decode(ConnectAccess.self, from: data)
+        } else if (response as? HTTPURLResponse)?.statusCode == 401 {
+            throw NSError(domain: "RoutiConnect", code: 401, userInfo: [NSLocalizedDescriptionKey:
+                "This device’s access was revoked. Pair with your Mac again to reconnect."])
         } else if [403, 404].contains((response as? HTTPURLResponse)?.statusCode ?? 0) {
             // Older relay proxies authenticate on the WebSocket instead.
             return nil

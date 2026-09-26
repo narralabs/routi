@@ -231,6 +231,7 @@ private struct ConnectingView: View {
     #if os(iOS)
     @State private var showingScanner = false
     @State private var showingManualConnection = false
+    @State private var pairingError: String?
     @AppStorage("manualCoreConnection") private var manualConnection = false
     #endif
 
@@ -285,6 +286,9 @@ private struct ConnectingView: View {
         .sheet(isPresented: $showingManualConnection) {
             EndpointStep(onBack: { showingManualConnection = false }, onConnected: { showingManualConnection = false })
         }
+        .alert("Could not remove pairing", isPresented: Binding(get: { pairingError != nil }, set: { if !$0 { pairingError = nil } })) {
+            Button("OK") { pairingError = nil }
+        } message: { Text(pairingError ?? "") }
         #endif
         .animation(.snappy(duration: 0.25), value: model.connectionFailed)
         .task { await model.watchForCore() }
@@ -303,7 +307,19 @@ private struct ConnectingView: View {
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(.tint)
             if let profile = model.relayViewerProfile {
-                if model.relayAccess?.expired != true && (model.connection == .connecting || !model.connectionFailed) {
+                if model.relayRevoked {
+                    Text("This device’s access was revoked").font(.title2.bold())
+                    Text("Scan a new pairing code from your Mac to reconnect, or pair with another Mac.")
+                        .foregroundStyle(.secondary)
+                    Button("Pair a Mac") {
+                        do {
+                            try model.forgetRelay()
+                            showingScanner = true
+                        } catch { pairingError = error.localizedDescription }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    manualConnectionButton.font(.subheadline)
+                } else if model.relayAccess?.expired != true && (model.connection == .connecting || !model.connectionFailed) {
                     ProgressView().controlSize(.large)
                     Text("Connecting to \(profile.name)…")
                         .font(.title2.bold())

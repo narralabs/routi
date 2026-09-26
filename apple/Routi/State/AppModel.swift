@@ -48,6 +48,7 @@ final class AppModel {
     var conversationErrors: [String: String] = [:]
     var connectionMessage: String?
     var relayAccess: ConnectAccess?
+    var relayRevoked = false
     var connection: RoutiClient.ConnectionState = .disconnected
     /// Local notifications for bots the person is not watching.
     let notifier = Notifier()
@@ -151,6 +152,13 @@ final class AppModel {
             guard let self else { return }
             self.connectionMessage = self.client.connectionMessage
             self.relayAccess = self.client.relayAccess
+            self.relayRevoked = self.client.relayRevoked
+            if self.relayRevoked {
+                self.bots = []; self.conversations = [:]; self.messages = []
+                self.selectedBotID = nil
+                self.selectedConversationID = nil
+                self.isShowingScreen = false
+            }
             self.connection = state
             switch state {
             case .connected: self.connectionFailed = false; self.isSettling = false

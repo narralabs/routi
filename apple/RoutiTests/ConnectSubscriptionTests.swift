@@ -11,6 +11,7 @@ private final class BillingProtocol: URLProtocol, @unchecked Sendable {
     static var claims = 0
     static var accessRequests = 0
     static var failAccess = false
+    static var accessStatus = 200
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -28,7 +29,7 @@ private final class BillingProtocol: URLProtocol, @unchecked Sendable {
             ? ["error": "This subscription covers another Mac. Restore it on that Mac."]
             : ["expired": !Self.subscribed, "billing": ["productId": ConnectSubscription.productId,
                 "appAccountToken": Self.accountToken.uuidString, "subscribed": Self.subscribed]]
-        let response = HTTPURLResponse(url: request.url!, statusCode: rejected ? 409 : 200, httpVersion: nil, headerFields: nil)!
+        let response = HTTPURLResponse(url: request.url!, statusCode: rejected ? 409 : (claim ? 200 : Self.accessStatus), httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: try! JSONSerialization.data(withJSONObject: body))
         client?.urlProtocolDidFinishLoading(self)
@@ -38,6 +39,24 @@ private final class BillingProtocol: URLProtocol, @unchecked Sendable {
 
 @MainActor
 final class ConnectSubscriptionTests: XCTestCase {
+    func testRevokedPairingIsDifferentFromRelayFailure() async throws {
+        BillingProtocol.failAccess = false
+        defer { BillingProtocol.accessStatus = 200 }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [BillingProtocol.self]
+        for status in [401, 503] {
+            BillingProtocol.accessStatus = status
+            let tunnel = RelayTunnel(relay: URL(string: "wss://relay.example")!, token: "test", configuration: config)
+            do {
+                _ = try await tunnel.checkAccess()
+                XCTFail("HTTP \(status) must reject access")
+            } catch {
+                let failure = error as NSError
+                XCTAssertEqual(failure.domain == "RoutiConnect" && failure.code == 401, status == 401)
+            }
+        }
+    }
+
     func testExpiredRelayReturnsBillingButUnreachableRelayDoesNot() async throws {
         BillingProtocol.subscribed = false
         BillingProtocol.failAccess = false

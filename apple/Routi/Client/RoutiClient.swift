@@ -32,6 +32,7 @@ final class RoutiClient: NSObject {
     }
     private(set) var connectionMessage: String?
     private(set) var relayAccess: ConnectAccess?
+    private(set) var relayRevoked = false
     private(set) var account: AccountInfo?
     /// What the core said it is, from the handshake. Shown in Settings so "which core
     /// is this" is answerable without a terminal.
@@ -82,6 +83,7 @@ final class RoutiClient: NSObject {
     }
 
     func useRelay(_ profile: RelayProfile?) {
+        relayRevoked = false
         UserDefaults.standard.set(false, forKey: "manualCoreConnection")
         relayAccess = nil
         connectionMessage = nil
@@ -91,6 +93,7 @@ final class RoutiClient: NSObject {
     }
 
     func updateEndpoint(host: String, port: Int) {
+        relayRevoked = false
         #if os(iOS)
         UserDefaults.standard.set(true, forKey: "manualCoreConnection")
         #endif
@@ -122,7 +125,7 @@ final class RoutiClient: NSObject {
     // MARK: - Lifecycle
 
     func connect() {
-        guard !isStopped, state == .disconnected else { return }
+        guard !isStopped, !relayRevoked, state == .disconnected else { return }
         #if os(iOS)
         guard relayProfile != nil || UserDefaults.standard.bool(forKey: "manualCoreConnection") else { return }
         #endif
@@ -150,6 +153,7 @@ final class RoutiClient: NSObject {
                     tunnel.stop()
                     if !Task.isCancelled {
                         let failure = error as NSError
+                        self.relayRevoked = failure.domain == "RoutiConnect" && failure.code == 401
                         self.relayAccess = tunnel.access
                         self.connectionMessage = failure.domain == "RoutiConnect" ? error.localizedDescription
                             : "Can’t reach Routi Connect. Check your internet connection and try again."
@@ -232,7 +236,7 @@ final class RoutiClient: NSObject {
         }
         pending.removeAll()
 
-        guard !isStopped else { return }
+        guard !isStopped, !relayRevoked else { return }
         reconnect(immediately: false)
     }
 

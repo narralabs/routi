@@ -76,8 +76,9 @@ struct ConnectSettings: View {
                         Text(message).font(.caption).foregroundStyle(.red).padding(14)
                     }
                     if status.canPair {
-                        SettingsRow(title: "Paired devices", detail: "Each device has its own access.") {
-                            Button("Pair device") { Task { await pair() } }
+                        SettingsRow(title: "Paired devices", detail: status.devices.isEmpty && status.state == "connected" ? "Ready to pair your phone." : "Each device has its own access.") {
+                            Button("Pair iPhone or iPad") { Task { await pair() } }
+                                .buttonStyle(.borderedProminent)
                                 .disabled(busy || status.state != "connected")
                         }
                         ForEach(status.devices) { device in
@@ -97,7 +98,7 @@ struct ConnectSettings: View {
         }
         .sheet(isPresented: Binding(get: { pairingCode != nil }, set: { if !$0 { cancelPairing() } })) {
             VStack(spacing: 18) {
-                Text("Pair a device").font(.title2.bold())
+                Text("Pair iPhone or iPad").font(.title2.bold())
                 Text("On your iPhone or iPad, choose Scan pairing code in Routi Bot, then scan this code and confirm.")
                     .multilineTextAlignment(.center)
                 if let pairingCode, let image = qrCode(pairingCode) {

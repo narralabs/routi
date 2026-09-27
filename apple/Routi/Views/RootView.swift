@@ -352,7 +352,7 @@ private struct ConnectingView: View {
                 Text("Connect to your Mac").font(.title2.bold())
                 Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")
                     .foregroundStyle(.secondary)
-                Text("On your Mac, open Settings → Routi Core → Routi Connect → Pair device.")
+                Text("On your Mac, open Settings → Routi Core → Routi Connect → Pair iPhone or iPad.")
                     .font(.callout)
                 Button { showingScanner = true } label: {
                     Label("Scan pairing code", systemImage: "qrcode.viewfinder")

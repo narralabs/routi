@@ -126,8 +126,9 @@ underneath.
 ### Routi Connect
 
 Routi supports phone chat and container desktop viewing over an
-outbound relay connection, without Tailscale. In Mac Settings → Routi Core → Routi Connect, connect and choose Pair
-device. Scan the code in the phone app and confirm the Mac’s Computer Name.
+outbound relay connection, without Tailscale. First-time local Mac setup enables Connect automatically.
+In Settings → Routi Core → Routi Connect, choose Pair iPhone or iPad. Scan the code
+in the phone app and confirm the Mac’s Computer Name.
 The VNC viewer uses the same pinned mutual TLS transport as chat; the relay cannot
 read screen updates or input.
 

@@ -6,7 +6,7 @@ final class ConnectEntryTests: XCTestCase {
         let savedHost = "old-mac.example.invalid"
         app.launchArguments = ["-daemonHost", savedHost, "-manualCoreConnection", "NO", "-hasCompletedSetup", "NO"]
         app.launch()
-        XCTAssertTrue(app.buttons["Scan Routi Connect code"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Scan pairing code"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", savedHost)).firstMatch.exists)
         XCTAssertFalse(app.textFields.firstMatch.exists)
         app.buttons["manualCoreConnection"].tap()

@@ -44,7 +44,7 @@ final class ConnectSubscriptionTests: XCTestCase {
         defer { BillingProtocol.accessStatus = 200 }
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [BillingProtocol.self]
-        for status in [401, 503] {
+        for status in [401, 403, 404, 503] {
             BillingProtocol.accessStatus = status
             let tunnel = RelayTunnel(relay: URL(string: "wss://relay.example")!, token: "test", configuration: config)
             do {

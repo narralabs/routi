@@ -31,7 +31,7 @@ final class RelayTunnel: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         self.configuration = configuration
     }
 
-    func checkAccess() async throws -> ConnectAccess? {
+    func checkAccess() async throws -> ConnectAccess {
         var components = URLComponents(url: relay.appendingPathComponent("v1/access"), resolvingAgainstBaseURL: false)!
         components.scheme = relay.scheme == "wss" ? "https" : "http"
         var request = URLRequest(url: components.url!, timeoutInterval: 10)
@@ -44,9 +44,6 @@ final class RelayTunnel: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         } else if (response as? HTTPURLResponse)?.statusCode == 401 {
             throw NSError(domain: "RoutiConnect", code: 401, userInfo: [NSLocalizedDescriptionKey:
                 "This device’s access was revoked. Pair with your Mac again to reconnect."])
-        } else if [403, 404].contains((response as? HTTPURLResponse)?.statusCode ?? 0) {
-            // Older relay proxies authenticate on the WebSocket instead.
-            return nil
         }
         throw URLError(.userAuthenticationRequired)
     }

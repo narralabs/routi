@@ -95,7 +95,7 @@ export class PhonePairing {
       if (response.status === 409) throw Error('Device allowance reached. Revoke a device before pairing another.')
       throw Error('Could not update devices on the relay. Check the connection and try again.')
     }
-    return await response.json() as { maxDevices: number; devices: { id: string }[] }
+    return await response.json() as { maxDevices: number | null; devices: { id: string }[] }
   }
 
   async revoke(id: string, relay: string): Promise<void> {
@@ -135,7 +135,7 @@ export class PhonePairing {
       for (const device of devices) {
         if (!this.devices.some(local => local.id === device.id)) await this.registry(pending.relay, 'DELETE', device.id)
       }
-      if (this.devices.length >= maxDevices) throw Error('Device allowance reached. Revoke a device before pairing another.')
+      if (maxDevices != null && this.devices.length >= maxDevices) throw Error('Device allowance reached. Revoke a device before pairing another.')
       await this.registry(pending.relay, 'POST', '', { id, hash: createHash('sha256').update(pending.token).digest('hex') })
       registered = true
       if (generation !== this.generation) throw Error('Pairing cancelled. Create a new code.')

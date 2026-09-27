@@ -24,7 +24,7 @@ struct PhonePairingScanner: View {
                     } else if cameraReady {
                         PairingCamera { value in
                             do {
-                                guard let url = URL(string: value) else { throw PairingError("This is not a Routi pairing code.") }
+                                guard let url = URL(string: value) else { throw PairingError("This is not a Routi Connect pairing code.") }
                                 invitation = try RelayInvitation.parse(url)
                             } catch { codeError = error.localizedDescription }
                         } failed: { cameraError = $0 }
@@ -33,7 +33,7 @@ struct PhonePairingScanner: View {
                         ProgressView().frame(maxHeight: .infinity)
                     }
                 }
-                .navigationTitle("Scan pairing code")
+                .navigationTitle("Routi Connect")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
                 .alert("Cannot use this code", isPresented: Binding(get: { codeError != nil }, set: { if !$0 { codeError = nil } })) {

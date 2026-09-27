@@ -3,6 +3,8 @@ import SwiftUI
 import CoreImage.CIFilterBuiltins
 
 struct ConnectStatus: Decodable {
+    struct Access: Decodable { let trial: Bool; let expiresAt: Double?; let expired: Bool }
+    let access: Access?
     let canPair: Bool
     struct Device: Decodable, Identifiable { let id: String; let name: String; let createdAt: Double }
     let devices: [Device]
@@ -13,7 +15,8 @@ struct ConnectStatus: Decodable {
     let error: String?
 
     var indicator: (label: String, color: Color) {
-        switch state {
+        if access?.expired == true { return ("Access ended", .secondary) }
+        return switch state {
         case "connected": ("Connected", .green)
         case "connecting": ("Connecting…", .orange)
         case "reconnecting": ("Reconnecting…", .orange)
@@ -35,8 +38,7 @@ struct ConnectSettings: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Only provisioned pilot installations have a usable connection to configure.
-            if let status, status.configured || status.enabled {
+            if let status {
                 SettingsSection(
                     "Routi Connect",
                     footnote: "Chat and use bot desktops from your paired devices without Tailscale."
@@ -58,12 +60,25 @@ struct ConnectSettings: View {
                             .accessibilityLabel("Relay address")
                             .disabled(status.enabled || busy)
                     }
-                    if let message = error ?? refreshError ?? status.error {
+                    if status.access?.expired == true {
+                        Text("Connect access has ended. Subscribe or restore purchases on your paired iPhone or iPad. Mac use and Tailscale remain available.")
+                            .font(.caption).foregroundStyle(.secondary).padding(14)
+                    } else if status.access?.trial == false {
+                        Text("Connect access is active.").font(.caption).foregroundStyle(.secondary).padding(14)
+                    } else if let expiry = status.access?.expiresAt {
+                        Text("Connect trial ends \(Date(timeIntervalSince1970: expiry / 1000).formatted(date: .abbreviated, time: .shortened)).")
+                            .font(.caption).foregroundStyle(.secondary).padding(14)
+                    } else if !status.configured || status.access?.trial == true {
+                        Text("Try Connect free for three days, starting when your first device connects. No account or payment required. Mac use stays free.")
+                            .font(.caption).foregroundStyle(.secondary).padding(14)
+                    }
+                    if let message = error ?? refreshError ?? (status.access?.expired == true ? nil : status.error) {
                         Text(message).font(.caption).foregroundStyle(.red).padding(14)
                     }
                     if status.canPair {
-                        SettingsRow(title: "Paired devices", detail: "Each device has its own access.") {
-                            Button("Pair device") { Task { await pair() } }
+                        SettingsRow(title: "Paired devices", detail: status.devices.isEmpty && status.state == "connected" ? "Ready to pair your phone." : "Each device has its own access.") {
+                            Button("Pair iPhone or iPad") { Task { await pair() } }
+                                .buttonStyle(.borderedProminent)
                                 .disabled(busy || status.state != "connected")
                         }
                         ForEach(status.devices) { device in
@@ -83,7 +98,7 @@ struct ConnectSettings: View {
         }
         .sheet(isPresented: Binding(get: { pairingCode != nil }, set: { if !$0 { cancelPairing() } })) {
             VStack(spacing: 18) {
-                Text("Pair a device").font(.title2.bold())
+                Text("Pair iPhone or iPad").font(.title2.bold())
                 Text("On your iPhone or iPad, choose Scan pairing code in Routi Bot, then scan this code and confirm.")
                     .multilineTextAlignment(.center)
                 if let pairingCode, let image = qrCode(pairingCode) {
@@ -143,7 +158,6 @@ struct ConnectSettings: View {
                 if status == nil || latest.enabled { address = latest.url }
                 status = latest
                 refreshError = nil
-                if !latest.configured && !latest.enabled { return }
             } catch {
                 refreshError = error.localizedDescription
             }

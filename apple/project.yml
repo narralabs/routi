@@ -54,15 +54,28 @@ schemes:
       targets:
         Routi: all
         RoutiUITests: [test]
+        RoutiTests: [test]
     run:
       config: Debug
     test:
       config: Debug
-      targets: [RoutiUITests]
+      targets: [RoutiUITests, RoutiTests]
     archive:
       config: Release
 
 targets:
+  RoutiTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [RoutiTests]
+    dependencies:
+      - target: Routi
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.narralabs.routi.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Routi Bot.app/Routi Bot"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        GENERATE_INFOPLIST_FILE: YES
   # Drives the app on an iPhone simulator with real taps, drags and holds, against a
   # running core, and reads back what input the desktop was sent. The one place the
   # phone's touch handling is proven rather than described.

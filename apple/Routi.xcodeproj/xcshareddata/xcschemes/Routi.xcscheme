@@ -29,6 +29,20 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "5BF02837806A939031E3B902"
+               BuildableName = "RoutiTests.xctest"
+               BlueprintName = "RoutiTests"
+               ReferencedContainer = "container:Routi.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "21B047F081972FB4C3B4E74F"
                BuildableName = "RoutiUITests.xctest"
                BlueprintName = "RoutiUITests"
@@ -61,6 +75,17 @@
                BlueprintIdentifier = "21B047F081972FB4C3B4E74F"
                BuildableName = "RoutiUITests.xctest"
                BlueprintName = "RoutiUITests"
+               ReferencedContainer = "container:Routi.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "5BF02837806A939031E3B902"
+               BuildableName = "RoutiTests.xctest"
+               BlueprintName = "RoutiTests"
                ReferencedContainer = "container:Routi.xcodeproj">
             </BuildableReference>
          </TestableReference>

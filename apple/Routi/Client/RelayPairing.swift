@@ -14,7 +14,7 @@ struct RelayInvitation: Decodable, Identifiable {
     static func parse(_ url: URL) throws -> RelayInvitation {
         guard url.scheme == "routibot", url.host == "pair", url.absoluteString.count < 8192,
               let encoded = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "data" })?.value else {
-            throw PairingError("This is not a valid Routi pairing code.")
+            throw PairingError("Scan a Routi Connect pairing code from your Mac.")
         }
         var base64 = encoded.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
         base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
@@ -54,7 +54,7 @@ enum RelayPairing {
     static func claim(_ invitation: RelayInvitation, deviceName: String = "iPhone") async throws -> RelayProfile {
         let tunnel = RelayTunnel(relay: URL(string: invitation.relay)!, token: invitation.token)
         defer { tunnel.stop() }
-        let base = try await tunnel.start()
+        let base = try await tunnel.start(pairing: true)
         let trust = try RelayTrust(certificate: invitation.certificate)
         let session = URLSession(configuration: .ephemeral, delegate: trust, delegateQueue: nil)
         defer { session.invalidateAndCancel() }

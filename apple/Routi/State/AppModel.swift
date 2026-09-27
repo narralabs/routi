@@ -46,6 +46,9 @@ final class AppModel {
     /// Last failure per conversation, shown inline in that thread rather than only
     /// as an alert — an alert that fires while you are looking elsewhere is lost.
     var conversationErrors: [String: String] = [:]
+    var connectionMessage: String?
+    var relayAccess: ConnectAccess?
+    var relayRevoked = false
     var connection: RoutiClient.ConnectionState = .disconnected
     /// Local notifications for bots the person is not watching.
     let notifier = Notifier()
@@ -111,6 +114,9 @@ final class AppModel {
     /// setup is where installing the core, or pointing at one, is offered — so that
     /// a spinner is never the first thing a new person sees.
     var needsOnboarding: Bool {
+        #if os(iOS)
+        if !authKnown { return false }
+        #endif
         if !hasCompletedSetup && !authKnown { return true }
         guard authKnown else { return false }
         return !coreConfigured || !onboardingDismissed
@@ -144,6 +150,15 @@ final class AppModel {
         self.client = client
         client.onStateChange = { [weak self] state in
             guard let self else { return }
+            self.connectionMessage = self.client.connectionMessage
+            self.relayAccess = self.client.relayAccess
+            self.relayRevoked = self.client.relayRevoked
+            if self.relayRevoked {
+                self.bots = []; self.conversations = [:]; self.messages = []
+                self.selectedBotID = nil
+                self.selectedConversationID = nil
+                self.isShowingScreen = false
+            }
             self.connection = state
             switch state {
             case .connected: self.connectionFailed = false; self.isSettling = false
@@ -687,6 +702,7 @@ final class AppModel {
     }
 
     func updateEndpoint(host: String, port: Int) {
+        if usesRelay { switchRelay(nil) }
         client.updateEndpoint(host: host, port: port)
     }
 
@@ -701,7 +717,7 @@ final class AppModel {
     func watchForCore() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(2))
-            if connection == .disconnected { connectNow() }
+            if !usesRelay && connection == .disconnected { connectNow() }
         }
     }
 
@@ -1021,6 +1037,24 @@ final class AppModel {
         guard !hasCompletedSetup else { return }
         hasCompletedSetup = true
         UserDefaults.standard.set(true, forKey: "hasCompletedSetup")
+        #if os(macOS)
+        let endpoint = client.endpoint
+        guard !usesRelay,
+              let host = URL(string: "http://\(endpoint)")?.host,
+              ["127.0.0.1", "localhost", "[::1]"].contains(host) else { return }
+        Task {
+            do {
+                let result = try await client.rpc("settings.get")
+                guard let settings = result["settings"] as? [String: Any],
+                      settings["connect"] == nil, client.endpoint == endpoint else { return }
+                let status = try await connectStatus()
+                guard !status.configured, client.endpoint == endpoint else { return }
+                _ = try await configureConnect(url: status.url, enabled: true)
+            } catch {
+                errorMessage = "Local chat is ready, but Routi Connect could not be set up. Try Connect in Settings. \(error.localizedDescription)"
+            }
+        }
+        #endif
     }
 
     // MARK: - Loading

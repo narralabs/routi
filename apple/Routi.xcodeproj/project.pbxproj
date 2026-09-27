@@ -28,9 +28,11 @@
 		3C30816F38EAD85EBFEFA0CE /* NewBotSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD073724E27CFF96D741B5D /* NewBotSheet.swift */; };
 		3D42E355F685B12EA2B094F6 /* BotListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1CCA89D76AC485ADB29A15 /* BotListView.swift */; };
 		4442FC1F9A92A89C3982D45E /* PluginsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FB096BDC5492777BE9AD63 /* PluginsPane.swift */; };
+		4BCF1FEE1E8F5E6974678DA1 /* ConnectSubscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C2EE24E77625E98D92023B /* ConnectSubscription.swift */; };
 		58A7CAAB48E6029F63CFF0F1 /* Surface.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7400158C8ADF31FCEE7EA29 /* Surface.swift */; };
 		5AC5D791694CFB6FB3A4DAC1 /* ModelName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85E91F8038F61343E3273FD7 /* ModelName.swift */; };
 		5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */; };
+		6348F4BBCA863E9E26C07173 /* ConnectSubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22992FEDAE1D294F1A9E314 /* ConnectSubscriptionView.swift */; };
 		73BE07686D0651C8596ABEA8 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = 5325234DD42598AE269B99EE /* Sparkle */; };
 		75A19DFAB67260DA17C5089B /* PhonePairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F6C2973FB64E6BD7D33937B /* PhonePairingScanner.swift */; };
 		7D6DDD9B24A812AAE77ECC62 /* OnboardingSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5427100A411FDE8FAC97666 /* OnboardingSteps.swift */; };
@@ -45,12 +47,15 @@
 		AAAF782A150C68DB48D03410 /* DesktopViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46774C0C9055ED1150D62E43 /* DesktopViewer.swift */; };
 		AB479DF6C4DE7DB2969E29B1 /* MobileScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 244B305A6147E7F5E37527F0 /* MobileScreen.swift */; };
 		AEEE9600AFA8BA8AA7B788BF /* HandoverCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E2F25951C19F693EF8EE16 /* HandoverCard.swift */; };
+		B05E57C375EBE61AA82D0FF4 /* ConnectSubscriptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCF63A31265C7F9DE72B3A2 /* ConnectSubscriptionTests.swift */; };
+		B6A0826D3AEF3E3102574919 /* Connect.storekit in Resources */ = {isa = PBXBuildFile; fileRef = F3FFC9ED00A2F3A369BFB768 /* Connect.storekit */; };
 		C99553EEF2AEFFA486E1E3E0 /* RoutiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 184722C04D7C490D94182666 /* RoutiApp.swift */; };
 		CC0218F546FFF1FC732BBBCB /* Handover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F745F0678DD8714864203C0 /* Handover.swift */; };
 		CF6BE494A2D1ABEDD51F01BA /* DesktopHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BDD1652BD89D0FF8E9E5053 /* DesktopHostView.swift */; };
 		D70141640505B1F4BAA53171 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D720880BAD6D2F0296D4A8 /* RootView.swift */; };
 		D8116D3E00FBE96C2311F8F0 /* BotAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */; };
 		DD02C6C12BF9AB7D61B042C1 /* MessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB45665E5E45F01F8945DBB6 /* MessageRow.swift */; };
+		DEC2100F19A10860A2C2EB2A /* ConnectEntryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D559DAE5F902C998682603 /* ConnectEntryTests.swift */; };
 		DEF29F89225C5F255ECEA1FD /* RoutiUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 507438B7D0AA7E577BF5D59B /* RoutiUpdate.swift */; };
 		EC3CF43ED8865BB048129C3E /* ScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0128A80F54B6560A538AC1C /* ScreenView.swift */; };
 		EE7B1D28943762E8D0683800 /* Effort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F126D3177A0B31881954AE1 /* Effort.swift */; };
@@ -61,6 +66,13 @@
 
 /* Begin PBXContainerItemProxy section */
 		3120C7EE351557FB3AFA47D9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 35538A6876F222107FE2DB06 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 56A6E8349922C39DB4FE5BDE;
+			remoteInfo = Routi;
+		};
+		FA8437FC9821507C75B14AA5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 35538A6876F222107FE2DB06 /* Project object */;
 			proxyType = 1;
@@ -86,11 +98,13 @@
 		3C1CCA89D76AC485ADB29A15 /* BotListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotListView.swift; sourceTree = "<group>"; };
 		46774C0C9055ED1150D62E43 /* DesktopViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopViewer.swift; sourceTree = "<group>"; };
 		46A9147FFCAF8A5BE1C24F7B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		48BB114D0114CF6937D49317 /* RoutiTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = RoutiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4D8ECAF1EC3F7CFEDCF1BC0D /* DetailRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailRail.swift; sourceTree = "<group>"; };
 		502F8CF0DE246295A5890E87 /* Blocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Blocks.swift; sourceTree = "<group>"; };
 		507438B7D0AA7E577BF5D59B /* RoutiUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutiUpdate.swift; sourceTree = "<group>"; };
 		5BD073724E27CFF96D741B5D /* NewBotSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewBotSheet.swift; sourceTree = "<group>"; };
 		5CD519408FA1CF5A394CDDA7 /* ToolbarStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarStyle.swift; sourceTree = "<group>"; };
+		5FCF63A31265C7F9DE72B3A2 /* ConnectSubscriptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectSubscriptionTests.swift; sourceTree = "<group>"; };
 		6000E865AEDE062799B61047 /* BuildStamp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildStamp.swift; sourceTree = "<group>"; };
 		6132C9BD1682BD1B1B50464C /* FaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceTests.swift; sourceTree = "<group>"; };
 		75ECC9B53C46B40DF50283ED /* Composer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Composer.swift; sourceTree = "<group>"; };
@@ -108,9 +122,11 @@
 		A9E8497321961863E9412700 /* RelayPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayPairing.swift; sourceTree = "<group>"; };
 		AE9EE469AEAC6433B4672D15 /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		B1FB096BDC5492777BE9AD63 /* PluginsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginsPane.swift; sourceTree = "<group>"; };
+		B22992FEDAE1D294F1A9E314 /* ConnectSubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectSubscriptionView.swift; sourceTree = "<group>"; };
 		B2D720880BAD6D2F0296D4A8 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B3F6D67DADD4D1871970741B /* ProfileMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileMenu.swift; sourceTree = "<group>"; };
 		B7400158C8ADF31FCEE7EA29 /* Surface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Surface.swift; sourceTree = "<group>"; };
+		D2C2EE24E77625E98D92023B /* ConnectSubscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectSubscription.swift; sourceTree = "<group>"; };
 		DB45665E5E45F01F8945DBB6 /* MessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageRow.swift; sourceTree = "<group>"; };
 		DEA46F4858311831473C9EF7 /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
 		E531433B6982110683524454 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -120,6 +136,8 @@
 		EA56FAD7115195CEA260370F /* Notifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifier.swift; sourceTree = "<group>"; };
 		EC981D1AAEC8AE0B375F5E9C /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		EDD60CFEB03F70D46D2F34DF /* BotAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotAvatar.swift; sourceTree = "<group>"; };
+		F1D559DAE5F902C998682603 /* ConnectEntryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectEntryTests.swift; sourceTree = "<group>"; };
+		F3FFC9ED00A2F3A369BFB768 /* Connect.storekit */ = {isa = PBXFileReference; path = Connect.storekit; sourceTree = "<group>"; };
 		F4DFC65D324CCCB7788FAC01 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		F674CA7B76558EF0A3FA15A7 /* RoutiUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = RoutiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F6D2098FB40F78A2B0E76D60 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
@@ -162,6 +180,15 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		42099A7DD6AF04A39562B925 /* RoutiTests */ = {
+			isa = PBXGroup;
+			children = (
+				F3FFC9ED00A2F3A369BFB768 /* Connect.storekit */,
+				5FCF63A31265C7F9DE72B3A2 /* ConnectSubscriptionTests.swift */,
+			);
+			path = RoutiTests;
+			sourceTree = "<group>";
+		};
 		5054F6CD64AD88456F7D3839 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -181,6 +208,7 @@
 			isa = PBXGroup;
 			children = (
 				97647FF55564F4B40332D6CA /* Routi.app */,
+				48BB114D0114CF6937D49317 /* RoutiTests.xctest */,
 				F674CA7B76558EF0A3FA15A7 /* RoutiUITests.xctest */,
 			);
 			name = Products;
@@ -190,6 +218,7 @@
 			isa = PBXGroup;
 			children = (
 				2A4718C548C40F1CAAD6EB0D /* Routi */,
+				42099A7DD6AF04A39562B925 /* RoutiTests */,
 				E3A5557C2BEA2D63961175F4 /* RoutiUITests */,
 				8E63362B6040397E9B8280AE /* Products */,
 			);
@@ -219,6 +248,7 @@
 			isa = PBXGroup;
 			children = (
 				08237E41C7EBDCEAC9E65136 /* ConnectSettings.swift */,
+				B22992FEDAE1D294F1A9E314 /* ConnectSubscriptionView.swift */,
 				8F6C2973FB64E6BD7D33937B /* PhonePairingScanner.swift */,
 				EA2E1E9BA2B4C0A2354CD8DA /* PhonePairingSheet.swift */,
 				B1FB096BDC5492777BE9AD63 /* PluginsPane.swift */,
@@ -270,6 +300,7 @@
 		E3A5557C2BEA2D63961175F4 /* RoutiUITests */ = {
 			isa = PBXGroup;
 			children = (
+				F1D559DAE5F902C998682603 /* ConnectEntryTests.swift */,
 				01F1A14AE9D0FD86AE6CE4C5 /* DesktopTouchTests.swift */,
 				6132C9BD1682BD1B1B50464C /* FaceTests.swift */,
 			);
@@ -279,6 +310,7 @@
 		E7C53597C76C9CFF1D60B6AB /* Client */ = {
 			isa = PBXGroup;
 			children = (
+				D2C2EE24E77625E98D92023B /* ConnectSubscription.swift */,
 				A9E8497321961863E9412700 /* RelayPairing.swift */,
 				8B0E8E79F9AD029B3BC463C5 /* RelayTunnel.swift */,
 				366F6379C430E013241DB531 /* RoutiClient.swift */,
@@ -328,6 +360,25 @@
 			productReference = 97647FF55564F4B40332D6CA /* Routi.app */;
 			productType = "com.apple.product-type.application";
 		};
+		5BF02837806A939031E3B902 /* RoutiTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4F20623FFA3C77D7634B829E /* Build configuration list for PBXNativeTarget "RoutiTests" */;
+			buildPhases = (
+				89CCFB073FA57CD0F23CEF59 /* Sources */,
+				33376BEE9662B83383D56730 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B4C3ED06909F66F25014D70F /* PBXTargetDependency */,
+			);
+			name = RoutiTests;
+			packageProductDependencies = (
+			);
+			productName = RoutiTests;
+			productReference = 48BB114D0114CF6937D49317 /* RoutiTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -342,6 +393,9 @@
 						TestTargetID = 56A6E8349922C39DB4FE5BDE;
 					};
 					56A6E8349922C39DB4FE5BDE = {
+						ProvisioningStyle = Manual;
+					};
+					5BF02837806A939031E3B902 = {
 						ProvisioningStyle = Manual;
 					};
 				};
@@ -363,6 +417,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				5BF02837806A939031E3B902 /* RoutiTests */,
 				21B047F081972FB4C3B4E74F /* RoutiUITests */,
 				56A6E8349922C39DB4FE5BDE /* Routi */,
 			);
@@ -370,6 +425,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		33376BEE9662B83383D56730 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B6A0826D3AEF3E3102574919 /* Connect.storekit in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BD99FEFE9EB367285EE51CAA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -408,8 +471,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DEC2100F19A10860A2C2EB2A /* ConnectEntryTests.swift in Sources */,
 				2B688CAF8F0266B2101F421F /* DesktopTouchTests.swift in Sources */,
 				121F5D600BB09425082B33D3 /* FaceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		89CCFB073FA57CD0F23CEF59 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B05E57C375EBE61AA82D0FF4 /* ConnectSubscriptionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -427,6 +499,8 @@
 				36975A6582EC638CDC3F6C18 /* ChatView.swift in Sources */,
 				2046900E789F1433535727F0 /* Composer.swift in Sources */,
 				2D60D01B129DC7EEFF709104 /* ConnectSettings.swift in Sources */,
+				4BCF1FEE1E8F5E6974678DA1 /* ConnectSubscription.swift in Sources */,
+				6348F4BBCA863E9E26C07173 /* ConnectSubscriptionView.swift in Sources */,
 				CF6BE494A2D1ABEDD51F01BA /* DesktopHostView.swift in Sources */,
 				AAAF782A150C68DB48D03410 /* DesktopViewer.swift in Sources */,
 				5D560C0CC373F198C1805A66 /* DetailRail.swift in Sources */,
@@ -474,9 +548,31 @@
 			target = 56A6E8349922C39DB4FE5BDE /* Routi */;
 			targetProxy = 3120C7EE351557FB3AFA47D9 /* PBXContainerItemProxy */;
 		};
+		B4C3ED06909F66F25014D70F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 56A6E8349922C39DB4FE5BDE /* Routi */;
+			targetProxy = FA8437FC9821507C75B14AA5 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		0D4A66BFFBD8CBFDB778A00F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Routi Bot.app/Routi Bot";
+			};
+			name = Release;
+		};
 		113C6E5CE499C37D0FF36EB1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -642,6 +738,23 @@
 			};
 			name = Release;
 		};
+		6C351BE686AADE4456EBD46B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.narralabs.routi.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Routi Bot.app/Routi Bot";
+			};
+			name = Debug;
+		};
 		70AAEA9B05A4228FDF9DB25A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -719,6 +832,15 @@
 			buildConfigurations = (
 				F279E163A420017DB7D461D1 /* Debug */,
 				30A4B0F42EFE3DB480484480 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4F20623FFA3C77D7634B829E /* Build configuration list for PBXNativeTarget "RoutiTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6C351BE686AADE4456EBD46B /* Debug */,
+				0D4A66BFFBD8CBFDB778A00F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

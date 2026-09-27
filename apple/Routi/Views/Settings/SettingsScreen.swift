@@ -487,6 +487,11 @@ struct ConnectionPane: View {
         SettingsPane(title: "Routi Core") {
             if model.usesRelay {
                 PhoneConnectionSettings()
+                #if os(iOS)
+                if let profile = model.relayViewerProfile {
+                    ConnectSubscriptionView(profile: profile).padding()
+                }
+                #endif
             } else {
                 SettingsSection("Connection") {
                     SettingsRow(title: "Status", isFirst: true) {

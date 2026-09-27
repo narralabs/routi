@@ -1,0 +1,43 @@
+{
+  "identifier": "1B499005-FAAB-4CBB-B149-05A2A736D220",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA"
+  },
+  "subscriptionGroups": [
+    {
+      "id": "routi-connect",
+      "localizations": [],
+      "name": "Routi Connect",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "4.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "10001",
+          "localizations": [
+            {
+              "description": "Remote access to one Mac",
+              "displayName": "Routi Connect",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.routibot.connect.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "One Mac monthly",
+          "subscriptionGroupID": "routi-connect",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

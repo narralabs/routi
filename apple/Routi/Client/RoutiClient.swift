@@ -30,6 +30,9 @@ final class RoutiClient: NSObject {
     private(set) var state: ConnectionState = .disconnected {
         didSet { if oldValue != state { onStateChange?(state) } }
     }
+    private(set) var connectionMessage: String?
+    private(set) var relayAccess: ConnectAccess?
+    private(set) var relayRevoked = false
     private(set) var account: AccountInfo?
     /// What the core said it is, from the handshake. Shown in Settings so "which core
     /// is this" is answerable without a terminal.
@@ -62,7 +65,9 @@ final class RoutiClient: NSObject {
         self.host = host
         self.port = port
         #if !os(macOS)
-        self.relayProfile = try? RelayPairing.load()
+        if !UserDefaults.standard.bool(forKey: "manualCoreConnection") {
+            self.relayProfile = try? RelayPairing.load()
+        }
         #endif
         super.init()
         self.session = URLSession(configuration: .default)
@@ -78,12 +83,22 @@ final class RoutiClient: NSObject {
     }
 
     func useRelay(_ profile: RelayProfile?) {
+        relayRevoked = false
+        UserDefaults.standard.set(false, forKey: "manualCoreConnection")
+        relayAccess = nil
+        connectionMessage = nil
         subscriptions.removeAll()
         relayProfile = profile
         reconnect(immediately: true)
     }
 
     func updateEndpoint(host: String, port: Int) {
+        relayRevoked = false
+        #if os(iOS)
+        UserDefaults.standard.set(true, forKey: "manualCoreConnection")
+        #endif
+        relayAccess = nil
+        connectionMessage = nil
         // The same address typed again is a request to try it again, not a no-op —
         // onboarding's Connect button would otherwise sit through its whole wait.
         guard host != self.host || port != self.port else {
@@ -110,7 +125,10 @@ final class RoutiClient: NSObject {
     // MARK: - Lifecycle
 
     func connect() {
-        guard !isStopped, state == .disconnected else { return }
+        guard !isStopped, !relayRevoked, state == .disconnected else { return }
+        #if os(iOS)
+        guard relayProfile != nil || UserDefaults.standard.bool(forKey: "manualCoreConnection") else { return }
+        #endif
         state = .connecting
 
         if let profile = relayProfile {
@@ -121,6 +139,8 @@ final class RoutiClient: NSObject {
                 do {
                     let base = try await tunnel.start()
                     try Task.checkCancellation()
+                    self.relayAccess = tunnel.access
+                    self.connectionMessage = nil
                     self.relayBaseURL = base
                     let trust = try RelayTrust(certificate: profile.certificate, pkcs12: profile.pkcs12)
                     let inner = URLSession(configuration: .ephemeral, delegate: trust, delegateQueue: nil)
@@ -131,7 +151,14 @@ final class RoutiClient: NSObject {
                     self.open(inner.webSocketTask(with: parts.url!))
                 } catch {
                     tunnel.stop()
-                    if !Task.isCancelled { self.handleDisconnect() }
+                    if !Task.isCancelled {
+                        let failure = error as NSError
+                        self.relayRevoked = failure.domain == "RoutiConnect" && failure.code == 401
+                        self.relayAccess = tunnel.access
+                        self.connectionMessage = failure.domain == "RoutiConnect" ? error.localizedDescription
+                            : "Can’t reach Routi Connect. Check your internet connection and try again."
+                        self.handleDisconnect()
+                    }
                 }
             }
             return
@@ -209,7 +236,7 @@ final class RoutiClient: NSObject {
         }
         pending.removeAll()
 
-        guard !isStopped else { return }
+        guard !isStopped, !relayRevoked else { return }
         reconnect(immediately: false)
     }
 
@@ -275,6 +302,7 @@ final class RoutiClient: NSObject {
                     "message": "routid speaks protocol v\(serverVersion); this app speaks v\(Self.protocolVersion).",
                 ]))
             }
+            connectionMessage = nil
             state = .connected
             for id in subscriptions {
                 send(["t": "subscribe", "conversationId": id])

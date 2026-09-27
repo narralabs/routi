@@ -24,6 +24,7 @@ const PluginAccessRequest = z.object({
 })
 
 export const RelayStatus = z.object({
+  access: z.object({ trial: z.boolean(), expiresAt: z.number().nullable(), expired: z.boolean() }).optional(),
   canPair: z.boolean(), devices: z.array(z.object({ id: z.string(), name: z.string(), createdAt: z.number() })),
   configured: z.boolean(), url: z.string(), enabled: z.boolean(),
   state: z.enum(['disconnected', 'connecting', 'connected', 'reconnecting', 'rejected', 'error']),

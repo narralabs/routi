@@ -226,6 +226,7 @@ struct RootView: View {
 /// Cover unavailable actions without discarding the chat's navigation or draft.
 private struct PhoneConnectionCover: ViewModifier {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         let offline = model.connection != .connected || model.isLoadingBots
@@ -241,8 +242,10 @@ private struct PhoneConnectionCover: ViewModifier {
                 if offline {
                     ConnectingView(reconnecting: true)
                         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+                        .transition(.opacity)
                 }
             }
+            .animation(reduceMotion || offline ? nil : .easeOut(duration: 0.18), value: offline)
     }
 }
 #endif

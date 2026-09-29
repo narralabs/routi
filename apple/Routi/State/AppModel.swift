@@ -161,7 +161,9 @@ final class AppModel {
             }
             self.connection = state
             switch state {
-            case .connected: self.connectionFailed = false; self.isSettling = false
+            case .connected:
+                self.errorMessage = nil
+                self.connectionFailed = false; self.isSettling = false
             case .disconnected: self.connectionFailed = true; self.isSettling = false
             case .connecting: break
             }
@@ -706,19 +708,9 @@ final class AppModel {
         client.updateEndpoint(host: host, port: port)
     }
 
-    /// Retries the core without waiting out the backoff. For screens that are
-    /// watching for one to appear.
+    /// Starts a single connection attempt if disconnected.
     func connectNow() {
         client.connectNow()
-    }
-
-    /// Keeps knocking on the port every couple of seconds until the view goes away.
-    /// For the screens that exist because there is no core yet.
-    func watchForCore() async {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(2))
-            if !usesRelay && connection == .disconnected { connectNow() }
-        }
     }
 
     /// The whole thread as text, labelled by speaker.

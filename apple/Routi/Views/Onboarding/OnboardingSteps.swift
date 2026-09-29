@@ -62,11 +62,7 @@ struct ConnectionStep: View {
 
 // MARK: - Install the core here
 
-/// The install command, and a watch on the port.
-///
-/// There is nothing to press to continue: the app keeps trying the port while the
-/// installer runs, and moves on the moment the core answers. The one thing a person
-/// does here is paste a line into Terminal, so that is the one thing on the screen.
+/// Install locally, then connect when returning from Terminal or pressing Connect.
 struct InstallStep: View {
     @Environment(AppModel.self) private var model
     let onBack: () -> Void
@@ -81,8 +77,8 @@ struct InstallStep: View {
             VStack(spacing: 18) {
                 InstallCommand()
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Waiting for the core to start… this screen moves on by itself.")
+                    if model.connection == .connecting { ProgressView().controlSize(.small) }
+                    Text(model.connection == .connecting ? "Connecting to Routi Core…" : "After installation, click Connect.")
                         .font(.system(size: 12.5))
                         .foregroundStyle(.secondary)
                 }
@@ -91,8 +87,12 @@ struct InstallStep: View {
         } actions: {
             Button("Back", action: onBack)
                 .controlSize(.large)
+            Button("Connect") { model.connectNow() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(model.connection == .connecting)
         }
-        .task { await model.watchForCore() }
+        .task { model.connectNow() }
         .onChange(of: model.connection, initial: true) { _, state in
             if state == .connected { onConnected() }
         }

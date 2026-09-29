@@ -57,8 +57,7 @@ final class RoutiClient: NSObject {
     private var task: URLSessionWebSocketTask?
     private var pending: [String: CheckedContinuation<[String: Any], Error>] = [:]
     private var subscriptions: Set<String> = []
-    private var attempt = 0
-    private var reconnectTask: Task<Void, Never>?
+    private var connectionTimeout: Task<Void, Never>?
     private var isStopped = false
 
     init(host: String = "127.0.0.1", port: Int = 7171) {
@@ -89,7 +88,7 @@ final class RoutiClient: NSObject {
         connectionMessage = nil
         subscriptions.removeAll()
         relayProfile = profile
-        reconnect(immediately: true)
+        restartConnection()
     }
 
     func updateEndpoint(host: String, port: Int) {
@@ -102,23 +101,16 @@ final class RoutiClient: NSObject {
         // The same address typed again is a request to try it again, not a no-op —
         // onboarding's Connect button would otherwise sit through its whole wait.
         guard host != self.host || port != self.port else {
-            if state != .connected { reconnect(immediately: true) }
+            if state != .connected { restartConnection() }
             return
         }
         self.host = host
         self.port = port
-        reconnect(immediately: true)
+        restartConnection()
     }
 
-    /// Tries now instead of at the end of the backoff.
-    ///
-    /// The backoff climbs to fifteen seconds, which is right for a phone that lost
-    /// Wi-Fi and wrong for a screen that is watching for an installer to finish: the
-    /// core comes up, and the app should notice in a beat, not a quarter minute.
+    /// One attempt; failed connections wait for Retry or the app becoming active.
     func connectNow() {
-        guard !isStopped, state == .disconnected else { return }
-        reconnectTask?.cancel()
-        attempt = 0
         connect()
     }
 
@@ -130,6 +122,11 @@ final class RoutiClient: NSObject {
         guard relayProfile != nil || UserDefaults.standard.bool(forKey: "manualCoreConnection") else { return }
         #endif
         state = .connecting
+        connectionTimeout = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(3)) }
+            catch { return }
+            self?.handleDisconnect()
+        }
 
         if let profile = relayProfile {
             openingTask = Task { [weak self] in
@@ -182,7 +179,7 @@ final class RoutiClient: NSObject {
 
     func stop() {
         isStopped = true
-        reconnectTask?.cancel()
+        connectionTimeout?.cancel()
         handleDisconnect()
     }
 
@@ -224,6 +221,8 @@ final class RoutiClient: NSObject {
     }
 
     private func handleDisconnect() {
+        connectionTimeout?.cancel()
+        connectionTimeout = nil
         guard state != .disconnected else { return }
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
@@ -235,35 +234,11 @@ final class RoutiClient: NSObject {
             cont.resume(throwing: RPCError(code: "disconnected", message: "Lost connection to routid."))
         }
         pending.removeAll()
-
-        guard !isStopped, !relayRevoked else { return }
-        reconnect(immediately: false)
     }
 
-    private func reconnect(immediately: Bool) {
-        reconnectTask?.cancel()
-        if immediately {
-            for continuation in pending.values { continuation.resume(throwing: RPCError(code: "disconnected", message: "Connection changed.")) }
-            pending.removeAll()
-            closeRelay()
-            task?.cancel(with: .goingAway, reason: nil)
-            task = nil
-            state = .disconnected
-            attempt = 0
-        }
-        reconnectTask = Task { [weak self] in
-            guard let self else { return }
-            if !immediately {
-                // Capped exponential backoff with jitter.
-                let n = min(await self.attempt + 1, 6)
-                await MainActor.run { self.attempt = n }
-                let base = min(0.5 * pow(2, Double(n - 1)), 15)
-                let delay = base + Double.random(in: 0...0.4)
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            }
-            guard !Task.isCancelled else { return }
-            await MainActor.run { self.connect() }
-        }
+    private func restartConnection() {
+        handleDisconnect()
+        connect()
     }
 
     // MARK: - Messaging
@@ -284,7 +259,8 @@ final class RoutiClient: NSObject {
 
         switch type {
         case "hello_ok":
-            attempt = 0
+            connectionTimeout?.cancel()
+            connectionTimeout = nil
             serverVersion = root["serverVersion"] as? String
             if let accountDict = root["account"],
                let accountData = try? JSONSerialization.data(withJSONObject: accountDict) {

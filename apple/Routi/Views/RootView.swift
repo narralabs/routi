@@ -19,6 +19,7 @@ import SwiftUI
 /// reconstructed with width breakpoints.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     #if os(iOS)
     @State private var subscription = ConnectSubscription()
     #endif
@@ -41,7 +42,7 @@ struct RootView: View {
                 // Setup comes first on a fresh install — before any connection, since
                 // finding or installing a core is what setup is for.
                 OnboardingView()
-            } else if !model.authKnown || (model.usesRelay && model.connectionMessage != nil) {
+            } else if !model.authKnown {
                 // Neither chat nor an error is correct until the handshake lands.
                 ConnectingView()
             } else {
@@ -53,7 +54,7 @@ struct RootView: View {
                 }
                 #else
                 // Keep the cover's presenter alive when isShowingScreen changes.
-                main
+                main.modifier(PhoneConnectionCover())
                 #endif
             }
         }
@@ -85,6 +86,9 @@ struct RootView: View {
         .animation(.snappy(duration: 0.3), value: model.authKnown)
         .animation(.snappy(duration: 0.3), value: model.isSettling)
         .animation(.snappy(duration: 0.25), value: model.isShowingScreen)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.connectNow() }
+        }
         .task {
             model.start()
             #if DEBUG
@@ -139,7 +143,7 @@ struct RootView: View {
             get: { model.isShowingScreen },
             set: { model.isShowingScreen = $0 }
         )) {
-            MobileScreen()
+            MobileScreen().modifier(PhoneConnectionCover())
         }
         #endif
         .sheet(isPresented: Binding(
@@ -161,7 +165,7 @@ struct RootView: View {
         .alert(
             "Something went wrong",
             isPresented: Binding(
-                get: { model.errorMessage != nil },
+                get: { model.connection == .connected && model.errorMessage != nil },
                 set: { if !$0 { model.errorMessage = nil } }
             ),
             actions: { Button("OK", role: .cancel) { model.errorMessage = nil } },
@@ -218,13 +222,35 @@ struct RootView: View {
     }
 }
 
-/// Shown between launch and the first handshake on a device that has been set up.
-///
-/// A spinner only while the socket is genuinely in flight. A refused port comes back
-/// in milliseconds on this Mac, and the moment it does this says so — with the way to
-/// bring the core back — rather than spinning through a timer first. It keeps trying
-/// underneath, so it leaves by itself once the core answers.
+#if os(iOS)
+/// Cover unavailable actions without discarding the chat's navigation or draft.
+private struct PhoneConnectionCover: ViewModifier {
+    @Environment(AppModel.self) private var model
+
+    func body(content: Content) -> some View {
+        let offline = model.connection != .connected
+        content
+            .allowsHitTesting(!offline)
+            .accessibilityHidden(offline)
+            .onChange(of: offline, initial: true) { _, offline in
+                if offline {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+            }
+            .overlay {
+                if offline {
+                    ConnectingView(reconnecting: true)
+                        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+                }
+            }
+    }
+}
+#endif
+
+/// Shown while a configured device cannot reach its Mac.
+/// Retry or returning to the app starts a new attempt.
 private struct ConnectingView: View {
+    var reconnecting = false
     @Environment(AppModel.self) private var model
     @AppStorage("daemonHost") private var host = "127.0.0.1"
     @State private var slow = false
@@ -242,10 +268,10 @@ private struct ConnectingView: View {
             #if os(iOS)
             GeometryReader { geometry in
                 ScrollView {
-                    phoneContent
+                    phoneContent(minHeight: max(0, geometry.size.height - 48))
                         .frame(maxWidth: 420)
                         .padding(24)
-                        .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                        .frame(maxWidth: .infinity)
                 }
             }
             #else
@@ -258,7 +284,7 @@ private struct ConnectingView: View {
                         .font(.system(size: 15, weight: .semibold))
                     Text(model.connectionMessage ?? (model.usesRelay ? "Check that your Mac is awake, online, and connected to Routi Connect."
                          : isLocal
-                         ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; this screen carries on by itself once the core answers."
+                         ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; then click Try again."
                          : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works."))
                         .font(.system(size: 12.5))
                         .foregroundStyle(.secondary)
@@ -267,6 +293,8 @@ private struct ConnectingView: View {
                     if isLocal && !model.usesRelay {
                         InstallCommand()
                     }
+                    Button("Try again") { model.connectNow() }
+                        .disabled(model.connection == .connecting)
                     Button("Connect to a different Mac…") { model.isShowingSettings = true }
                         .controlSize(.small)
                         .padding(.top, 4)
@@ -291,84 +319,110 @@ private struct ConnectingView: View {
         } message: { Text(pairingError ?? "") }
         #endif
         .animation(.snappy(duration: 0.25), value: model.connectionFailed)
-        .task { await model.watchForCore() }
         .task {
             // A local core answers before a spinner could be seen; only a wait that
             // is actually felt — a remote host, a slow network — gets one.
-            try? await Task.sleep(for: .milliseconds(400))
+            do { try await Task.sleep(for: .milliseconds(400)) }
+            catch { return }
             slow = true
         }
     }
 
     #if os(iOS)
-    private var phoneContent: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "laptopcomputer.and.iphone")
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(.tint)
-            if let profile = model.relayViewerProfile {
-                if model.relayRevoked {
-                    Text("This device’s access was revoked").font(.title2.bold())
-                    Text("Scan a new pairing code from your Mac to reconnect, or pair with another Mac.")
+    private func phoneContent(minHeight: CGFloat) -> some View {
+        VStack(spacing: 24) {
+            Spacer(minLength: 16)
+            VStack(spacing: 20) {
+                Image(systemName: "laptopcomputer.and.iphone")
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundStyle(.tint)
+                if model.relayViewerProfile != nil || !manualConnection {
+                    Text("Routi Connect").font(.largeTitle.bold())
+                }
+                if let profile = model.relayViewerProfile {
+                    if model.relayRevoked {
+                        Text("This device’s access was revoked").font(.title3.weight(.semibold))
+                        Text("Scan a new pairing code from your Mac to reconnect, or pair with another Mac.")
+                            .foregroundStyle(.secondary)
+                        Button("Pair a Mac") {
+                            do {
+                                try model.forgetRelay()
+                                showingScanner = true
+                            } catch { pairingError = error.localizedDescription }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    } else if model.connection == .connecting {
+                        ProgressView().controlSize(.large)
+                        Text(reconnecting ? "Reconnecting to \(profile.name)…" : "Connecting to \(profile.name)…")
+                            .font(.title3.weight(.semibold))
+                        Text(reconnecting ? "Your conversation will resume automatically." : "Opening your bots.").foregroundStyle(.secondary)
+                    } else {
+                        if model.relayAccess?.expired == true {
+                            VStack(spacing: 12) {
+                                Text("Connect access has ended").font(.title3.weight(.semibold))
+                                Text("Your bots are still running on your Mac. Subscribe to access them from here.")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.bottom, 12)
+                            ConnectSubscriptionView(profile: profile)
+                        } else {
+                            Text(model.relayAccess == nil ? "Connection unavailable" : "Can’t reach \(profile.name)")
+                                .font(.title3.weight(.semibold))
+                            Text(model.relayAccess == nil
+                                 ? "Check your internet connection and try again."
+                                 : "Make sure your Mac is awake, connected to the internet, and Routi Bot is running.")
+                                .foregroundStyle(.secondary)
+                            retryButton("Retry Routi Connect")
+                        }
+                    }
+                } else if manualConnection {
+                    Text(model.connection == .connecting && !model.connectionFailed ? "Reconnecting to your Mac…" : "Can’t reach \(host)")
+                        .font(.title3.weight(.semibold))
+                    Text("Make sure your Mac is awake, Routi Bot is running, and you’re connected to the same network or Tailscale.")
                         .foregroundStyle(.secondary)
-                    Button("Pair a Mac") {
-                        do {
-                            try model.forgetRelay()
-                            showingScanner = true
-                        } catch { pairingError = error.localizedDescription }
+                    retryButton("Try again")
+                } else {
+                    Text("Connect to your Mac").font(.title3.weight(.semibold))
+                    Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")
+                        .foregroundStyle(.secondary)
+                    Text("On your Mac, open Settings → Routi Core → Routi Connect → Pair iPhone or iPad.")
+                        .font(.callout)
+                    Button { showingScanner = true } label: {
+                        Label("Scan pairing code", systemImage: "qrcode.viewfinder")
                     }
                     .buttonStyle(.borderedProminent)
-                    manualConnectionButton.font(.subheadline)
-                } else if model.relayAccess?.expired != true && model.connectionMessage == nil && (model.connection == .connecting || !model.connectionFailed) {
-                    ProgressView().controlSize(.large)
-                    Text("Connecting to \(profile.name)…")
-                        .font(.title2.bold())
-                    Text("Opening your bots.").foregroundStyle(.secondary)
-                } else {
-                    if model.relayAccess?.expired == true {
-                        VStack(spacing: 12) {
-                            Text("Connect access has ended").font(.title2.bold())
-                            Text("Your bots are still running on your Mac. Subscribe to access them from here.")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.bottom, 12)
-                        ConnectSubscriptionView(profile: profile)
-                    } else {
-                        Text(model.relayAccess == nil ? "Can’t reach Routi Connect" : "Can’t reach \(profile.name)")
-                            .font(.title2.bold())
-                        Text(model.connectionMessage ?? "Keep your Mac awake, online, and connected to Routi Connect.")
-                            .foregroundStyle(.secondary)
-                        Button("Try again") { model.connectNow() }
-                            .buttonStyle(.borderedProminent)
-                    }
-                    VStack(spacing: 8) {
-                        Divider().padding(.bottom, 16)
-                        manualConnectionButton
-                    }
-                    .font(.subheadline)
-                    .padding(.top, 8)
-                }
-            } else {
-                Text("Connect to your Mac").font(.title2.bold())
-                Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")
-                    .foregroundStyle(.secondary)
-                Text("On your Mac, open Settings → Routi Core → Routi Connect → Pair iPhone or iPad.")
-                    .font(.callout)
-                Button { showingScanner = true } label: {
-                    Label("Scan pairing code", systemImage: "qrcode.viewfinder")
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                manualConnectionButton.font(.subheadline)
-                if manualConnection {
-                    Text("Can’t reach \(host). Check the address and your network connection.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Button("Retry manual connection") { model.connectNow() }
-                        .font(.subheadline)
+                    .controlSize(.large)
                 }
             }
+            Spacer(minLength: 40)
+            VStack(spacing: 12) {
+                Divider()
+                Text("Other connection options")
+                    .font(.footnote).foregroundStyle(.secondary)
+                manualConnectionButton.font(.subheadline)
+            }
         }
+        .frame(minHeight: minHeight)
         .multilineTextAlignment(.center)
+    }
+
+    private func retryButton(_ title: String) -> some View {
+        let connecting = model.connection == .connecting
+        return Button { model.connectNow() } label: {
+            ZStack {
+                // Keep the button's size stable while its progress changes.
+                Text(title).opacity(connecting ? 0 : 1)
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Connecting…")
+                }
+                .opacity(connecting ? 1 : 0)
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(connecting)
+        .accessibilityLabel(connecting ? "Connecting" : title)
     }
 
     private var manualConnectionButton: some View {

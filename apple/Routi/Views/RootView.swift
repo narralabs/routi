@@ -19,6 +19,7 @@ import SwiftUI
 /// reconstructed with width breakpoints.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     #if os(iOS)
     @State private var subscription = ConnectSubscription()
     #endif
@@ -85,6 +86,9 @@ struct RootView: View {
         .animation(.snappy(duration: 0.3), value: model.authKnown)
         .animation(.snappy(duration: 0.3), value: model.isSettling)
         .animation(.snappy(duration: 0.25), value: model.isShowingScreen)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.connectNow() }
+        }
         .task {
             model.start()
             #if DEBUG
@@ -244,7 +248,7 @@ private struct PhoneConnectionCover: ViewModifier {
 #endif
 
 /// Shown while a configured device cannot reach its Mac.
-/// Retries continue in the client; the screen leaves when the handshake succeeds.
+/// Retry or returning to the app starts a new attempt.
 private struct ConnectingView: View {
     var reconnecting = false
     @Environment(AppModel.self) private var model
@@ -280,7 +284,7 @@ private struct ConnectingView: View {
                         .font(.system(size: 15, weight: .semibold))
                     Text(model.connectionMessage ?? (model.usesRelay ? "Check that your Mac is awake, online, and connected to Routi Connect."
                          : isLocal
-                         ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; this screen carries on by itself once the core answers."
+                         ? "The core keeps your bots and does the work, and normally starts at login. If it was removed, install it again with the command below; then click Try again."
                          : "Check that Mac is on, that Routi Core is running there, and that this device can see it — a Tailscale name works."))
                         .font(.system(size: 12.5))
                         .foregroundStyle(.secondary)
@@ -289,6 +293,8 @@ private struct ConnectingView: View {
                     if isLocal && !model.usesRelay {
                         InstallCommand()
                     }
+                    Button("Try again") { model.connectNow() }
+                        .disabled(model.connection == .connecting)
                     Button("Connect to a different Mac…") { model.isShowingSettings = true }
                         .controlSize(.small)
                         .padding(.top, 4)
@@ -313,11 +319,10 @@ private struct ConnectingView: View {
         } message: { Text(pairingError ?? "") }
         #endif
         .animation(.snappy(duration: 0.25), value: model.connectionFailed)
-        .task { await model.watchForCore() }
         .task {
             // A local core answers before a spinner could be seen; only a wait that
             // is actually felt — a remote host, a slow network — gets one.
-            do { try await Task.sleep(for: .milliseconds(reconnecting ? 2000 : 400)) }
+            do { try await Task.sleep(for: .milliseconds(400)) }
             catch { return }
             slow = true
         }
@@ -346,7 +351,7 @@ private struct ConnectingView: View {
                             } catch { pairingError = error.localizedDescription }
                         }
                         .buttonStyle(.borderedProminent)
-                    } else if model.relayAccess?.expired != true && model.connectionMessage == nil && (!model.connectionFailed || (reconnecting && !slow)) {
+                    } else if model.relayAccess?.expired != true && model.connectionMessage == nil && (model.connection == .connecting && !model.connectionFailed) {
                         ProgressView().controlSize(.large)
                         Text(reconnecting ? "Reconnecting to \(profile.name)…" : "Connecting to \(profile.name)…")
                             .font(.title3.weight(.semibold))
@@ -368,18 +373,14 @@ private struct ConnectingView: View {
                                  : "Make sure your Mac is awake, connected to the internet, and Routi Bot is running.")
                                 .foregroundStyle(.secondary)
                             retryButton("Retry Routi Connect")
-                            Text("We’ll reconnect automatically when it’s available.")
-                                .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
                 } else if manualConnection {
-                    Text(reconnecting && !slow ? "Reconnecting to your Mac…" : "Can’t reach \(host)")
+                    Text(model.connection == .connecting && !model.connectionFailed ? "Reconnecting to your Mac…" : "Can’t reach \(host)")
                         .font(.title3.weight(.semibold))
                     Text("Make sure your Mac is awake, Routi Bot is running, and you’re connected to the same network or Tailscale.")
                         .foregroundStyle(.secondary)
                     retryButton("Try again")
-                    Text("We’ll reconnect automatically when it’s available.")
-                        .font(.footnote).foregroundStyle(.secondary)
                 } else {
                     Text("Connect to your Mac").font(.title3.weight(.semibold))
                     Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")

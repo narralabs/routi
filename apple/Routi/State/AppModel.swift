@@ -161,7 +161,9 @@ final class AppModel {
             }
             self.connection = state
             switch state {
-            case .connected: self.connectionFailed = false; self.isSettling = false
+            case .connected:
+                self.errorMessage = nil
+                self.connectionFailed = false; self.isSettling = false
             case .disconnected: self.connectionFailed = true; self.isSettling = false
             case .connecting: break
             }

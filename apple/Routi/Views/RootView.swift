@@ -41,7 +41,7 @@ struct RootView: View {
                 // Setup comes first on a fresh install — before any connection, since
                 // finding or installing a core is what setup is for.
                 OnboardingView()
-            } else if !model.authKnown || (model.usesRelay && model.connectionMessage != nil) {
+            } else if !model.authKnown {
                 // Neither chat nor an error is correct until the handshake lands.
                 ConnectingView()
             } else {
@@ -53,7 +53,7 @@ struct RootView: View {
                 }
                 #else
                 // Keep the cover's presenter alive when isShowingScreen changes.
-                main
+                main.modifier(PhoneConnectionCover())
                 #endif
             }
         }
@@ -139,7 +139,7 @@ struct RootView: View {
             get: { model.isShowingScreen },
             set: { model.isShowingScreen = $0 }
         )) {
-            MobileScreen()
+            MobileScreen().modifier(PhoneConnectionCover())
         }
         #endif
         .sheet(isPresented: Binding(
@@ -161,7 +161,7 @@ struct RootView: View {
         .alert(
             "Something went wrong",
             isPresented: Binding(
-                get: { model.errorMessage != nil },
+                get: { model.connection == .connected && model.errorMessage != nil },
                 set: { if !$0 { model.errorMessage = nil } }
             ),
             actions: { Button("OK", role: .cancel) { model.errorMessage = nil } },
@@ -218,13 +218,35 @@ struct RootView: View {
     }
 }
 
-/// Shown between launch and the first handshake on a device that has been set up.
-///
-/// A spinner only while the socket is genuinely in flight. A refused port comes back
-/// in milliseconds on this Mac, and the moment it does this says so — with the way to
-/// bring the core back — rather than spinning through a timer first. It keeps trying
-/// underneath, so it leaves by itself once the core answers.
+#if os(iOS)
+/// Cover unavailable actions without discarding the chat's navigation or draft.
+private struct PhoneConnectionCover: ViewModifier {
+    @Environment(AppModel.self) private var model
+
+    func body(content: Content) -> some View {
+        let offline = model.connection != .connected
+        content
+            .allowsHitTesting(!offline)
+            .accessibilityHidden(offline)
+            .onChange(of: offline, initial: true) { _, offline in
+                if offline {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+            }
+            .overlay {
+                if offline {
+                    ConnectingView(reconnecting: true)
+                        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+                }
+            }
+    }
+}
+#endif
+
+/// Shown while a configured device cannot reach its Mac.
+/// Retries continue in the client; the screen leaves when the handshake succeeds.
 private struct ConnectingView: View {
+    var reconnecting = false
     @Environment(AppModel.self) private var model
     @AppStorage("daemonHost") private var host = "127.0.0.1"
     @State private var slow = false
@@ -295,7 +317,8 @@ private struct ConnectingView: View {
         .task {
             // A local core answers before a spinner could be seen; only a wait that
             // is actually felt — a remote host, a slow network — gets one.
-            try? await Task.sleep(for: .milliseconds(400))
+            do { try await Task.sleep(for: .milliseconds(reconnecting ? 2000 : 400)) }
+            catch { return }
             slow = true
         }
     }
@@ -319,11 +342,11 @@ private struct ConnectingView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     manualConnectionButton.font(.subheadline)
-                } else if model.relayAccess?.expired != true && model.connectionMessage == nil && (model.connection == .connecting || !model.connectionFailed) {
+                } else if model.relayAccess?.expired != true && model.connectionMessage == nil && (!model.connectionFailed || (reconnecting && !slow)) {
                     ProgressView().controlSize(.large)
-                    Text("Connecting to \(profile.name)…")
+                    Text(reconnecting ? "Reconnecting to \(profile.name)…" : "Connecting to \(profile.name)…")
                         .font(.title2.bold())
-                    Text("Opening your bots.").foregroundStyle(.secondary)
+                    Text(reconnecting ? "Your conversation will resume automatically." : "Opening your bots.").foregroundStyle(.secondary)
                 } else {
                     if model.relayAccess?.expired == true {
                         VStack(spacing: 12) {
@@ -336,10 +359,14 @@ private struct ConnectingView: View {
                     } else {
                         Text(model.relayAccess == nil ? "Can’t reach Routi Connect" : "Can’t reach \(profile.name)")
                             .font(.title2.bold())
-                        Text(model.connectionMessage ?? "Keep your Mac awake, online, and connected to Routi Connect.")
+                        Text(model.relayAccess == nil
+                             ? "Check your internet connection and try again."
+                             : "Make sure your Mac is awake, connected to the internet, and Routi Bot is running.")
                             .foregroundStyle(.secondary)
                         Button("Try again") { model.connectNow() }
                             .buttonStyle(.borderedProminent)
+                        Text("We’ll reconnect automatically when it’s available.")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                     VStack(spacing: 8) {
                         Divider().padding(.bottom, 16)
@@ -348,6 +375,16 @@ private struct ConnectingView: View {
                     .font(.subheadline)
                     .padding(.top, 8)
                 }
+            } else if manualConnection {
+                Text(reconnecting && !slow ? "Reconnecting to your Mac…" : "Can’t reach \(host)")
+                    .font(.title2.bold())
+                Text("Make sure your Mac is awake, Routi Bot is running, and you’re connected to the same network or Tailscale.")
+                    .foregroundStyle(.secondary)
+                Button("Try again") { model.connectNow() }
+                    .buttonStyle(.borderedProminent)
+                Text("We’ll reconnect automatically when it’s available.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                manualConnectionButton.font(.subheadline)
             } else {
                 Text("Connect to your Mac").font(.title2.bold())
                 Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")
@@ -360,12 +397,6 @@ private struct ConnectingView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 manualConnectionButton.font(.subheadline)
-                if manualConnection {
-                    Text("Can’t reach \(host). Check the address and your network connection.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Button("Retry manual connection") { model.connectNow() }
-                        .font(.subheadline)
-                }
             }
         }
         .multilineTextAlignment(.center)

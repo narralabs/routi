@@ -367,9 +367,7 @@ private struct ConnectingView: View {
                                  ? "Check your internet connection and try again."
                                  : "Make sure your Mac is awake, connected to the internet, and Routi Bot is running.")
                                 .foregroundStyle(.secondary)
-                            Button("Retry Routi Connect") { model.connectNow() }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.large)
+                            retryButton("Retry Routi Connect")
                             Text("We’ll reconnect automatically when it’s available.")
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
@@ -379,8 +377,7 @@ private struct ConnectingView: View {
                         .font(.title3.weight(.semibold))
                     Text("Make sure your Mac is awake, Routi Bot is running, and you’re connected to the same network or Tailscale.")
                         .foregroundStyle(.secondary)
-                    Button("Try again") { model.connectNow() }
-                        .buttonStyle(.borderedProminent)
+                    retryButton("Try again")
                     Text("We’ll reconnect automatically when it’s available.")
                         .font(.footnote).foregroundStyle(.secondary)
                 } else {
@@ -406,6 +403,25 @@ private struct ConnectingView: View {
         }
         .frame(minHeight: minHeight)
         .multilineTextAlignment(.center)
+    }
+
+    private func retryButton(_ title: String) -> some View {
+        let connecting = model.connection == .connecting
+        return Button { model.connectNow() } label: {
+            ZStack {
+                // Keep the button's size stable while its progress changes.
+                Text(title).opacity(connecting ? 0 : 1)
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Connecting…")
+                }
+                .opacity(connecting ? 1 : 0)
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .disabled(connecting)
+        .accessibilityLabel(connecting ? "Connecting" : title)
     }
 
     private var manualConnectionButton: some View {

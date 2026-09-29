@@ -162,6 +162,7 @@ final class AppModel {
             self.connection = state
             switch state {
             case .connected:
+                self.isLoadingBots = true
                 self.errorMessage = nil
                 self.connectionFailed = false; self.isSettling = false
             case .disconnected: self.connectionFailed = true; self.isSettling = false
@@ -1059,7 +1060,6 @@ final class AppModel {
             // The profile can have changed under a slow reply; a stale list is dropped.
             guard profileId == currentProfileID else { return }
             bots = listed
-            isLoadingBots = false
             let list = try await client.rpc("conversations.list", field: "conversations", as: [Conversation].self)
             conversations = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
             errorMessage = nil
@@ -1070,6 +1070,8 @@ final class AppModel {
                let values = settings["settings"] as? [String: Any] {
                 storedUserName = (values["userName"] as? String) ?? ""
             }
+            // Reveal the list only after its profile and conversation previews are ready.
+            isLoadingBots = false
 
             await loadSharedMemories()
             await checkCoreUpdate()
@@ -1096,6 +1098,7 @@ final class AppModel {
                 await loadMessages(convID)
             }
         } catch {
+            isLoadingBots = false
             errorMessage = error.localizedDescription
         }
     }

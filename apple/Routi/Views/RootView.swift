@@ -83,8 +83,10 @@ struct RootView: View {
         }
         #endif
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
+        #if os(macOS)
         .animation(.snappy(duration: 0.3), value: model.authKnown)
         .animation(.snappy(duration: 0.3), value: model.isSettling)
+        #endif
         .animation(.snappy(duration: 0.25), value: model.isShowingScreen)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.connectNow() }
@@ -226,9 +228,10 @@ struct RootView: View {
 /// Cover unavailable actions without discarding the chat's navigation or draft.
 private struct PhoneConnectionCover: ViewModifier {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        let offline = model.connection != .connected
+        let offline = model.connection != .connected || model.isLoadingBots
         content
             .allowsHitTesting(!offline)
             .accessibilityHidden(offline)
@@ -239,10 +242,12 @@ private struct PhoneConnectionCover: ViewModifier {
             }
             .overlay {
                 if offline {
-                    ConnectingView(reconnecting: true)
+                    ConnectingView()
                         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+                        .transition(.opacity)
                 }
             }
+            .animation(reduceMotion || offline ? nil : .easeOut(duration: 0.18), value: offline)
     }
 }
 #endif
@@ -250,7 +255,6 @@ private struct PhoneConnectionCover: ViewModifier {
 /// Shown while a configured device cannot reach its Mac.
 /// Retry or returning to the app starts a new attempt.
 private struct ConnectingView: View {
-    var reconnecting = false
     @Environment(AppModel.self) private var model
     @AppStorage("daemonHost") private var host = "127.0.0.1"
     @State private var slow = false
@@ -339,7 +343,13 @@ private struct ConnectingView: View {
                 if model.relayViewerProfile != nil || !manualConnection {
                     Text("Routi Connect").font(.largeTitle.bold())
                 }
-                if let profile = model.relayViewerProfile {
+                // Keep this content stable while data loads and the overlay fades out.
+                if model.connection != .disconnected {
+                    ProgressView().controlSize(.large)
+                    Text("Connecting to \(model.relayViewerProfile?.name ?? "your Mac")…")
+                        .font(.title3.weight(.semibold))
+                    Text("Opening your bots.").foregroundStyle(.secondary)
+                } else if let profile = model.relayViewerProfile {
                     if model.relayRevoked {
                         Text("This device’s access was revoked").font(.title3.weight(.semibold))
                         Text("Scan a new pairing code from your Mac to reconnect, or pair with another Mac.")
@@ -351,11 +361,6 @@ private struct ConnectingView: View {
                             } catch { pairingError = error.localizedDescription }
                         }
                         .buttonStyle(.borderedProminent)
-                    } else if model.connection == .connecting {
-                        ProgressView().controlSize(.large)
-                        Text(reconnecting ? "Reconnecting to \(profile.name)…" : "Connecting to \(profile.name)…")
-                            .font(.title3.weight(.semibold))
-                        Text(reconnecting ? "Your conversation will resume automatically." : "Opening your bots.").foregroundStyle(.secondary)
                     } else {
                         if model.relayAccess?.expired == true {
                             VStack(spacing: 12) {
@@ -372,15 +377,19 @@ private struct ConnectingView: View {
                                  ? "Check your internet connection and try again."
                                  : "Make sure your Mac is awake, connected to the internet, and Routi Bot is running.")
                                 .foregroundStyle(.secondary)
-                            retryButton("Retry Routi Connect")
+                            Button("Retry Routi Connect") { model.connectNow() }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
                         }
                     }
                 } else if manualConnection {
-                    Text(model.connection == .connecting && !model.connectionFailed ? "Reconnecting to your Mac…" : "Can’t reach \(host)")
+                    Text("Can’t reach \(host)")
                         .font(.title3.weight(.semibold))
                     Text("Make sure your Mac is awake, Routi Bot is running, and you’re connected to the same network or Tailscale.")
                         .foregroundStyle(.secondary)
-                    retryButton("Try again")
+                    Button("Try again") { model.connectNow() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
                 } else {
                     Text("Connect to your Mac").font(.title3.weight(.semibold))
                     Text("Use Routi Connect to chat with your bots and view their desktops from anywhere.")
@@ -404,25 +413,6 @@ private struct ConnectingView: View {
         }
         .frame(minHeight: minHeight)
         .multilineTextAlignment(.center)
-    }
-
-    private func retryButton(_ title: String) -> some View {
-        let connecting = model.connection == .connecting
-        return Button { model.connectNow() } label: {
-            ZStack {
-                // Keep the button's size stable while its progress changes.
-                Text(title).opacity(connecting ? 0 : 1)
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text("Connecting…")
-                }
-                .opacity(connecting ? 1 : 0)
-            }
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .disabled(connecting)
-        .accessibilityLabel(connecting ? "Connecting" : title)
     }
 
     private var manualConnectionButton: some View {

@@ -228,7 +228,7 @@ private struct PhoneConnectionCover: ViewModifier {
     @Environment(AppModel.self) private var model
 
     func body(content: Content) -> some View {
-        let offline = model.connection != .connected
+        let offline = model.connection != .connected || model.isLoadingBots
         content
             .allowsHitTesting(!offline)
             .accessibilityHidden(offline)
@@ -339,7 +339,10 @@ private struct ConnectingView: View {
                 if model.relayViewerProfile != nil || !manualConnection {
                     Text("Routi Connect").font(.largeTitle.bold())
                 }
-                if let profile = model.relayViewerProfile {
+                if model.connection == .connected && model.isLoadingBots {
+                    ProgressView().controlSize(.large)
+                    Text("Loading your bots…").font(.title3.weight(.semibold))
+                } else if let profile = model.relayViewerProfile {
                     if model.relayRevoked {
                         Text("This device’s access was revoked").font(.title3.weight(.semibold))
                         Text("Scan a new pairing code from your Mac to reconnect, or pair with another Mac.")

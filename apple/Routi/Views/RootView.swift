@@ -351,7 +351,7 @@ private struct ConnectingView: View {
                             } catch { pairingError = error.localizedDescription }
                         }
                         .buttonStyle(.borderedProminent)
-                    } else if model.relayAccess?.expired != true && model.connectionMessage == nil && (model.connection == .connecting && !model.connectionFailed) {
+                    } else if model.connection == .connecting {
                         ProgressView().controlSize(.large)
                         Text(reconnecting ? "Reconnecting to \(profile.name)…" : "Connecting to \(profile.name)…")
                             .font(.title3.weight(.semibold))

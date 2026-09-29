@@ -83,8 +83,10 @@ struct RootView: View {
         }
         #endif
         .animation(.snappy(duration: 0.3), value: model.needsOnboarding)
+        #if os(macOS)
         .animation(.snappy(duration: 0.3), value: model.authKnown)
         .animation(.snappy(duration: 0.3), value: model.isSettling)
+        #endif
         .animation(.snappy(duration: 0.25), value: model.isShowingScreen)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.connectNow() }

@@ -86,7 +86,7 @@ async function main(): Promise<void> {
     const conversation = store.getConversation(request.conversationId)
     if (!bot || !conversation) return
     const prefix = conversation.kind === 'channel' ? `@${bot.name} ` : ''
-    void sessions.send(request.conversationId, [{ type: 'text', text: `${prefix}I allowed this bot to access my ${request.pluginId} connection. Continue my previous request using that plugin. This approval alone does not authorize a new action.` }]).catch(() => {
+    void sessions.send(request.conversationId, [{ type: 'text', text: `${prefix}You can now use ${plugins.get(request.pluginId).name}. Please continue with my previous request.` }]).catch(() => {
       server.broadcast({ e: 'error', conversationId: request.conversationId, code: 'plugin_resume_failed', message: 'Plugin access was granted. Send a message to continue.' })
     })
   }

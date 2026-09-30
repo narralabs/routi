@@ -129,35 +129,20 @@ private struct PluginRow: View {
                     if choosingPermissions {
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Permissions to request").font(.headline)
-                            if plugin.id == "google_drive" {
-                                Toggle("Read Drive files", isOn: .constant(true))
-                                    .disabled(true)
-                                    #if os(macOS)
-                                    .toggleStyle(.checkbox)
-                                    #endif
-                                Toggle(plugin.permissionChoice(readOnly: false), isOn: Binding(
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(plugin.basePermissions, id: \.self) { permission in
+                                    Toggle(permission, isOn: .constant(true)).disabled(true)
+                                }
+                                Text("Included in both read-only and read-and-write access.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Toggle(plugin.writePermission, isOn: Binding(
                                     get: { !requestedReadOnly }, set: { requestedReadOnly = !$0 }
                                 ))
-                                #if os(macOS)
-                                .toggleStyle(.checkbox)
-                                #endif
-                            } else {
-                                ForEach(plugin.sharedPermissions, id: \.self) { Text($0) }
-                                ForEach([true, false], id: \.self) { readOnly in
-                                    Button { requestedReadOnly = readOnly } label: {
-                                        HStack(alignment: .top, spacing: 10) {
-                                            Image(systemName: requestedReadOnly == readOnly ? "largecircle.fill.circle" : "circle")
-                                                .foregroundStyle(Color.accentColor)
-                                            Text(plugin.permissionChoice(readOnly: readOnly))
-                                                .multilineTextAlignment(.leading)
-                                                .foregroundStyle(.primary)
-                                        }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityAddTraits(requestedReadOnly == readOnly ? .isSelected : [])
-                                }
                             }
-                            Text("Google will confirm access in your browser. Existing permissions stay active until you finish.")
+                            #if os(macOS)
+                            .toggleStyle(.checkbox)
+                            #endif
+                            Text("Continue with Google to apply your selection. Granted permissions above show your current access.")
                                 .font(.caption).foregroundStyle(.secondary)
                             HStack(spacing: 12) {
                                 Button("Continue with Google") { connect(readOnly: requestedReadOnly); choosingPermissions = false }

@@ -44,17 +44,18 @@ extension PluginInfo {
         }
     }
 
-    func permissionChoice(readOnly: Bool) -> String {
+    var writePermission: String {
         switch id {
-        case "gmail": readOnly ? "Read email" : "Read, send, and manage email"
-        case "google_calendar": readOnly ? "Read events" : "Read and manage events"
+        case "gmail": "Send email and manage drafts and messages"
+        case "google_calendar": "Create, edit, and delete events"
         default: "Manage files used with Routi"
         }
     }
 
-    var sharedPermissions: [String] {
+    var basePermissions: [String] {
         switch id {
-        case "google_calendar": ["View calendars", "Check availability"]
+        case "gmail": ["Read email"]
+        case "google_calendar": ["View calendars", "Check availability", "Read events"]
         case "google_drive": ["Read Drive files"]
         default: []
         }

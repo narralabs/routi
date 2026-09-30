@@ -1,6 +1,8 @@
 import Foundation
 
 struct PluginStatus: Decodable {
+    let grantedScopes: [String]?
+    let supportsReadOnly: Bool?
     let accountEmail: String?
     let connected: Bool
     let connecting: Bool
@@ -25,6 +27,38 @@ struct PluginInfo: Identifiable {
     let summary: String
     let asset: String
     let accessDescription: String
+
+    func permissions(_ scopes: [String]) -> [String] {
+        let granted = Set(scopes)
+        func has(_ names: String...) -> Bool {
+            names.contains { granted.contains("https://www.googleapis.com/auth/" + $0) }
+        }
+        switch id {
+        case "gmail":
+            if granted.contains("https://mail.google.com/") { return ["Read, send, and permanently delete email"] }
+            if has("gmail.modify") { return ["Read and send email; manage drafts, labels, and trash"] }
+            var result: [String] = []
+            if has("gmail.readonly") { result.append("Read email") }
+            if has("gmail.compose") { result.append("Manage drafts and send email") }
+            else if has("gmail.send") { result.append("Send email") }
+            return result
+        case "google_calendar":
+            if has("calendar") { return ["Read and manage calendars and events"] }
+            var result: [String] = []
+            if has("calendar.events") { result.append("Read, create, and change events") }
+            else if has("calendar.events.readonly", "calendar.readonly") { result.append("Read events") }
+            if has("calendar.calendarlist.readonly", "calendar.readonly") { result.append("List calendars") }
+            if has("calendar.events.freebusy", "calendar.freebusy", "calendar.readonly") { result.append("Check availability") }
+            return result
+        case "google_drive":
+            if has("drive") { return ["Read and manage all Drive files"] }
+            var result: [String] = []
+            if has("drive.readonly") { result.append("Read and download Drive files") }
+            if has("drive.file") { result.append("Create and manage files used with Routi") }
+            return result
+        default: return []
+        }
+    }
 
     static let all: [PluginInfo] = [
         .init(id: "robinhood", name: "Robinhood", summary: "Account information, market data, and trading", asset: "PluginRobinhood", accessDescription: "Includes account information and trading tools. Connecting does not place a trade."),

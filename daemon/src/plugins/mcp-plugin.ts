@@ -17,12 +17,13 @@ export interface McpPluginDefinition {
   /** Existing credential slot, when a plugin predates the shared MCP service. */
   credentialProvider?: string
   callInstructions?: string
-  localTools?: { spec: Tool; run: (args: Record<string, unknown>, accessToken: string, signal?: AbortSignal) => Promise<CallToolResult> }[]
+  localTools?: { spec: Tool; requiredScopes?: string[]; run: (args: Record<string, unknown>, accessToken: string, signal?: AbortSignal) => Promise<CallToolResult> }[]
   accountEmail?: (accessToken: string) => Promise<string | null>
   failedCallInstructions?: string
   oauth?: {
     client?: OAuthClientInformationMixed
     scope: string
+    readOnlyScope?: string
     authorizationParams?: Record<string, string>
     setupMessage: string
   }
@@ -85,6 +86,8 @@ export class McpPlugin {
     const saved = await this.load(profileId)
     return {
       connected: !!saved?.tokens,
+      grantedScopes: saved?.tokens?.scope?.split(/\s+/).filter(Boolean) ?? null,
+      supportsReadOnly: !!this.definition.oauth?.readOnlyScope,
       accountEmail: saved?.tokens ? saved.accountEmail ?? null : null,
       connecting: this.pending.has(profileId),
       error: this.errors.get(profileId) ?? null,
@@ -92,7 +95,7 @@ export class McpPlugin {
     }
   }
 
-  private provider(profileId: string, saved: SavedLogin, interactive?: { state: string; redirect: (url: URL) => void }): OAuthClientProvider {
+  private provider(profileId: string, saved: SavedLogin, interactive?: { state: string; redirect: (url: URL) => void; scope?: string }): OAuthClientProvider {
     let verifier: string | undefined
     const persist = async () => {
       this.checkProfile(profileId)
@@ -113,7 +116,7 @@ export class McpPlugin {
       saveClientInformation: info => { saved.client = info },
       tokens: () => saved.tokens,
       saveTokens: async tokens => {
-        saved.tokens = tokens
+        saved.tokens = { ...tokens, scope: tokens.scope ?? (!interactive ? saved.tokens?.scope : undefined) }
         if (this.definition.accountEmail) {
           saved.accountEmail = await this.definition.accountEmail(tokens.access_token).catch(() => null) ?? saved.accountEmail ?? null
         }
@@ -123,7 +126,7 @@ export class McpPlugin {
       codeVerifier: () => { if (!verifier) throw new Error('Login expired. Connect again.'); return verifier },
       redirectToAuthorization: url => {
         if (!interactive) throw new Error(`Reconnect ${this.definition.name} in Plugins.`)
-        if (this.definition.oauth) url.searchParams.set('scope', this.definition.oauth.scope)
+        if (this.definition.oauth) url.searchParams.set('scope', interactive.scope ?? this.definition.oauth.scope)
         for (const [key, value] of Object.entries(this.definition.oauth?.authorizationParams ?? {})) url.searchParams.set(key, value)
         interactive.redirect(url)
       },
@@ -135,12 +138,14 @@ export class McpPlugin {
     }
   }
 
-  async connect(profileId: string, accessId?: string): Promise<{ url: string }> {
+  async connect(profileId: string, accessId?: string, readOnly = false): Promise<{ url: string }> {
     return this.serial(profileId, async () => {
       this.checkProfile(profileId)
       if (this.definition.oauth && !this.definition.oauth.client) throw new Error(this.definition.oauth.setupMessage)
       if (accessId) this.findAccess(accessId, profileId)
       if (accessId && this.pending.has(profileId)) throw new Error(`${this.definition.name} sign-in is already in progress. Finish it, then allow this bot.`)
+      if (readOnly && !this.definition.oauth?.readOnlyScope) throw new Error('Read-only access is not supported by this plugin.')
+      const scope = readOnly ? this.definition.oauth!.readOnlyScope : this.definition.oauth?.scope
       this.cancel(profileId)
       this.errors.delete(profileId)
       const state = randomBytes(32).toString('hex')
@@ -163,7 +168,7 @@ export class McpPlugin {
       if (!address || typeof address === 'string') { server.close(); throw new Error('Could not start login callback.') }
       const redirectUrl = `http://127.0.0.1:${address.port}/callback`
       let url = ''
-      const provider = this.provider(profileId, { redirectUrl }, { state, redirect: value => { url = value.href } })
+      const provider = this.provider(profileId, { redirectUrl }, { state, scope, redirect: value => { url = value.href } })
       const timer = setTimeout(() => {
         this.cancel(profileId)
         this.errors.set(profileId, 'Login expired. Connect again.')
@@ -171,7 +176,7 @@ export class McpPlugin {
       timer.unref()
       this.pending.set(profileId, { provider, state, server, timer, redirectUrl, accessId })
       try {
-        await auth(provider, { serverUrl: this.definition.url, scope: this.definition.oauth?.scope, fetchFn: networkFetch })
+        await auth(provider, { serverUrl: this.definition.url, scope, fetchFn: networkFetch })
         if (!url) throw new Error(`${this.definition.name} did not provide a login URL.`)
         return { url }
       } catch {
@@ -279,9 +284,11 @@ export class McpPlugin {
               signal: AbortSignal.any([...(signal ? [signal] : []), ...(init?.signal ? [init.signal] : [])]),
             }) })
             await client.connect(transport)
+            const granted = saved.tokens?.scope?.split(/\s+/)
+            const localTools = (this.definition.localTools ?? []).filter(tool => !granted || !tool.requiredScopes || tool.requiredScopes.some(scope => granted.includes(scope)))
             if (name === `${this.definition.id}_list_tools`) {
               stage = 'discover'
-              const tools: Tool[] = (this.definition.localTools ?? []).map(tool => tool.spec)
+              const tools: Tool[] = localTools.map(tool => tool.spec)
               let cursor: string | undefined
               let pages = 0
               do {
@@ -308,6 +315,7 @@ export class McpPlugin {
             if (!this.store.pluginEnabled(this.definition.id, botId)) throw new Error('Access revoked')
             stage = 'call'
             const local = this.definition.localTools?.find(tool => tool.spec.name === args['name'])
+            if (local && !localTools.includes(local)) return { ok: false, output: 'This connection does not allow this action. Change permissions in Plugins to enable it.', summary: 'Permission required' }
             const result = local
               ? await local.run(args['arguments'] as Record<string, unknown>, saved.tokens!.access_token, signal)
               : await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })

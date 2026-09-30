@@ -51,6 +51,7 @@ export class McpPlugin {
   private readonly access = new Map<string, PluginAccessRequest>()
   onAccessChanged: (profileId: string) => void = () => {}
   onAccessGranted: (request: PluginAccessRequest) => void = () => {}
+  get name(): string { return this.definition.name }
 
   constructor(
     private readonly definition: McpPluginDefinition,

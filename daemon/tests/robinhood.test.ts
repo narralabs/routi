@@ -382,8 +382,7 @@ test('oversized schemas and results are withheld without replaying actions', asy
 })
 
 
-test('Google uses a registered OAuth client, narrow scopes and offline consent', async t => {
-  const definition = googleDefinitions()[0]!
+for (const definition of googleDefinitions()) test(`${definition.name} uses a registered OAuth client, service scopes and offline consent`, async t => {
   const f = await fixture(t, { ...definition, accountEmail: async () => 'test@example.com', oauth: { ...definition.oauth!, client: { client_id: 'google-test', client_secret: 'test-client-secret' } } })
   const login = new URL((await f.plugin.connect('default')).url)
   assert.equal(login.searchParams.get('client_id'), 'google-test')
@@ -394,11 +393,16 @@ test('Google uses a registered OAuth client, narrow scopes and offline consent',
   assert.equal(f.clients.length, 0, 'Google must not use dynamic client registration')
   await f.plugin.finish('default', f.callbackFor(login.href).href)
   await f.plugin.enable('default', f.bot.id, true)
-  assert.equal(f.store.pluginEnabled('gmail', f.bot.id), true)
+  assert.equal(f.store.pluginEnabled(definition.id, f.bot.id), true)
   assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
-  assert.equal((await f.plugin.context(f.bot.id)!.run('gmail_list_tools', {})).ok, true)
+  assert.equal((await f.plugin.context(f.bot.id)!.run(`${definition.id}_list_tools`, {})).ok, true)
+  assert.equal((await f.plugin.context(f.bot.id)!.run(`${definition.id}_call_tool`, { name: 'get_accounts', arguments: {} })).ok, true)
+  for (const other of googleDefinitions().filter(other => other.id !== definition.id)) {
+    assert.equal(f.store.pluginEnabled(other.id, f.bot.id), false)
+    assert.equal((await new McpPlugin(other, f.store, f.secrets, f.dir, () => {}).status('default')).connected, false)
+  }
   f.expire()
-  assert.equal((await f.plugin.context(f.bot.id)!.run('gmail_list_tools', {})).ok, true)
+  assert.equal((await f.plugin.context(f.bot.id)!.run(`${definition.id}_list_tools`, {})).ok, true)
   assert.equal(f.tokenCalls(), 2, 'saved Google credentials refresh without a new sign-in')
   assert.equal((await f.plugin.status('default')).accountEmail, 'test@example.com')
 })
@@ -416,8 +420,8 @@ test('plugin roster routes approvals and keeps service and profile grants separa
   t.after(() => plugins.close())
   const conversation = f.store.listConversations().find(c => c.botId === f.bot.id)!
   const ctx = plugins.toolContext(f.bot.id, conversation.id)
-  assert.equal(ctx.external!.specs.length, 4, 'two tools per service, not full remote schemas')
-  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail'])
+  assert.equal(ctx.external!.specs.length, 6, 'two tools per service, not full remote schemas')
+  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar'])
   await ctx.requestPluginAccess!('gmail')
   const request = plugins.accessList('default')[0]!
   assert.equal(request.pluginId, 'gmail')

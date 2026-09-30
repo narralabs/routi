@@ -30,19 +30,4 @@ extension PluginInfo {
         return capabilities.compactMap { label, scopes in granted.isDisjoint(with: scopes) ? nil : label }
     }
 
-    func permissionChoice(readOnly: Bool) -> String {
-        switch id {
-        case "gmail": readOnly ? "Read email" : "Read, send, and manage email"
-        case "google_calendar": readOnly ? "Read events" : "Read and manage events"
-        default: "Manage files used with Routi"
-        }
-    }
-
-    var sharedPermissions: [String] {
-        switch id {
-        case "google_calendar": ["View calendars", "Check availability"]
-        case "google_drive": ["Read Drive files"]
-        default: []
-        }
-    }
 }

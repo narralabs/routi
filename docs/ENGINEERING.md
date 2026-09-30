@@ -661,3 +661,11 @@ with separate connections and bot grants. Enable `calendarmcp.googleapis.com` an
 `calendar-json.googleapis.com`. It requests `calendar.calendarlist.readonly`,
 `calendar.events.freebusy`, and `calendar.events`, plus `openid email`.
 Add these scopes to the OAuth consent configuration and verification request.
+
+### Google Drive
+
+Drive uses Google’s hosted MCP with a separate connection and bot grants. Enable
+`drivemcp.googleapis.com` and `drive.googleapis.com`, and configure the OAuth scopes
+`drive.readonly` and `drive.file`, plus `openid email`. Existing files are readable;
+writes are limited to files created by or explicitly shared with the app.
+Include these scopes in the OAuth verification request.

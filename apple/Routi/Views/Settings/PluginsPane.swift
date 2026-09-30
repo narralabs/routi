@@ -22,6 +22,8 @@ private struct PluginRow: View {
     @State private var refreshError: String?
     @State private var busy = false
     @State private var showingDisconnectAlert = false
+    @State private var choosingPermissions = false
+    @State private var requestedReadOnly = true
     @State private var callbackURL = ""
     @State private var loginURL: URL?
 
@@ -85,7 +87,7 @@ private struct PluginRow: View {
                 }.padding(.vertical, 8)
             }
             Section("Connection") {
-                Text("Connect your \(plugin.name) account for selected bots. \(plugin.accessDescription)")
+                Text(status?.connected == true ? "Choose which bots can use this connection." : "Connect your \(plugin.name) account for selected bots. \(plugin.accessDescription)")
                     .foregroundStyle(.secondary)
                 if let status {
                     Label(status.connected ? "Connected" : "Not connected", systemImage: status.connected ? "checkmark.circle.fill" : "link")
@@ -95,14 +97,26 @@ private struct PluginRow: View {
                         Text("Email unavailable. Reconnect to allow Routi to identify this Google account.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
+                    if status.connected, status.supportsReadOnly == true {
+                        if let scopes = status.grantedScopes {
+                            let permissions = plugin.permissions(scopes)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Granted permissions").font(.headline)
+                                ForEach(permissions, id: \.self) { Text($0) }
+                                if permissions.isEmpty { Text("No service permissions reported.") }
+                            }.padding(.vertical, 8)
+                        } else {
+                            Text("Permissions unavailable. Reconnect to check them.")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     HStack {
-                        Button(status.connected ? "Reconnect" : "Connect") {
-                            perform { profileID in
-                                let result = try await model.pluginAction(plugin.id, "connect", profileID: profileID)
-                                guard let text = result["url"] as? String, let url = URL(string: text) else { return }
-                                loginURL = url
-                                openURL(url)
+                        Button(status.connected ? (status.supportsReadOnly == true ? "Change permissions" : "Reconnect") : "Connect") {
+                            if status.connected && status.supportsReadOnly == true {
+                                requestedReadOnly = !plugin.hasWriteAccess(status.grantedScopes ?? [])
+                                choosingPermissions.toggle()
                             }
+                            else { connect() }
                         }
                         if status.connected || status.connecting {
                             Button(status.connected ? "Disconnect" : "Cancel login", role: .destructive) {
@@ -112,6 +126,33 @@ private struct PluginRow: View {
                         }
                     }
                     .disabled(busy)
+                    if choosingPermissions {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Permissions to request").font(.headline)
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(plugin.basePermissions, id: \.self) { permission in
+                                    Toggle(permission, isOn: .constant(true)).disabled(true)
+                                }
+                                Text("Included in both read-only and read-and-write access.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Toggle(plugin.writePermission, isOn: Binding(
+                                    get: { !requestedReadOnly }, set: { requestedReadOnly = !$0 }
+                                ))
+                            }
+                            #if os(macOS)
+                            .toggleStyle(.checkbox)
+                            #endif
+                            Text("Continue with Google to apply your selection. Granted permissions above show your current access.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                Button("Continue with Google") { connect(readOnly: requestedReadOnly); choosingPermissions = false }
+                                    .buttonStyle(.borderedProminent)
+                                Button("Cancel") { choosingPermissions = false }
+                            }
+                        }
+                        .padding(.vertical, 12)
+                        .disabled(busy)
+                    }
                     if status.connecting {
                         Text("Waiting for \(plugin.name) sign-in…")
                         if let loginURL { Link("Open sign-in again", destination: loginURL) }
@@ -138,7 +179,7 @@ private struct PluginRow: View {
             }
             if let status, status.connected {
                 Section("Bots with access") {
-                    Text("\(plugin.accessDescription) Disabling access stops future requests; it does not undo completed actions.")
+                    Text("Bots use the permissions granted to this connection. Disabling access stops future requests.")
                         .font(.caption).foregroundStyle(.secondary)
                     if status.botIds.isEmpty { Text("No bots have access yet.").foregroundStyle(.secondary) }
                     ForEach(model.bots.filter { status.botIds.contains($0.id) }) { bot in
@@ -173,6 +214,15 @@ private struct PluginRow: View {
         }
     }
 
+    private func connect(readOnly: Bool = false) {
+        perform { profileID in
+            let result = try await model.pluginAction(plugin.id, "connect", profileID: profileID, params: ["readOnly": readOnly])
+            guard let text = result["url"] as? String, let url = URL(string: text) else { return }
+            loginURL = url
+            openURL(url)
+        }
+    }
+
     private func botAccessRow(_ bot: Bot, status: PluginStatus) -> some View {
         Toggle(isOn: Binding(
             get: { status.botIds.contains(bot.id) },
@@ -194,6 +244,8 @@ private struct PluginRow: View {
         if loadedProfileID != profileID {
             loadedProfileID = profileID
             status = nil
+            choosingPermissions = false
+            requestedReadOnly = true
             error = nil
             refreshError = nil
             loginURL = nil

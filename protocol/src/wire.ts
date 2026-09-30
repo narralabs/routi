@@ -37,9 +37,9 @@ export const RpcMethods = {
   'plugin.access.respond': { params: z.object({ pluginId: z.string(), profileId: z.string(), id: z.string(), allow: z.boolean() }), result: z.object({ url: z.string().optional() }) },
   'plugin.status': {
     params: z.object({ pluginId: z.string(), profileId: z.string() }),
-    result: z.object({ accountEmail: z.string().nullable().optional(), connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
+    result: z.object({ grantedScopes: z.array(z.string()).nullable().optional(), supportsReadOnly: z.boolean().optional(), accountEmail: z.string().nullable().optional(), connected: z.boolean(), connecting: z.boolean(), error: z.string().nullable(), botIds: z.array(z.string()) }),
   },
-  'plugin.connect': { params: z.object({ pluginId: z.string(), profileId: z.string() }), result: z.object({ url: z.string() }) },
+  'plugin.connect': { params: z.object({ pluginId: z.string(), profileId: z.string(), readOnly: z.boolean().optional() }), result: z.object({ url: z.string() }) },
   'plugin.finish': { params: z.object({ pluginId: z.string(), profileId: z.string(), callbackUrl: z.string().max(8192) }), result: z.object({ ok: z.literal(true) }) },
   'plugin.disconnect': { params: z.object({ pluginId: z.string(), profileId: z.string() }), result: z.object({ ok: z.literal(true) }) },
   'plugin.enable': { params: z.object({ pluginId: z.string(), profileId: z.string(), botId: z.string(), enabled: z.boolean() }), result: z.object({ ok: z.literal(true) }) },

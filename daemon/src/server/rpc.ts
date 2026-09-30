@@ -74,7 +74,7 @@ const handlers: Record<RpcMethod, Handler> = {
     return pluginAction(() => plugin(ctx, (p as { pluginId: string }).pluginId).respondAccess(profileId, id, allow))
   },
   'plugin.status': async (p, ctx) => plugin(ctx, (p as { pluginId: string }).pluginId).status((p as { profileId: string }).profileId),
-  'plugin.connect': async (p, ctx) => pluginAction(() => plugin(ctx, (p as { pluginId: string }).pluginId).connect((p as { profileId: string }).profileId)),
+  'plugin.connect': async (p, ctx) => pluginAction(() => plugin(ctx, (p as { pluginId: string }).pluginId).connect((p as { profileId: string }).profileId, undefined, (p as { readOnly?: boolean }).readOnly)),
   'plugin.finish': async (p, ctx) => {
     const { profileId, callbackUrl } = p as { profileId: string; callbackUrl: string }
     await pluginAction(() => plugin(ctx, (p as { pluginId: string }).pluginId).finish(profileId, callbackUrl))

@@ -1,3 +1,4 @@
+import { hasScope, type PermissionGroup, type PermissionRule } from './google-permissions.js'
 import { mcpFailure } from './mcp-error.js'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
@@ -19,6 +20,7 @@ export interface McpPluginDefinition {
   callInstructions?: string
   localTools?: { spec: Tool; requiredScopes?: string[]; run: (args: Record<string, unknown>, accessToken: string, signal?: AbortSignal) => Promise<CallToolResult> }[]
   accountEmail?: (accessToken: string) => Promise<string | null>
+  permissions?: PermissionGroup[]
   failedCallInstructions?: string
   oauth?: {
     client?: OAuthClientInformationMixed
@@ -41,6 +43,7 @@ type Pending = { provider: OAuthClientProvider; state: string; server: Server; t
 export interface PluginAccessRequest {
   pluginId: string; id: string; botId: string; conversationId: string; profileId: string
   connected: boolean; connecting: boolean; expiresAt: number
+  action?: { tool: string; arguments: string }
 }
 
 /** One remote MCP connection per plugin and profile, with explicit per-bot access. */
@@ -49,6 +52,7 @@ export class McpPlugin {
   private readonly errors = new Map<string, string>()
   private readonly queues = new Map<string, Promise<unknown>>()
   private readonly namespace: string
+  private readonly decisions = new Map<string, (allow: boolean) => void>()
   private readonly access = new Map<string, PluginAccessRequest>()
   onAccessChanged: (profileId: string) => void = () => {}
   onAccessGranted: (request: PluginAccessRequest) => void = () => {}
@@ -85,6 +89,10 @@ export class McpPlugin {
     this.checkProfile(profileId)
     const saved = await this.load(profileId)
     return {
+      permissions: this.definition.permissions?.map(group => ({
+        id: group.id, label: group.label, rule: this.rule(profileId, group.id),
+        available: hasScope(group, saved?.tokens?.scope?.split(/\s+/) ?? []),
+      })),
       connected: !!saved?.tokens,
       grantedScopes: saved?.tokens?.scope?.split(/\s+/).filter(Boolean) ?? null,
       supportsReadOnly: !!this.definition.oauth?.readOnlyScope,
@@ -93,6 +101,44 @@ export class McpPlugin {
       error: this.errors.get(profileId) ?? null,
       botIds: this.store.listBots(true, profileId).filter(b => this.store.pluginEnabled(this.definition.id, b.id)).map(b => b.id),
     }
+  }
+
+  private rule(profileId: string, id: string): PermissionRule {
+    return (this.store.getSettings()[`plugin-permission:${profileId}:${this.definition.id}:${id}`] as PermissionRule | undefined) ?? (id === 'read' ? 'allow' : 'ask')
+  }
+
+  setPermission(profileId: string, id: string, rule: PermissionRule): void {
+    this.checkProfile(profileId)
+    if (!this.definition.permissions?.some(group => group.id === id) || !['allow', 'ask', 'deny'].includes(rule)) throw new Error('Unknown plugin permission.')
+    this.store.setSettings({ [`plugin-permission:${profileId}:${this.definition.id}:${id}`]: rule })
+    for (const request of this.accessList(profileId)) if (request.action) this.decisions.get(request.id)?.(false)
+  }
+
+  private ask(botId: string, conversationId: string | undefined, tool: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<boolean> {
+    const bot = this.store.getBot(botId)
+    const conversation = conversationId ? this.store.getConversation(conversationId) : undefined
+    if (!bot || !conversation || (conversation.botId !== botId && !this.store.channelMembers(conversation.id).some(b => b.id === botId)) || signal?.aborted) return Promise.resolve(false)
+    return new Promise(resolve => {
+      const request: PluginAccessRequest = {
+        id: randomUUID(), pluginId: this.definition.id, profileId: bot.profileId, botId, conversationId: conversation.id,
+        connected: true, connecting: false, expiresAt: Date.now() + LOGIN_TIMEOUT,
+        action: { tool, arguments: JSON.stringify(args, null, 2) },
+      }
+      const finish = (allow: boolean) => {
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', cancel)
+        this.decisions.delete(request.id)
+        this.access.delete(request.id)
+        this.onAccessChanged(bot.profileId)
+        resolve(allow)
+      }
+      const cancel = () => finish(false)
+      const timer = setTimeout(cancel, LOGIN_TIMEOUT)
+      signal?.addEventListener('abort', cancel, { once: true })
+      this.access.set(request.id, request)
+      this.decisions.set(request.id, finish)
+      this.onAccessChanged(bot.profileId)
+    })
   }
 
   private provider(profileId: string, saved: SavedLogin, interactive?: { state: string; redirect: (url: URL) => void; scope?: string }): OAuthClientProvider {
@@ -230,6 +276,7 @@ export class McpPlugin {
   }
 
   private revoke(profileId: string): void {
+    for (const request of this.accessList(profileId)) if (request.action) this.decisions.get(request.id)?.(false)
     for (const bot of this.store.listBots(true, profileId)) {
       if (!this.store.pluginEnabled(this.definition.id, bot.id)) continue
       this.store.setPluginEnabled(this.definition.id, bot.id, false)
@@ -238,7 +285,7 @@ export class McpPlugin {
   }
 
   async disconnect(profileId: string): Promise<void> {
-    for (const request of this.accessList(profileId)) this.access.delete(request.id)
+    for (const request of this.accessList(profileId)) { this.decisions.get(request.id)?.(false); this.access.delete(request.id) }
     this.onAccessChanged(profileId)
     // Revoke immediately, then again under the lock to cover already queued changes.
     this.cancel(profileId)
@@ -258,11 +305,12 @@ export class McpPlugin {
       if (!bot || bot.profileId !== profileId) throw new Error('This bot does not belong to this profile.')
       if (enabled && !(await this.load(profileId))?.tokens) throw new Error(`Connect ${this.definition.name} first.`)
       this.store.setPluginEnabled(this.definition.id, botId, enabled)
+      if (!enabled) for (const request of this.accessList(profileId)) if (request.botId === botId && request.action) this.decisions.get(request.id)?.(false)
       this.changed(botId)
     })
   }
 
-  context(botId: string, signal?: AbortSignal, includeLocked = false): ToolContext['external'] {
+  context(botId: string, signal?: AbortSignal, includeLocked = false, conversationId?: string): ToolContext['external'] {
     if (!this.store.getBot(botId) || (!includeLocked && !this.store.pluginEnabled(this.definition.id, botId))) return undefined
     return {
       specs: [
@@ -272,8 +320,25 @@ export class McpPlugin {
       run: async (name, args) => {
         const bot = this.store.getBot(botId)
         if (!bot) return { ok: false, output: 'This bot was deleted.', summary: `${this.definition.name} unavailable` }
+        // Freeze exactly what is approved; never hold the credential lock while waiting for a person.
+        args = structuredClone(args)
+        const group = name === `${this.definition.id}_call_tool` ? this.definition.permissions?.find(group => group.tools.includes(String(args['name']))) : undefined
+        let approved = false
+        if (name === `${this.definition.id}_call_tool` && (!args['arguments'] || typeof args['arguments'] !== 'object' || Array.isArray(args['arguments']) || typeof args['name'] !== 'string')) return { ok: false, output: 'Provide a tool name and arguments object.', summary: 'Invalid arguments' }
+        if (name === `${this.definition.id}_call_tool` && this.definition.permissions) {
+          if (!this.store.pluginEnabled(this.definition.id, botId)) return { ok: false, output: 'Plugin access is disabled for this bot.', summary: 'Access disabled' }
+          if (!group) return { ok: false, output: 'This tool has not been classified for Routi permissions and cannot run.', summary: 'Unsupported tool' }
+          const saved = await this.load(bot.profileId)
+          if (!hasScope(group, saved?.tokens?.scope?.split(/\s+/) ?? [])) return { ok: false, output: 'This Google connection does not allow this action. Grant additional access in Plugins first.', summary: 'Google access required' }
+          const rule = this.rule(bot.profileId, group.id)
+          if (rule === 'deny') return { ok: false, output: 'This action is denied by Bot permissions in Plugins.', summary: 'Action denied' }
+          if (rule === 'ask') {
+            approved = await this.ask(botId, conversationId, String(args['name']), args['arguments'] as Record<string, unknown>, signal)
+            if (!approved) return { ok: false, output: 'This action was not approved. No tool was executed.', summary: 'Not approved' }
+          }
+        }
         const result = await this.serial(bot.profileId, async () => {
-          if (!this.store.getBot(botId) || !this.store.pluginEnabled(this.definition.id, botId)) return { ok: false, output: `${this.definition.name} access is disabled for this bot. Use request_plugin_access with plugin=${this.definition.id} to show an approval card.`, summary: `${this.definition.name} disconnected` }
+          if (this.store.getBot(botId)?.profileId !== bot.profileId || !this.store.pluginEnabled(this.definition.id, botId)) return { ok: false, output: `${this.definition.name} access is disabled for this bot. Use request_plugin_access with plugin=${this.definition.id} to show an approval card.`, summary: `${this.definition.name} disconnected` }
           if (signal?.aborted) return { ok: false, output: 'Request cancelled before execution.', summary: `${this.definition.name} cancelled` }
           const client = new Client({ name: 'Routi Bot', version: '1.0.0' })
           let stage: 'connect' | 'discover' | 'call' = 'connect'
@@ -285,10 +350,13 @@ export class McpPlugin {
             }) })
             await client.connect(transport)
             const granted = saved.tokens?.scope?.split(/\s+/)
+            if (group && (!hasScope(group, granted ?? []) || this.rule(bot.profileId, group.id) === 'deny' || (this.rule(bot.profileId, group.id) === 'ask' && !approved))) {
+              return { ok: false, output: 'Access changed before execution. No tool was executed.', summary: 'Permission changed' }
+            }
             const localTools = (this.definition.localTools ?? []).filter(tool => !granted || !tool.requiredScopes || tool.requiredScopes.some(scope => granted.includes(scope)))
             if (name === `${this.definition.id}_list_tools`) {
               stage = 'discover'
-              const tools: Tool[] = localTools.map(tool => tool.spec)
+              let tools: Tool[] = localTools.map(tool => tool.spec)
               let cursor: string | undefined
               let pages = 0
               do {
@@ -298,6 +366,8 @@ export class McpPlugin {
                 cursor = page.nextCursor
                 if (tools.length > 1000) throw new Error('Too many tools')
               } while (cursor)
+              tools = tools.filter(tool => !this.definition.permissions || this.definition.permissions.some(group =>
+                group.tools.includes(tool.name) && hasScope(group, granted ?? []) && this.rule(bot.profileId, group.id) !== 'deny'))
               const requested = args['name']
               if (typeof requested === 'string' && requested) {
                 const tool = tools.find(tool => tool.name === requested)
@@ -348,7 +418,7 @@ export class McpPlugin {
     if (this.store.pluginEnabled(this.definition.id, botId) && (await this.load(bot.profileId))?.tokens) {
       return { ok: true, output: `${this.definition.name} access is already enabled. Use ${this.definition.id}_list_tools to discover the tools.`, summary: `${this.definition.name} enabled` }
     }
-    const existing = this.accessList(bot.profileId).find(r => r.botId === botId && r.conversationId === conversationId)
+    const existing = this.accessList(bot.profileId).find(r => !r.action && r.botId === botId && r.conversationId === conversationId)
     if (!existing) {
       const request: PluginAccessRequest = {
         pluginId: this.definition.id, id: randomUUID(), botId, conversationId, profileId: bot.profileId,
@@ -362,7 +432,7 @@ export class McpPlugin {
 
   accessList(profileId: string): PluginAccessRequest[] {
     for (const [id, request] of this.access) {
-      if (request.expiresAt <= Date.now() || !this.store.getBot(request.botId) || !this.store.getConversation(request.conversationId)) this.access.delete(id)
+      if (request.expiresAt <= Date.now() || !this.store.getBot(request.botId) || !this.store.getConversation(request.conversationId)) { this.decisions.get(id)?.(false); this.access.delete(id) }
     }
     return [...this.access.values()].filter(r => r.profileId === profileId).map(r => ({ ...r }))
   }
@@ -388,6 +458,7 @@ export class McpPlugin {
   async respondAccess(profileId: string, id: string, allow: boolean): Promise<{ url?: string }> {
     this.checkProfile(profileId)
     const request = this.findAccess(id, profileId)
+    if (request.action) { this.decisions.get(id)?.(allow); return {} }
     if (!allow) {
       if (this.pending.get(profileId)?.accessId === id) this.cancel(profileId)
       this.access.delete(id)
@@ -413,5 +484,5 @@ export class McpPlugin {
     }
   }
 
-  close(): void { for (const id of this.pending.keys()) this.cancel(id) }
+  close(): void { for (const decide of [...this.decisions.values()]) decide(false); for (const id of this.pending.keys()) this.cancel(id) }
 }

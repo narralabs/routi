@@ -1,6 +1,14 @@
 import Foundation
 
+struct PluginPermission: Decodable, Identifiable {
+    let id: String
+    let label: String
+    let rule: String
+    let available: Bool
+}
+
 struct PluginStatus: Decodable {
+    let permissions: [PluginPermission]?
     let grantedScopes: [String]?
     let supportsReadOnly: Bool?
     let accountEmail: String?
@@ -11,6 +19,8 @@ struct PluginStatus: Decodable {
 }
 
 struct PluginAccessRequest: Decodable, Identifiable {
+    struct Action: Decodable { let tool: String; let arguments: String }
+    let action: Action?
     let id: String
     let pluginId: String?
     let botId: String

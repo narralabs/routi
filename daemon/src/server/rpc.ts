@@ -74,6 +74,11 @@ const handlers: Record<RpcMethod, Handler> = {
     return pluginAction(() => plugin(ctx, (p as { pluginId: string }).pluginId).respondAccess(profileId, id, allow))
   },
   'plugin.status': async (p, ctx) => plugin(ctx, (p as { pluginId: string }).pluginId).status((p as { profileId: string }).profileId),
+  'plugin.permission': async (p, ctx) => {
+    const { pluginId, profileId, permissionId, rule } = p as { pluginId: string; profileId: string; permissionId: string; rule: 'allow' | 'ask' | 'deny' }
+    plugin(ctx, pluginId).setPermission(profileId, permissionId, rule)
+    return { ok: true }
+  },
   'plugin.connect': async (p, ctx) => pluginAction(() => plugin(ctx, (p as { pluginId: string }).pluginId).connect((p as { profileId: string }).profileId, undefined, (p as { readOnly?: boolean }).readOnly)),
   'plugin.finish': async (p, ctx) => {
     const { profileId, callbackUrl } = p as { profileId: string; callbackUrl: string }

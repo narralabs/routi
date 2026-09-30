@@ -32,7 +32,7 @@ export class Plugins {
   }
   close(): void { for (const plugin of this.entries.values()) plugin.close() }
   toolContext(botId: string, conversationId: string, signal?: AbortSignal): ToolContext {
-    const tools = [...this.entries.values()].flatMap(plugin => plugin.context(botId, signal, true) ?? [])
+    const tools = [...this.entries.values()].flatMap(plugin => plugin.context(botId, signal, true, conversationId) ?? [])
     return {
       pluginIds: [...this.entries.keys()],
       requestPluginAccess: async id => this.get(id).requestAccess(botId, conversationId),

@@ -1,3 +1,4 @@
+import { googlePermissions } from './google-permissions.js'
 import { bundledGoogleClient } from './google-oauth-client.js'
 import type { McpPluginDefinition } from './mcp-plugin.js'
 
@@ -38,6 +39,7 @@ export function googleDefinitions(): McpPluginDefinition[] {
     readOnlyScope: 'https://www.googleapis.com/auth/documents.readonly',
   }].map(({ scope, readOnlyScope, ...definition }) => ({
     ...definition,
+    permissions: googlePermissions[definition.id],
     accountEmail: googleAccountEmail,
     oauth: {
       client: clientId ? { client_id: clientId, ...(clientSecret ? { client_secret: clientSecret } : {}) } : bundledGoogleClient,

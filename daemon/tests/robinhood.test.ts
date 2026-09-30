@@ -25,6 +25,8 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
   const saved = new Map<string, string>()
   const clients: Record<string, unknown>[] = []
   const calls: string[] = []
+  const argumentsSent: Record<string, unknown>[] = []
+  const readTool = definition.permissions?.[0]?.tools[0] ?? 'get_accounts'
   let tokenCalls = 0
   let fail = false
   let payload = ''
@@ -73,9 +75,10 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
       if (message.method === 'initialize') result = { protocolVersion: '2025-03-26', capabilities: { tools: {} }, serverInfo: { name: 'fake-robinhood', version: '1' } }
       if (message.method === 'tools/list') result = message.params?.cursor
         ? { tools: [{ name: 'place_order', description: payload || 'Place an order', inputSchema: { type: 'object', properties: { symbol: { type: 'string' } } } }] }
-        : { tools: [{ name: 'get_accounts', inputSchema: { type: 'object' } }], nextCursor: 'next' }
+        : { tools: [{ name: readTool, inputSchema: { type: 'object' } }], nextCursor: 'next' }
       if (message.method === 'tools/call') {
         calls.push(message.params.name)
+        argumentsSent.push(message.params.arguments)
         if (fail) return json({ error: 'test failure' }, 500)
         result = { content: [{ type: 'text', text: payload || 'fake account' }], structuredContent: { accounts: ['fake'] } }
       }
@@ -102,7 +105,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
     return callback
   }
   const begin = async () => callbackFor((await plugin.connect('default')).url)
-  return { plugin, store, bot, saved, clients, calls, changed, begin, callbackFor, secrets, dir, url,
+  return { plugin, store, bot, saved, clients, calls, argumentsSent, readTool, changed, begin, callbackFor, secrets, dir, url,
     setScope: (value: string | undefined) => { grantedScope = value },
     setPayload: (value: string) => { payload = value },
     expire: () => { accessToken = 'expired-on-server' }, tokenCalls: () => tokenCalls, fail: () => { fail = true } }
@@ -386,6 +389,7 @@ test('oversized schemas and results are withheld without replaying actions', asy
 
 for (const definition of googleDefinitions()) test(`${definition.name} uses a registered OAuth client, service scopes and offline consent`, async t => {
   const f = await fixture(t, { ...definition, accountEmail: async () => 'test@example.com', oauth: { ...definition.oauth!, client: { client_id: 'google-test', client_secret: 'test-client-secret' } } })
+  f.setScope(definition.oauth!.scope)
   const login = new URL((await f.plugin.connect('default')).url)
   assert.equal(login.searchParams.get('client_id'), 'google-test')
   assert.equal(login.searchParams.get('scope'), definition.oauth!.scope)
@@ -398,7 +402,7 @@ for (const definition of googleDefinitions()) test(`${definition.name} uses a re
   assert.equal(f.store.pluginEnabled(definition.id, f.bot.id), true)
   assert.equal(f.store.pluginEnabled('robinhood', f.bot.id), false)
   assert.equal((await f.plugin.context(f.bot.id)!.run(`${definition.id}_list_tools`, {})).ok, true)
-  assert.equal((await f.plugin.context(f.bot.id)!.run(`${definition.id}_call_tool`, { name: 'get_accounts', arguments: {} })).ok, true)
+  assert.equal((await f.plugin.context(f.bot.id)!.run(`${definition.id}_call_tool`, { name: f.readTool, arguments: {} })).ok, true)
   for (const other of googleDefinitions().filter(other => other.id !== definition.id)) {
     assert.equal(f.store.pluginEnabled(other.id, f.bot.id), false)
     assert.equal((await new McpPlugin(other, f.store, f.secrets, f.dir, () => {}).status('default')).connected, false)
@@ -469,7 +473,9 @@ test('Gmail local tools share discovery, refreshed credentials, and bot access c
       return { content: [{ type: 'text', text: 'sent' }] }
     } }],
   })
+  f.setScope(definition.oauth!.scope)
   await f.plugin.finish('default', (await f.begin()).href)
+  f.plugin.setPermission('default', 'send', 'allow')
   const ctx = f.plugin.context(f.bot.id, undefined, true)!
   assert.match(ctx.specs.find(tool => tool.name === 'gmail_list_tools')!.description, /gmail_send_draft/ )
   const call = () => ctx.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
@@ -519,4 +525,104 @@ for (const definition of googleDefinitions()) test(`${definition.name} reports g
   assert.equal((await f.plugin.status('default')).grantedScopes, null, 'new consent without scope must not inherit old permissions')
   await f.plugin.disconnect('default')
   assert.equal((await f.plugin.status('default')).grantedScopes, null)
+})
+
+async function connectedGmail(t: TestContext) {
+  const definition = googleDefinitions()[0]!
+  const localCalls: Record<string, unknown>[] = []
+  const f = await fixture(t, { ...definition, accountEmail: undefined,
+    oauth: { ...definition.oauth!, client: { client_id: 'google-test' } },
+    localTools: [{ ...definition.localTools![0]!, run: async args => {
+      localCalls.push(args)
+      return { content: [{ type: 'text', text: 'sent' }] }
+    } }],
+  })
+  f.setScope(definition.oauth!.scope)
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const conversation = f.store.listConversations().find(c => c.botId === f.bot.id)!
+  const controller = new AbortController()
+  const context = f.plugin.context(f.bot.id, controller.signal, true, conversation.id)!
+  const nextApproval = () => new Promise<ReturnType<typeof f.plugin.accessList>[number]>(resolve => {
+    f.plugin.onAccessChanged = () => {
+      const request = f.plugin.accessList('default').find(r => r.action)
+      if (request) resolve(request)
+    }
+  })
+  return { ...f, localCalls, context, controller, nextApproval }
+}
+
+test('Ask approves one exact call; a second call and local draft sending require separate decisions', async t => {
+  const f = await connectedGmail(t)
+  assert.equal((await f.context.run('gmail_list_tools', { name: 'gmail_send_draft' })).ok, true, 'Ask tools must still expose their schemas before approval')
+  let accessGrants = 0
+  f.plugin.onAccessGranted = () => { accessGrants++ }
+  const approval = f.nextApproval()
+  const args = { name: 'send_message', arguments: { to: ['example@example.com'], body: 'Approved text' } }
+  const call = f.context.run('gmail_call_tool', args)
+  const request = await approval
+  args.arguments.body = 'Changed after request'
+  assert.deepEqual(f.calls, [])
+  assert.equal(JSON.parse(request.action!.arguments).body, 'Approved text')
+  await assert.rejects(f.plugin.respondAccess('missing-profile', request.id, true))
+  await f.plugin.respondAccess('default', request.id, true)
+  assert.equal((await call).ok, true)
+  assert.equal(f.argumentsSent[0]!.body, 'Approved text')
+  assert.equal(accessGrants, 0, 'action approval must not grant bot access or start another turn')
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true), /expired/)
+
+  const next = f.nextApproval()
+  const local = f.context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
+  await f.plugin.respondAccess('default', (await next).id, false)
+  assert.equal((await local).ok, false)
+  assert.deepEqual(f.localCalls, [])
+  assert.deepEqual(f.calls, ['send_message'])
+})
+
+test('Deny blocks direct and discovered tools, persists across restart, and does not change Google grants', async t => {
+  const f = await connectedGmail(t)
+  const granted = (await f.plugin.status('default')).grantedScopes
+  f.plugin.setPermission('default', 'send', 'deny')
+  for (const name of ['send_message', 'gmail_send_draft']) {
+    assert.equal((await f.context.run('gmail_call_tool', { name, arguments: { draftId: 'draft' } })).ok, false)
+  }
+  assert.doesNotMatch((await f.context.run('gmail_list_tools', {})).output, /gmail_send_draft/)
+  assert.deepEqual(f.calls, [])
+  assert.deepEqual(f.localCalls, [])
+  const restarted = new McpPlugin(googleDefinitions()[0]!, f.store, f.secrets, f.dir, () => {})
+  const status = await restarted.status('default')
+  assert.equal(status.permissions!.find(p => p.id === 'send')!.rule, 'deny')
+  assert.deepEqual(status.grantedScopes, granted)
+  const other = f.store.createProfile('Other')
+  assert.equal((await restarted.status(other.id)).permissions!.find(p => p.id === 'send')!.rule, 'ask')
+})
+
+for (const cancel of ['policy', 'disconnect', 'abort', 'bot access'] as const) test(`${cancel} cancels a pending action without executing it or blocking disconnect`, async t => {
+  const f = await connectedGmail(t)
+  const approval = f.nextApproval()
+  const call = f.context.run('gmail_call_tool', { name: 'send_message', arguments: {} })
+  const request = await approval
+  if (cancel === 'policy') f.plugin.setPermission('default', 'send', 'deny')
+  if (cancel === 'disconnect') await f.plugin.disconnect('default')
+  if (cancel === 'abort') f.controller.abort()
+  if (cancel === 'bot access') await f.plugin.enable('default', f.bot.id, false)
+  assert.equal((await call).ok, false)
+  assert.deepEqual(f.calls, [])
+  assert.equal(f.plugin.accessList('default').length, 0)
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true), /expired/)
+})
+
+test('Allow cannot grant missing Google access or bypass classification; reads still work', async t => {
+  const f = await connectedGmail(t)
+  assert.equal((await f.context.run('gmail_call_tool', { name: 'get_message', arguments: {} })).ok, true)
+  f.plugin.setPermission('default', 'send', 'allow')
+  assert.equal((await f.context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })).ok, true)
+  assert.equal(f.localCalls.length, 1)
+  f.setScope('https://www.googleapis.com/auth/gmail.readonly')
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  assert.equal((await f.context.run('gmail_call_tool', { name: 'send_message', arguments: {} })).ok, false)
+  assert.equal((await f.plugin.status('default')).permissions!.find(p => p.id === 'send')!.available, false)
+  assert.equal((await f.context.run('gmail_call_tool', { name: 'new_unreviewed_tool', arguments: {} })).ok, false)
+  assert.deepEqual(f.calls, ['get_message'])
 })

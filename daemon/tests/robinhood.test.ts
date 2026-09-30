@@ -29,6 +29,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
   const readTool = definition.permissions?.[0]?.tools[0] ?? 'get_accounts'
   let tokenCalls = 0
   let fail = false
+  let revoked = false
   let payload = ''
   let challenge = ''
   let accessToken = 'test-access'
@@ -51,6 +52,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
     }
     if (path === '/token') {
       tokenCalls++
+      if (revoked) return json({ error: 'invalid_grant', error_description: 'Token revoked' }, 400)
       const params = new URLSearchParams(body)
       if (definition?.oauth?.client?.client_secret) {
         assert.equal(params.get('client_id'), definition.oauth.client.client_id)
@@ -108,6 +110,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
   return { plugin, store, bot, saved, clients, calls, argumentsSent, readTool, changed, begin, callbackFor, secrets, dir, url,
     setScope: (value: string | undefined) => { grantedScope = value },
     setPayload: (value: string) => { payload = value },
+    revoke: () => { revoked = true; accessToken = 'revoked-on-server' },
     expire: () => { accessToken = 'expired-on-server' }, tokenCalls: () => tokenCalls, fail: () => { fail = true } }
 }
 
@@ -625,4 +628,60 @@ test('Allow cannot grant missing Google access or bypass classification; reads s
   assert.equal((await f.plugin.status('default')).permissions!.find(p => p.id === 'send')!.available, false)
   assert.equal((await f.context.run('gmail_call_tool', { name: 'new_unreviewed_tool', arguments: {} })).ok, false)
   assert.deepEqual(f.calls, ['get_message'])
+})
+
+
+test('revoked Google login stops calls and asks the user to reconnect', async t => {
+  const f = await connectedGmail(t)
+  f.revoke()
+  const result = await f.context.run('gmail_call_tool', { name: 'get_message', arguments: {} })
+  assert.equal(result.ok, false)
+  assert.deepEqual(f.calls, [])
+  const status = await f.plugin.status('default')
+  assert.equal(status.connected, false)
+  assert.match(status.error!, /Reconnect/)
+  assert.deepEqual(status.botIds, [])
+})
+
+test('Gmail upgrade uses returned grants; cancelled consent preserves read access and a narrower request cannot erase a broad grant', async t => {
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  f.setScope(definition.oauth!.readOnlyScope)
+  const readOnlyLogin = await f.plugin.connect('default', undefined, true)
+  assert.equal(new URL(readOnlyLogin.url).searchParams.get('scope'), definition.oauth!.readOnlyScope)
+  await f.plugin.finish('default', f.callbackFor(readOnlyLogin.url).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const cancelled = f.callbackFor((await f.plugin.connect('default')).url)
+  cancelled.searchParams.delete('code')
+  cancelled.searchParams.set('error', 'access_denied')
+  await assert.rejects(f.plugin.finish('default', cancelled.href))
+  assert.equal((await f.plugin.status('default')).connected, true)
+  assert.equal(f.store.pluginEnabled('gmail', f.bot.id), true)
+  assert.equal((await f.plugin.status('default')).permissions!.find(p => p.id === 'send')!.available, false)
+
+  const upgrade = await f.plugin.connect('default')
+  assert.equal(new URL(upgrade.url).searchParams.get('scope'), definition.oauth!.scope)
+  f.setScope(definition.oauth!.scope)
+  await f.plugin.finish('default', f.callbackFor(upgrade.url).href)
+  assert.equal((await f.plugin.status('default')).permissions!.find(p => p.id === 'send')!.available, true)
+  assert.deepEqual((await f.plugin.status('default')).botIds, [], 'new consent requires bot access approval again')
+
+  const narrower = await f.plugin.connect('default', undefined, true)
+  await f.plugin.finish('default', f.callbackFor(narrower.url).href)
+  assert.equal((await f.plugin.status('default')).permissions!.find(p => p.id === 'send')!.available, true, 'show the broad grant Google actually returned')
+  await f.plugin.disconnect('default')
+  f.setScope(definition.oauth!.readOnlyScope)
+  await f.plugin.finish('default', f.callbackFor((await f.plugin.connect('default', undefined, true)).url).href)
+  assert.equal((await f.plugin.status('default')).permissions!.find(p => p.id === 'send')!.available, false, 'fresh read-only grant after Google revocation has no sending')
+})
+
+
+test('temporary Google server errors do not disconnect a valid login', async t => {
+  const f = await connectedGmail(t)
+  f.fail()
+  assert.equal((await f.context.run('gmail_call_tool', { name: 'get_message', arguments: {} })).ok, false)
+  const status = await f.plugin.status('default')
+  assert.equal(status.connected, true)
+  assert.equal(status.error, null)
+  assert.deepEqual(status.botIds, [f.bot.id])
 })

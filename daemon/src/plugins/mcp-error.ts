@@ -1,8 +1,10 @@
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+
 /** Classify failures without copying URLs, tokens, or account payloads into logs. */
 export function mcpFailure(plugin: { id: string; name: string }, error: unknown, cancelled = false): { kind: string; message: string } {
   if (cancelled) return { kind: 'cancelled', message: 'The request was cancelled.' }
   const value = error as { name?: string; code?: unknown } | null
-  if (value?.code === 401 || ['UnauthorizedError', 'InvalidGrantError', 'InvalidTokenError'].includes(value?.name ?? '')) {
+  if (error instanceof UnauthorizedError || value?.code === 401 || ['UnauthorizedError', 'InvalidGrantError', 'InvalidTokenError'].includes(value?.name ?? '')) {
     return { kind: 'authentication', message: `${plugin.name} authentication is no longer valid. Reconnect ${plugin.name} in Plugins.` }
   }
   if (value?.code === -32601 || value?.code === -32602) {

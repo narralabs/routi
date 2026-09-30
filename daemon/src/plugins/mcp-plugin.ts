@@ -171,7 +171,7 @@ export class McpPlugin {
       saveCodeVerifier: code => { verifier = code },
       codeVerifier: () => { if (!verifier) throw new Error('Login expired. Connect again.'); return verifier },
       redirectToAuthorization: url => {
-        if (!interactive) throw new Error(`Reconnect ${this.definition.name} in Plugins.`)
+        if (!interactive) throw new UnauthorizedError(`Reconnect ${this.definition.name} in Plugins.`)
         if (this.definition.oauth) url.searchParams.set('scope', interactive.scope ?? this.definition.oauth.scope)
         for (const [key, value] of Object.entries(this.definition.oauth?.authorizationParams ?? {})) url.searchParams.set(key, value)
         interactive.redirect(url)
@@ -392,6 +392,11 @@ export class McpPlugin {
             return { ok: !result.isError, output: JSON.stringify(result), summary: `${this.definition.name}: ${args['name']}` }
           } catch (error) {
             const failure = mcpFailure(this.definition, error, signal?.aborted)
+            if (failure.kind === 'authentication') {
+              await this.secrets.clearApiKey(this.definition.credentialProvider ?? `mcp:${this.definition.id}`, this.slot(bot.profileId))
+              this.revoke(bot.profileId)
+              this.errors.set(bot.profileId, failure.message)
+            }
             console.warn(`${this.definition.name} request failed`, { botId, stage, kind: failure.kind })
             const outcome = stage === 'call'
               ? (this.definition.failedCallInstructions ?? 'The action outcome may be unknown. Check its status before repeating it. Routi did not automatically replay the tool call.')

@@ -653,3 +653,11 @@ Google MCP access and OAuth verification are separate requirements. Before publi
 release, confirm both and test with a non-test-user account. See
 [Google’s Gmail MCP setup](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)
 and [OAuth verification requirements](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification).
+
+### Google Calendar
+
+Calendar uses Google’s hosted MCP through the same Google OAuth client as Gmail,
+with separate connections and bot grants. Enable `calendarmcp.googleapis.com` and
+`calendar-json.googleapis.com`. It requests `calendar.calendarlist.readonly`,
+`calendar.events.freebusy`, and `calendar.events`, plus `openid email`.
+Add these scopes to the OAuth consent configuration and verification request.

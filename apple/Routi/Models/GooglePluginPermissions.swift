@@ -19,6 +19,11 @@ extension PluginInfo {
                 ("View calendars", ["calendar.calendarlist.readonly", "calendar.readonly", "calendar"]),
                 ("Check availability", ["calendar.events.freebusy", "calendar.freebusy", "calendar.readonly", "calendar"]),
             ]
+        case "google_docs":
+            capabilities = [
+                ("Read documents", ["documents.readonly", "documents", "drive.readonly", "drive"]),
+                ("Edit documents", ["documents", "drive"]),
+            ]
         case "google_drive":
             capabilities = [
                 ("Read Drive files", ["drive.readonly", "drive"]),
@@ -35,6 +40,7 @@ extension PluginInfo {
         switch id {
         case "gmail": writeScopes = ["gmail.modify", "gmail.compose", "gmail.send"]
         case "google_calendar": writeScopes = ["calendar.events", "calendar"]
+        case "google_docs": writeScopes = ["documents", "drive"]
         case "google_drive": writeScopes = ["drive.file", "drive"]
         default: return false
         }
@@ -48,6 +54,7 @@ extension PluginInfo {
         switch id {
         case "gmail": "Send email and manage drafts and messages"
         case "google_calendar": "Create, edit, and delete events"
+        case "google_docs": "Edit document text and formatting"
         default: "Manage files used with Routi"
         }
     }
@@ -55,6 +62,7 @@ extension PluginInfo {
     var basePermissions: [String] {
         switch id {
         case "gmail": ["Read email"]
+        case "google_docs": ["Read documents"]
         case "google_calendar": ["View calendars", "Check availability", "Read events"]
         case "google_drive": ["Read Drive files"]
         default: []

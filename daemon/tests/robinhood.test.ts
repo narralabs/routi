@@ -422,8 +422,8 @@ test('plugin roster routes approvals and keeps service and profile grants separa
   t.after(() => plugins.close())
   const conversation = f.store.listConversations().find(c => c.botId === f.bot.id)!
   const ctx = plugins.toolContext(f.bot.id, conversation.id)
-  assert.equal(ctx.external!.specs.length, 8, 'two tools per service, not full remote schemas')
-  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar', 'google_drive'])
+  assert.equal(ctx.external!.specs.length, 10, 'two tools per service, not full remote schemas')
+  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar', 'google_drive', 'google_docs'])
   await ctx.requestPluginAccess!('gmail')
   const request = plugins.accessList('default')[0]!
   assert.equal(request.pluginId, 'gmail')

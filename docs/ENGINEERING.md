@@ -674,3 +674,11 @@ Google connections offer read-only or read/write consent. Plugin settings displa
 the scopes returned by Google, not the requested choice. Changing permissions
 opens Google consent again; existing grants may require removal in the Google
 Account first. Removing Google's Routi grant can affect other Google connections.
+
+### Google Docs
+
+Docs uses `https://docsmcp.googleapis.com/mcp/v1` to read and edit existing documents.
+Enable `docsmcp.googleapis.com` and `docs.googleapis.com`. Configure `documents`
+and `documents.readonly`, plus `openid email`, in Google OAuth and verification.
+Docs has its own connection and bot grants; read-only consent requests only
+`documents.readonly` for document access.

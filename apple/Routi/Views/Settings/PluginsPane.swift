@@ -112,7 +112,7 @@ private struct PluginRow: View {
                     }
                     HStack {
                         Button(status.connected ? (status.supportsReadOnly == true ? "Change permissions" : "Reconnect") : "Connect") {
-                            if status.supportsReadOnly == true { choosingPermissions.toggle() }
+                            if status.connected && status.supportsReadOnly == true { choosingPermissions.toggle() }
                             else { connect() }
                         }
                         if status.connected || status.connecting {

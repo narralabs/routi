@@ -30,4 +30,33 @@ extension PluginInfo {
         return capabilities.compactMap { label, scopes in granted.isDisjoint(with: scopes) ? nil : label }
     }
 
+    func hasWriteAccess(_ scopes: [String]) -> Bool {
+        let writeScopes: [String]
+        switch id {
+        case "gmail": writeScopes = ["gmail.modify", "gmail.compose", "gmail.send"]
+        case "google_calendar": writeScopes = ["calendar.events", "calendar"]
+        case "google_drive": writeScopes = ["drive.file", "drive"]
+        default: return false
+        }
+        return scopes.contains { scope in
+            writeScopes.contains { scope == "https://www.googleapis.com/auth/" + $0 }
+                || (id == "gmail" && scope == "https://mail.google.com/")
+        }
+    }
+
+    func permissionChoice(readOnly: Bool) -> String {
+        switch id {
+        case "gmail": readOnly ? "Read email" : "Read, send, and manage email"
+        case "google_calendar": readOnly ? "Read events" : "Read and manage events"
+        default: "Manage files used with Routi"
+        }
+    }
+
+    var sharedPermissions: [String] {
+        switch id {
+        case "google_calendar": ["View calendars", "Check availability"]
+        case "google_drive": ["Read Drive files"]
+        default: []
+        }
+    }
 }

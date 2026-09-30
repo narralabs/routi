@@ -101,7 +101,7 @@ private struct PluginRow: View {
                         if let scopes = status.grantedScopes {
                             let permissions = plugin.permissions(scopes)
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Granted permissions").font(.headline)
+                                Text("Google access").font(.headline)
                                 ForEach(permissions, id: \.self) { Text($0) }
                                 if permissions.isEmpty { Text("No service permissions reported.") }
                             }.padding(.vertical, 8)
@@ -111,9 +111,9 @@ private struct PluginRow: View {
                         }
                     }
                     HStack {
-                        Button(status.connected ? (status.supportsReadOnly == true ? "Change permissions" : "Reconnect") : "Connect") {
-                            if status.supportsReadOnly == true {
-                                requestedReadOnly = !status.connected || !plugin.hasWriteAccess(status.grantedScopes ?? [])
+                        Button(status.connected ? (status.supportsReadOnly == true ? "Grant additional access" : "Reconnect") : "Connect") {
+                            if status.supportsReadOnly == true && !status.connected {
+                                requestedReadOnly = true
                                 choosingPermissions.toggle()
                             }
                             else { connect() }
@@ -142,9 +142,7 @@ private struct PluginRow: View {
                             #if os(macOS)
                             .toggleStyle(.checkbox)
                             #endif
-                            Text(status.connected
-                                 ? "Continue with Google to apply your selection. Granted permissions above show your current access."
-                                 : "Choose access before continuing with Google.")
+                            Text("Choose access before continuing with Google.")
                                 .font(.caption).foregroundStyle(.secondary)
                             HStack(spacing: 12) {
                                 Button("Continue with Google") { connect(readOnly: requestedReadOnly); choosingPermissions = false }

@@ -23,6 +23,7 @@ private struct PluginRow: View {
     @State private var busy = false
     @State private var showingDisconnectAlert = false
     @State private var choosingPermissions = false
+    @State private var requestedReadOnly = true
     @State private var callbackURL = ""
     @State private var loginURL: URL?
 
@@ -111,14 +112,8 @@ private struct PluginRow: View {
                     }
                     HStack {
                         Button(status.connected ? (status.supportsReadOnly == true ? "Change permissions" : "Reconnect") : "Connect") {
-                            if status.supportsReadOnly == true { choosingPermissions = true }
+                            if status.supportsReadOnly == true { choosingPermissions.toggle() }
                             else { connect() }
-                        }
-                        .confirmationDialog("Choose access", isPresented: $choosingPermissions, titleVisibility: .visible) {
-                            Button("Read only") { connect(readOnly: true) }
-                            Button("Read and write") { connect() }
-                        } message: {
-                            Text("Google will ask you to confirm. Your granted permissions will appear here afterward.")
                         }
                         if status.connected || status.connecting {
                             Button(status.connected ? "Disconnect" : "Cancel login", role: .destructive) {
@@ -128,6 +123,40 @@ private struct PluginRow: View {
                         }
                     }
                     .disabled(busy)
+                    if choosingPermissions {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Permissions to request").font(.headline)
+                            ForEach(plugin.sharedPermissions, id: \.self) { Text($0) }
+                            if plugin.id == "google_drive" {
+                                Toggle(plugin.permissionChoice(readOnly: false), isOn: Binding(
+                                    get: { !requestedReadOnly }, set: { requestedReadOnly = !$0 }
+                                ))
+                            } else {
+                                ForEach([true, false], id: \.self) { readOnly in
+                                    Button { requestedReadOnly = readOnly } label: {
+                                        HStack(alignment: .top, spacing: 10) {
+                                            Image(systemName: requestedReadOnly == readOnly ? "largecircle.fill.circle" : "circle")
+                                                .foregroundStyle(Color.accentColor)
+                                            Text(plugin.permissionChoice(readOnly: readOnly))
+                                                .multilineTextAlignment(.leading)
+                                                .foregroundStyle(.primary)
+                                        }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityAddTraits(requestedReadOnly == readOnly ? .isSelected : [])
+                                }
+                            }
+                            Text("Google will confirm access in your browser. Existing permissions stay active until you finish.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                Button("Continue with Google") { connect(readOnly: requestedReadOnly); choosingPermissions = false }
+                                    .buttonStyle(.borderedProminent)
+                                Button("Cancel") { choosingPermissions = false }
+                            }
+                        }
+                        .padding(.vertical, 12)
+                        .disabled(busy)
+                    }
                     if status.connecting {
                         Text("Waiting for \(plugin.name) sign-in…")
                         if let loginURL { Link("Open sign-in again", destination: loginURL) }
@@ -219,6 +248,8 @@ private struct PluginRow: View {
         if loadedProfileID != profileID {
             loadedProfileID = profileID
             status = nil
+            choosingPermissions = false
+            requestedReadOnly = true
             error = nil
             refreshError = nil
             loginURL = nil

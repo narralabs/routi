@@ -201,8 +201,17 @@ private struct PluginRow: View {
         .alert("Disconnect \(plugin.name)?", isPresented: $showingDisconnectAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Disconnect", role: .destructive) { disconnect() }
+            if status?.supportsReadOnly == true {
+                Button("Manage access in Google") {
+                    openURL(URL(string: "https://myaccount.google.com/connections")!)
+                }
+            }
         } message: {
-            Text("This removes this profile’s saved login and bot access in Routi. \(plugin.name) may still show Routi as connected. To revoke authorization too, remove it in your account’s connected-app settings.")
+            if status?.supportsReadOnly == true {
+                Text("This disconnects \(plugin.name) from this Routi profile. Other plugins stay connected. Removing Routi’s access in Google may also disconnect your other Google plugins.")
+            } else {
+                Text("This removes this profile’s saved login and bot access in Routi. \(plugin.name) may still show Routi as connected. To revoke authorization too, remove it in your account’s connected-app settings.")
+            }
         }
         .onChange(of: model.currentProfileID) { showingDisconnectAlert = false }
         .task(id: model.currentProfileID) { await pollStatus() }

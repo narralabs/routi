@@ -25,6 +25,11 @@ struct PluginAccessCard: View {
                             ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(detail.label).font(.caption).foregroundStyle(.secondary)
+                                        #if os(macOS)
+                                        .onContinuousHover { phase in
+                                            if case .active = phase { NSCursor.arrow.set() }
+                                        }
+                                        #endif
                                     if detail.editable && (action.preview == nil || action.editableFields?.contains(detail.path.first ?? "") == true) {
                                         let text = Binding(
                                             get: { edits[detail.path] ?? detail.value },

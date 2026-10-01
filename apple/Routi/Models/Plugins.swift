@@ -67,7 +67,6 @@ struct PluginAccessRequest: Decodable, Identifiable {
         }
 
         private static func label(_ key: String) -> String {
-            if key == "body" { return "Message" }
             if key == "cc" || key == "bcc" { return key.uppercased() }
             let text = key.replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
                 .replacingOccurrences(of: "_", with: " ")

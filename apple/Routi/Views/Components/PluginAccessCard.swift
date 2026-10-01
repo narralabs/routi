@@ -26,13 +26,26 @@ struct PluginAccessCard: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(detail.label).font(.caption).foregroundStyle(.secondary)
                                     if detail.editable && (action.preview == nil || action.editableFields?.contains(detail.path.first ?? "") == true) {
-                                        TextField(detail.label, text: Binding(
+                                        let text = Binding(
                                             get: { edits[detail.path] ?? detail.value },
                                             set: { edits[detail.path] = $0 }
-                                        ), axis: .vertical)
-                                        .textFieldStyle(.roundedBorder)
-                                        .lineLimit(detail.path.last == "body" || detail.path.last == "htmlBody" ? 5...10 : 1...3)
-                                        .disabled(busy)
+                                        )
+                                        Group {
+                                            if detail.path.last == "body" || detail.path.last == "htmlBody" {
+                                                TextEditor(text: text)
+                                                    .font(.body)
+                                                    .scrollContentBackground(.hidden)
+                                                    .padding(6)
+                                                    .frame(height: 120)
+                                                    .background(.background, in: .rect(cornerRadius: 6))
+                                                    .overlay { RoundedRectangle(cornerRadius: 6).stroke(.quaternary) }
+                                                    .accessibilityLabel(detail.label)
+                                            } else {
+                                                TextField(detail.label, text: text, axis: .vertical)
+                                                    .textFieldStyle(.roundedBorder)
+                                                    .lineLimit(1...3)
+                                            }
+                                        }.disabled(busy)
                                     } else {
                                         Text(detail.value).textSelection(.enabled)
                                     }

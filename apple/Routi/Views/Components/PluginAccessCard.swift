@@ -4,7 +4,9 @@ struct PluginAccessCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
     let request: PluginAccessRequest
-    var onRequestChanges: () -> Void = {}
+    @State private var requestingChanges = false
+    @State private var changes = ""
+    @FocusState private var changesFocused: Bool
     @State private var busy = false
     @State private var error: String?
     @State private var loginURL: URL?
@@ -63,6 +65,26 @@ struct PluginAccessCard: View {
                     }.disabled(busy || callbackURL.isEmpty)
                 }
             }
+            if requestingChanges {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("What would you like to change?").font(.callout)
+                    TextField("Describe your changes", text: $changes, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(3...6)
+                        .focused($changesFocused)
+                    HStack {
+                        Button("Update preview") {
+                            let instructions = changes.trimmingCharacters(in: .whitespacesAndNewlines)
+                            perform {
+                                _ = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": false])
+                                await model.send("Please revise the action I was reviewing: \(instructions). Show me the updated preview for approval.", conversationID: request.conversationId)
+                            }
+                        }.buttonStyle(.borderedProminent)
+                        .disabled(changes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button("Cancel") { requestingChanges = false }
+                    }
+                }.disabled(busy)
+            } else {
             HStack {
                 if !request.connecting {
                     Button((request.action?.isEmailSend == true ? "Send" : request.action?.title) ?? (request.connected ? "Allow" : "Connect")) {
@@ -78,10 +100,8 @@ struct PluginAccessCard: View {
                 }
                 if request.action != nil {
                     Button("Request changes") {
-                        perform {
-                            _ = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": false])
-                            onRequestChanges()
-                        }
+                        requestingChanges = true
+                        changesFocused = true
                     }
                 }
                 Button("Not now") {
@@ -91,6 +111,7 @@ struct PluginAccessCard: View {
                 }
             }
             .disabled(busy)
+            }
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
         }
         .padding(16)

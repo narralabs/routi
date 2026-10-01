@@ -11,7 +11,6 @@ struct ChatView: View {
     @Binding var showBotSidebar: Bool
 
     @State private var draft = ""
-    @State private var requestingChanges = false
     @State private var showingSettings = false
     @FocusState private var composerFocused: Bool
     #if os(macOS)
@@ -44,7 +43,6 @@ struct ChatView: View {
             }
             .onChange(of: model.selectedConversationID) {
                 draft = ""
-                requestingChanges = false
             }
     }
 
@@ -100,10 +98,7 @@ struct ChatView: View {
                     }
                     let approvals = model.pluginAccessRequests.filter { $0.conversationId == model.selectedConversationID }
                     ForEach(approvals) { request in
-                        PluginAccessCard(request: request, onRequestChanges: {
-                            requestingChanges = true
-                            composerFocused = true
-                        }).padding(.top, 12)
+                        PluginAccessCard(request: request).padding(.top, 12)
                     }
                     if model.isBusy && approvals.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
@@ -184,11 +179,6 @@ struct ChatView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
-                if requestingChanges {
-                    Text("What would you like to change?")
-                        .font(.callout)
-                        .padding(.bottom, 10)
-                }
                 composer
                 configLine
             }
@@ -426,7 +416,6 @@ struct ChatView: View {
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        requestingChanges = false
         draft = ""
         composerFocused = true
         #if os(macOS)

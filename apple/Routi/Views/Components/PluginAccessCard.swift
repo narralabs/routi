@@ -14,15 +14,25 @@ struct PluginAccessCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(request.action == nil ? "\(plugin.name) access" : "Approve \(plugin.name) action", systemImage: "link")
+            Label(request.action.map { "\($0.title)?" } ?? "\(plugin.name) access", systemImage: "link")
                 .font(.headline)
             if let action = request.action {
-                Text("\(botName): \(action.tool.replacingOccurrences(of: "_", with: " ")).")
-                ScrollView {
-                    Text(action.arguments).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }.frame(maxHeight: 180)
-                Text("Approval applies only to this action and these details.")
+                Text("\(botName) · \(plugin.name)").foregroundStyle(.secondary)
+                if let details = action.details {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(detail.label).font(.caption).foregroundStyle(.secondary)
+                                    Text(detail.value).textSelection(.enabled)
+                                }
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }.frame(maxHeight: 260)
+                } else {
+                    Text("Couldn’t load the details. Ask the bot to try again.")
+                }
+                Text("This approves only this action.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 Text(request.connected
@@ -48,7 +58,7 @@ struct PluginAccessCard: View {
             }
             HStack {
                 if !request.connecting {
-                    Button(request.action != nil ? "Allow once" : request.connected ? "Allow" : "Connect") {
+                    Button(request.action?.title ?? (request.connected ? "Allow" : "Connect")) {
                         perform {
                             let result = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": true])
                             if let text = result["url"] as? String, let url = URL(string: text) {
@@ -57,8 +67,9 @@ struct PluginAccessCard: View {
                             }
                         }
                     }.buttonStyle(.borderedProminent)
+                    .disabled(request.action != nil && request.action?.details == nil)
                 }
-                Button(request.action != nil ? "Deny" : "Not now") {
+                Button("Not now") {
                     perform {
                         _ = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": false])
                     }

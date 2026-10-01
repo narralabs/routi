@@ -19,7 +19,56 @@ struct PluginStatus: Decodable {
 }
 
 struct PluginAccessRequest: Decodable, Identifiable {
-    struct Action: Decodable { let tool: String; let arguments: String }
+    struct Action: Decodable {
+        let tool: String
+        let arguments: String
+
+        var title: String {
+            switch tool {
+            case "create_draft": "Create email draft"
+            case "update_draft": "Update email draft"
+            case "gmail_send_draft", "send_message": "Send email"
+            case "reply": "Reply to email"
+            case "forward": "Forward email"
+            default: Self.label(tool)
+            }
+        }
+
+        var details: [(label: String, value: String)]? {
+            guard let object = try? JSONSerialization.jsonObject(with: Data(arguments.utf8)) as? [String: Any] else { return nil }
+            return Self.rows(object, path: "")
+        }
+
+        private static func label(_ key: String) -> String {
+            if key == "body" { return "Message" }
+            if key == "cc" || key == "bcc" { return key.uppercased() }
+            let text = key.replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
+                .replacingOccurrences(of: "_", with: " ")
+            return text.prefix(1).uppercased() + text.dropFirst()
+        }
+
+        private static func rows(_ value: Any, path: String) -> [(label: String, value: String)] {
+            if let object = value as? [String: Any] {
+                if object.isEmpty { return path.isEmpty ? [] : [(path, "None")] }
+                let order = ["to", "cc", "bcc", "subject", "body"]
+                return object.keys.sorted {
+                    let a = order.firstIndex(of: $0) ?? order.count
+                    let b = order.firstIndex(of: $1) ?? order.count
+                    return a == b ? $0 < $1 : a < b
+                }.flatMap { key in rows(object[key]!, path: path.isEmpty ? label(key) : "\(path) · \(label(key))") }
+            }
+            if let strings = value as? [String], !strings.isEmpty { return [(path, strings.joined(separator: ", "))] }
+            if let array = value as? [Any] {
+                if array.isEmpty { return [(path, "None")] }
+                return array.enumerated().flatMap { rows($0.element, path: "\(path) · \($0.offset + 1)") }
+            }
+            if value is NSNull { return [(path, "None")] }
+            if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return [(path, number.boolValue ? "Yes" : "No")]
+            }
+            return [(path, String(describing: value))]
+        }
+    }
     let action: Action?
     let id: String
     let pluginId: String?

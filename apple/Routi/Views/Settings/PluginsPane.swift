@@ -101,7 +101,7 @@ private struct PluginRow: View {
                         if let scopes = status.grantedScopes {
                             let permissions = plugin.permissions(scopes)
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Google access").font(.headline)
+                                Text("Granted permissions").font(.headline)
                                 ForEach(permissions, id: \.self) { Text($0) }
                                 if permissions.isEmpty { Text("No service permissions reported.") }
                             }.padding(.vertical, 8)
@@ -143,7 +143,7 @@ private struct PluginRow: View {
                             .toggleStyle(.checkbox)
                             #endif
                             Text(status.connected
-                                 ? "Choose access to request. Existing Google permissions won’t be removed."
+                                 ? "Existing permissions won’t be removed."
                                  : "Choose access before continuing with Google.")
                                 .font(.caption).foregroundStyle(.secondary)
                             HStack(spacing: 12) {

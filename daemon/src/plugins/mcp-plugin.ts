@@ -321,10 +321,15 @@ export class McpPlugin {
     if (!this.store.getBot(botId) || (!includeLocked && !this.store.pluginEnabled(this.definition.id, botId))) return undefined
     return {
       specs: [
+        ...(this.definition.localTools ?? []).map(({ spec }) => ({ name: spec.name, description: spec.description ?? '', parameters: spec.inputSchema })),
         { name: `${this.definition.id}_list_tools`, description: `Discover ${this.definition.name} tools.${this.definition.localTools?.length ? ` Routi also provides: ${this.definition.localTools.map(tool => tool.spec.name).join(', ')}.` : ''} Refresh this list before claiming an action is unavailable; tools can change. With no name, returns a compact index of exact tool names. Then pass one exact name to get its argument schema before calling ${this.definition.id}_call_tool. Do not guess tool names or arguments.`, parameters: { type: 'object', properties: { name: { type: 'string', description: 'Exact tool name from the index; omit to list names.' } }, additionalProperties: false } },
         { name: `${this.definition.id}_call_tool`, description: `Call a ${this.definition.name} tool using the exact name and arguments returned by ${this.definition.id}_list_tools. ${this.definition.callInstructions ?? "Only perform actions the user has authorized. If a call fails, check its outcome before repeating it."}`, parameters: { type: 'object', properties: { name: { type: 'string' }, arguments: { type: 'object', additionalProperties: true } }, required: ['name', 'arguments'], additionalProperties: false } },
       ],
       run: async (name, args) => {
+        if (this.definition.localTools?.some(tool => tool.spec.name === name)) {
+          args = { name, arguments: args }
+          name = `${this.definition.id}_call_tool`
+        }
         const bot = this.store.getBot(botId)
         if (!bot) return { ok: false, output: 'This bot was deleted.', summary: `${this.definition.name} unavailable` }
         // Freeze exactly what is approved; never hold the credential lock while waiting for a person.

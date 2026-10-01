@@ -41,6 +41,15 @@ struct Composer: View {
                 .font(.system(size: 14))
                 .focused($focused)
                 .padding(.vertical, 7)
+                .contentShape(.rect)
+                #if os(macOS)
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active: NSCursor.iBeam.set()
+                    case .ended: NSCursor.arrow.set()
+                    }
+                }
+                #endif
 
             /**
              * Stop only when there is nothing to send.

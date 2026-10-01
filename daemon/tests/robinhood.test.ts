@@ -30,6 +30,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
   let payload = ''
   let challenge = ''
   let accessToken = 'test-access'
+  let grantedScope: string | undefined
   let url = ''
   const server = createServer(async (req, res) => {
     const path = new URL(req.url!, url).pathname
@@ -58,7 +59,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
         assert.equal(createHash('sha256').update(params.get('code_verifier')!).digest('base64url'), challenge)
       }
       if (params.get('grant_type') === 'refresh_token') accessToken = 'refreshed-access'
-      return json({ access_token: accessToken, refresh_token: 'test-refresh', token_type: 'Bearer', expires_in: 3600 })
+      return json({ scope: grantedScope, access_token: accessToken, refresh_token: 'test-refresh', token_type: 'Bearer', expires_in: 3600 })
     }
     if (path === '/mcp') {
       if (req.headers.authorization !== `Bearer ${accessToken}`) {
@@ -102,6 +103,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
   }
   const begin = async () => callbackFor((await plugin.connect('default')).url)
   return { plugin, store, bot, saved, clients, calls, changed, begin, callbackFor, secrets, dir, url,
+    setScope: (value: string | undefined) => { grantedScope = value },
     setPayload: (value: string) => { payload = value },
     expire: () => { accessToken = 'expired-on-server' }, tokenCalls: () => tokenCalls, fail: () => { fail = true } }
 }
@@ -420,8 +422,8 @@ test('plugin roster routes approvals and keeps service and profile grants separa
   t.after(() => plugins.close())
   const conversation = f.store.listConversations().find(c => c.botId === f.bot.id)!
   const ctx = plugins.toolContext(f.bot.id, conversation.id)
-  assert.equal(ctx.external!.specs.length, 6, 'two tools per service, not full remote schemas')
-  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar'])
+  assert.equal(ctx.external!.specs.length, 8, 'two tools per service, not full remote schemas')
+  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar', 'google_drive'])
   await ctx.requestPluginAccess!('gmail')
   const request = plugins.accessList('default')[0]!
   assert.equal(request.pluginId, 'gmail')
@@ -483,4 +485,38 @@ test('Gmail local tools share discovery, refreshed credentials, and bot access c
   await f.plugin.enable('default', f.bot.id, false)
   assert.equal((await call()).ok, false)
   assert.equal(tokens.length, 1)
+})
+
+for (const definition of googleDefinitions()) test(`${definition.name} reports granted scopes and supports read-only consent`, async t => {
+  const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  const status = await f.plugin.status('default')
+  assert.equal(status.grantedScopes, null)
+  assert.equal(status.supportsReadOnly, true)
+  const login = new URL((await f.plugin.connect('default', undefined, true)).url)
+  assert.equal(login.searchParams.get('scope'), definition.oauth!.readOnlyScope)
+  // Google can grant a subset, not necessarily everything requested.
+  const granted = definition.oauth!.readOnlyScope!.split(' ').at(-1)!
+  f.setScope(granted)
+  await f.plugin.finish('default', f.callbackFor(login.href).href)
+  assert.deepEqual((await f.plugin.status('default')).grantedScopes, [granted])
+  await f.plugin.enable('default', f.bot.id, true)
+  if (definition.id === 'gmail') {
+    const context = f.plugin.context(f.bot.id)!
+    const index = await context.run('gmail_list_tools', {})
+    assert.doesNotMatch(index.output, /gmail_send_draft/)
+    const send = await context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'test' } })
+    assert.equal(send.ok, false)
+    assert.match(send.output, /does not allow/)
+    assert.deepEqual(f.calls, [], 'read-only Gmail must not attempt a send')
+  }
+  f.setScope(undefined)
+  f.expire()
+  await f.plugin.context(f.bot.id)!.run(`${definition.id}_list_tools`, {})
+  assert.deepEqual((await f.plugin.status('default')).grantedScopes, [granted], 'refresh without scopes keeps the existing grant')
+  const reconnect = await f.plugin.connect('default')
+  assert.equal(new URL(reconnect.url).searchParams.get('scope'), definition.oauth!.scope)
+  await f.plugin.finish('default', f.callbackFor(reconnect.url).href)
+  assert.equal((await f.plugin.status('default')).grantedScopes, null, 'new consent without scope must not inherit old permissions')
+  await f.plugin.disconnect('default')
+  assert.equal((await f.plugin.status('default')).grantedScopes, null)
 })

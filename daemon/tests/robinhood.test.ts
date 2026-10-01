@@ -685,3 +685,23 @@ test('temporary Google server errors do not disconnect a valid login', async t =
   assert.equal(status.error, null)
   assert.deepEqual(status.botIds, [f.bot.id])
 })
+
+test('Gmail can request read-only access again after the user declines every service permission', async t => {
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  f.setScope('openid email')
+  const first = await f.plugin.connect('default', undefined, true)
+  await f.plugin.finish('default', f.callbackFor(first.url).href)
+  const initial = await f.plugin.status('default')
+  assert.equal(initial.connected, true)
+  assert.ok(initial.permissions!.every(p => !p.available))
+
+  const retry = await f.plugin.connect('default', undefined, true)
+  assert.equal(new URL(retry.url).searchParams.get('scope'), definition.oauth!.readOnlyScope)
+  f.setScope(definition.oauth!.readOnlyScope)
+  await f.plugin.finish('default', f.callbackFor(retry.url).href)
+  const permissions = (await f.plugin.status('default')).permissions!
+  assert.equal(permissions.find(p => p.id === 'read')!.available, true)
+  assert.equal(permissions.find(p => p.id === 'send')!.available, false)
+  assert.equal(permissions.find(p => p.id === 'write')!.available, false)
+})

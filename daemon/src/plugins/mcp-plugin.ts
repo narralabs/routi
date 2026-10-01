@@ -52,7 +52,7 @@ export class McpPlugin {
   private readonly errors = new Map<string, string>()
   private readonly queues = new Map<string, Promise<unknown>>()
   private readonly namespace: string
-  private readonly decisions = new Map<string, (allow: boolean) => void>()
+  private readonly decisions = new Map<string, (allow: boolean | Record<string, unknown>) => void>()
   private readonly access = new Map<string, PluginAccessRequest>()
   onAccessChanged: (profileId: string) => void = () => {}
   onAccessGranted: (request: PluginAccessRequest) => void = () => {}
@@ -114,7 +114,7 @@ export class McpPlugin {
     for (const request of this.accessList(profileId)) if (request.action) this.decisions.get(request.id)?.(false)
   }
 
-  private ask(botId: string, conversationId: string | undefined, tool: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<boolean> {
+  private ask(botId: string, conversationId: string | undefined, tool: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown> | false> {
     const bot = this.store.getBot(botId)
     const conversation = conversationId ? this.store.getConversation(conversationId) : undefined
     if (!bot || !conversation || (conversation.botId !== botId && !this.store.channelMembers(conversation.id).some(b => b.id === botId)) || signal?.aborted) return Promise.resolve(false)
@@ -124,13 +124,13 @@ export class McpPlugin {
         connected: true, connecting: false, expiresAt: Date.now() + LOGIN_TIMEOUT,
         action: { tool, arguments: JSON.stringify(args, null, 2) },
       }
-      const finish = (allow: boolean) => {
+      const finish = (allow: boolean | Record<string, unknown>) => {
         clearTimeout(timer)
         signal?.removeEventListener('abort', cancel)
         this.decisions.delete(request.id)
         this.access.delete(request.id)
         this.onAccessChanged(bot.profileId)
-        resolve(allow)
+        resolve(allow === true ? args : allow)
       }
       const cancel = () => finish(false)
       const timer = setTimeout(cancel, LOGIN_TIMEOUT)
@@ -324,6 +324,7 @@ export class McpPlugin {
         args = structuredClone(args)
         const group = name === `${this.definition.id}_call_tool` ? this.definition.permissions?.find(group => group.tools.includes(String(args['name']))) : undefined
         let approved = false
+        let edited = false
         if (name === `${this.definition.id}_call_tool` && (!args['arguments'] || typeof args['arguments'] !== 'object' || Array.isArray(args['arguments']) || typeof args['name'] !== 'string')) return { ok: false, output: 'Provide a tool name and arguments object.', summary: 'Invalid arguments' }
         if (name === `${this.definition.id}_call_tool` && this.definition.permissions) {
           if (!this.store.pluginEnabled(this.definition.id, botId)) return { ok: false, output: 'Plugin access is disabled for this bot.', summary: 'Access disabled' }
@@ -333,8 +334,11 @@ export class McpPlugin {
           const rule = this.rule(bot.profileId, group.id)
           if (rule === 'deny') return { ok: false, output: 'This action is denied by Bot permissions in Plugins.', summary: 'Action denied' }
           if (rule === 'ask') {
-            approved = await this.ask(botId, conversationId, String(args['name']), args['arguments'] as Record<string, unknown>, signal)
-            if (!approved) return { ok: false, output: 'This action was not approved. No tool was executed.', summary: 'Not approved' }
+            const decision = await this.ask(botId, conversationId, String(args['name']), args['arguments'] as Record<string, unknown>, signal)
+            if (!decision) return { ok: false, output: 'This action was not approved. No tool was executed.', summary: 'Not approved' }
+            approved = true
+            edited = JSON.stringify(decision) !== JSON.stringify(args['arguments'])
+            args['arguments'] = decision
           }
         }
         const result = await this.serial(bot.profileId, async () => {
@@ -389,7 +393,7 @@ export class McpPlugin {
             const result = local
               ? await local.run(args['arguments'] as Record<string, unknown>, saved.tokens!.access_token, signal)
               : await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })
-            return { ok: !result.isError, output: JSON.stringify(result), summary: `${this.definition.name}: ${args['name']}` }
+            return { ok: !result.isError, output: JSON.stringify(edited ? { approvedArguments: args['arguments'], result } : result), summary: `${this.definition.name}: ${args['name']}` }
           } catch (error) {
             const failure = mcpFailure(this.definition, error, signal?.aborted)
             if (failure.kind === 'authentication') {
@@ -460,10 +464,14 @@ export class McpPlugin {
     this.onAccessGranted({ ...current })
   }
 
-  async respondAccess(profileId: string, id: string, allow: boolean): Promise<{ url?: string }> {
+  async respondAccess(profileId: string, id: string, allow: boolean, editedArguments?: Record<string, unknown>): Promise<{ url?: string }> {
     this.checkProfile(profileId)
     const request = this.findAccess(id, profileId)
-    if (request.action) { this.decisions.get(id)?.(allow); return {} }
+    if (request.action) {
+      if (editedArguments !== undefined && (!editedArguments || typeof editedArguments !== 'object' || Array.isArray(editedArguments))) throw new Error('Action details must be an object.')
+      this.decisions.get(id)?.(allow && editedArguments !== undefined ? structuredClone(editedArguments) : allow)
+      return {}
+    }
     if (!allow) {
       if (this.pending.get(profileId)?.accessId === id) this.cancel(profileId)
       this.access.delete(id)

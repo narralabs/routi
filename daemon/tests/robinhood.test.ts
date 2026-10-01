@@ -582,6 +582,34 @@ test('Ask approves one exact call; a second call and local draft sending require
   assert.deepEqual(f.calls, ['send_message'])
 })
 
+test('approval executes the edited details once and reports them to the bot', async t => {
+  const f = await connectedGmail(t)
+  const approval = f.nextApproval()
+  const call = f.context.run('gmail_call_tool', { name: 'send_message', arguments: { to: ['original@example.com'], body: 'Original' } })
+  const request = await approval
+  const edits = { to: ['edited@example.com'], subject: 'Updated', body: 'Added detail' }
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true, [] as unknown as Record<string, unknown>), /must be an object/)
+  await f.plugin.respondAccess('default', request.id, true, edits)
+  edits.body = 'Changed after approval'
+  const result = await call
+  assert.equal(result.ok, true)
+  assert.deepEqual(f.argumentsSent, [{ to: ['edited@example.com'], subject: 'Updated', body: 'Added detail' }])
+  assert.deepEqual(JSON.parse(result.output).approvedArguments, f.argumentsSent[0])
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true, edits), /expired/)
+
+  const localApproval = f.nextApproval()
+  const local = f.context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'old' } })
+  await f.plugin.respondAccess('default', (await localApproval).id, true, { draftId: 'edited' })
+  assert.equal((await local).ok, true)
+  assert.deepEqual(f.localCalls, [{ draftId: 'edited' }])
+
+  const deniedApproval = f.nextApproval()
+  const denied = f.context.run('gmail_call_tool', { name: 'send_message', arguments: {} })
+  await f.plugin.respondAccess('default', (await deniedApproval).id, false, edits)
+  assert.equal((await denied).ok, false)
+  assert.deepEqual(f.calls, ['send_message'])
+})
+
 test('Deny blocks direct and discovered tools, persists across restart, and does not change Google grants', async t => {
   const f = await connectedGmail(t)
   const granted = (await f.plugin.status('default')).grantedScopes

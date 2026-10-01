@@ -70,8 +70,8 @@ const handlers: Record<RpcMethod, Handler> = {
   },
   'plugin.access.list': async (p, ctx) => ({ requests: ctx.plugins?.accessList((p as { profileId: string }).profileId) ?? [] }),
   'plugin.access.respond': async (p, ctx) => {
-    const { profileId, id, allow } = p as { profileId: string; id: string; allow: boolean }
-    return pluginAction(() => plugin(ctx, (p as { pluginId: string }).pluginId).respondAccess(profileId, id, allow))
+    const { profileId, id, allow, arguments: editedArguments } = p as { profileId: string; id: string; allow: boolean; arguments?: Record<string, unknown> }
+    return pluginAction(() => plugin(ctx, (p as { pluginId: string }).pluginId).respondAccess(profileId, id, allow, editedArguments))
   },
   'plugin.status': async (p, ctx) => plugin(ctx, (p as { pluginId: string }).pluginId).status((p as { profileId: string }).profileId),
   'plugin.permission': async (p, ctx) => {

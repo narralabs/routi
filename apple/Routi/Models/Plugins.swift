@@ -34,9 +34,34 @@ struct PluginAccessRequest: Decodable, Identifiable {
             }
         }
 
-        var details: [(label: String, value: String)]? {
+        struct Detail {
+            let path: [String]
+            let label: String
+            let value: String
+            let editable: Bool
+        }
+
+        func editedArguments(_ edits: [[String]: String]) throws -> [String: Any] {
+            func apply(_ value: Any, path: [String]) -> Any {
+                if value is String, let edit = edits[path] { return edit }
+                if let object = value as? [String: Any] {
+                    return object.reduce(into: [String: Any]()) { result, entry in
+                        result[entry.key] = apply(entry.value, path: path + [entry.key])
+                    }
+                }
+                if let array = value as? [Any] {
+                    return array.enumerated().map { apply($0.element, path: path + [String($0.offset)]) }
+                }
+                return value
+            }
+            let object = try JSONSerialization.jsonObject(with: Data(arguments.utf8))
+            guard let edited = apply(object, path: []) as? [String: Any] else { throw CocoaError(.propertyListReadCorrupt) }
+            return edited
+        }
+
+        var details: [Detail]? {
             guard let object = try? JSONSerialization.jsonObject(with: Data(arguments.utf8)) as? [String: Any] else { return nil }
-            return Self.rows(object, path: "")
+            return Self.rows(object, path: [])
         }
 
         private static func label(_ key: String) -> String {
@@ -47,26 +72,25 @@ struct PluginAccessRequest: Decodable, Identifiable {
             return text.prefix(1).uppercased() + text.dropFirst()
         }
 
-        private static func rows(_ value: Any, path: String) -> [(label: String, value: String)] {
-            if let object = value as? [String: Any] {
-                if object.isEmpty { return path.isEmpty ? [] : [(path, "None")] }
+        private static func rows(_ value: Any, path: [String]) -> [Detail] {
+            if let object = value as? [String: Any], !object.isEmpty {
                 let order = ["to", "cc", "bcc", "subject", "body"]
                 return object.keys.sorted {
                     let a = order.firstIndex(of: $0) ?? order.count
                     let b = order.firstIndex(of: $1) ?? order.count
                     return a == b ? $0 < $1 : a < b
-                }.flatMap { key in rows(object[key]!, path: path.isEmpty ? label(key) : "\(path) · \(label(key))") }
+                }.flatMap { rows(object[$0]!, path: path + [$0]) }
             }
-            if let strings = value as? [String], !strings.isEmpty { return [(path, strings.joined(separator: ", "))] }
-            if let array = value as? [Any] {
-                if array.isEmpty { return [(path, "None")] }
-                return array.enumerated().flatMap { rows($0.element, path: "\(path) · \($0.offset + 1)") }
+            if let array = value as? [Any], !array.isEmpty {
+                return array.enumerated().flatMap { rows($0.element, path: path + [String($0.offset)]) }
             }
-            if value is NSNull { return [(path, "None")] }
-            if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() {
-                return [(path, number.boolValue ? "Yes" : "No")]
-            }
-            return [(path, String(describing: value))]
+            if path.isEmpty { return [] }
+            let title = path.map { Int($0).map { String($0 + 1) } ?? label($0) }.joined(separator: " · ")
+            let text: String
+            if value is NSNull || value is [Any] || value is [String: Any] { text = "None" }
+            else if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { text = number.boolValue ? "Yes" : "No" }
+            else { text = String(describing: value) }
+            return [Detail(path: path, label: title, value: text, editable: value is String)]
         }
     }
     let action: Action?

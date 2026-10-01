@@ -5,6 +5,7 @@ struct PluginAccessCard: View {
     @Environment(\.openURL) private var openURL
     let request: PluginAccessRequest
     @State private var busy = false
+    @State private var edits: [[String]: String] = [:]
     @State private var error: String?
     @State private var loginURL: URL?
     @State private var callbackURL = ""
@@ -24,7 +25,16 @@ struct PluginAccessCard: View {
                             ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(detail.label).font(.caption).foregroundStyle(.secondary)
-                                    Text(detail.value).textSelection(.enabled)
+                                    if detail.editable {
+                                        TextField(detail.label, text: Binding(
+                                            get: { edits[detail.path] ?? detail.value },
+                                            set: { edits[detail.path] = $0 }
+                                        ), axis: .vertical)
+                                        .textFieldStyle(.roundedBorder)
+                                        .disabled(busy)
+                                    } else {
+                                        Text(detail.value).textSelection(.enabled)
+                                    }
                                 }
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading)
@@ -60,7 +70,11 @@ struct PluginAccessCard: View {
                 if !request.connecting {
                     Button(request.action?.title ?? (request.connected ? "Allow" : "Connect")) {
                         perform {
-                            let result = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": true])
+                            var params: [String: Any] = ["id": request.id, "allow": true]
+                            if let action = request.action, !edits.isEmpty {
+                                params["arguments"] = try action.editedArguments(edits)
+                            }
+                            let result = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: params)
                             if let text = result["url"] as? String, let url = URL(string: text) {
                                 loginURL = url
                                 openURL(url)

@@ -41,15 +41,6 @@ struct Composer: View {
                 .font(.system(size: 14))
                 .focused($focused)
                 .padding(.vertical, 7)
-                .contentShape(.rect)
-                #if os(macOS)
-                .onContinuousHover { phase in
-                    switch phase {
-                    case .active: NSCursor.iBeam.set()
-                    case .ended: NSCursor.arrow.set()
-                    }
-                }
-                #endif
 
             /**
              * Stop only when there is nothing to send.
@@ -86,7 +77,6 @@ struct Composer: View {
         }
         .overlay {
             Capsule(style: .continuous).stroke(.separator.opacity(0.6), lineWidth: 0.5)
-                .allowsHitTesting(false)
         }
     }
 

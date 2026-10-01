@@ -96,7 +96,7 @@ struct ChatView: View {
                     }
                     let approvals = model.pluginAccessRequests.filter { $0.conversationId == model.selectedConversationID }
                     ForEach(approvals) { request in
-                        PluginAccessCard(request: request).padding(.top, 12)
+                        PluginAccessCard(request: request, onRequestChanges: { composerFocused = true }).padding(.top, 12)
                     }
                     if model.isBusy && approvals.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {

@@ -23,7 +23,7 @@ struct PluginAccessRequest: Decodable, Identifiable {
         let tool: String
         let arguments: String
         var preview: String? = nil
-        var editableFields: [String]? = nil
+        var isEmailSend: Bool { ["gmail_send_email", "gmail_send_draft", "send_message", "reply", "forward"].contains(tool) }
 
         var title: String {
             switch tool {
@@ -37,28 +37,8 @@ struct PluginAccessRequest: Decodable, Identifiable {
         }
 
         struct Detail {
-            let path: [String]
             let label: String
             let value: String
-            let editable: Bool
-        }
-
-        func editedArguments(_ edits: [[String]: String]) throws -> [String: Any] {
-            func apply(_ value: Any, path: [String]) -> Any {
-                if value is String, let edit = edits[path] { return edit }
-                if let object = value as? [String: Any] {
-                    return object.reduce(into: [String: Any]()) { result, entry in
-                        result[entry.key] = apply(entry.value, path: path + [entry.key])
-                    }
-                }
-                if let array = value as? [Any] {
-                    return array.enumerated().map { apply($0.element, path: path + [String($0.offset)]) }
-                }
-                return value
-            }
-            let object = try JSONSerialization.jsonObject(with: Data((preview ?? arguments).utf8))
-            guard let edited = apply(object, path: []) as? [String: Any] else { throw CocoaError(.propertyListReadCorrupt) }
-            return edited
         }
 
         var details: [Detail]? {
@@ -92,7 +72,7 @@ struct PluginAccessRequest: Decodable, Identifiable {
             if value is NSNull || value is [Any] || value is [String: Any] { text = "None" }
             else if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { text = number.boolValue ? "Yes" : "No" }
             else { text = String(describing: value) }
-            return [Detail(path: path, label: title, value: text, editable: value is String)]
+            return [Detail(label: title, value: text)]
         }
     }
     let action: Action?

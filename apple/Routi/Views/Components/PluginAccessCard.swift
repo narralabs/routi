@@ -4,8 +4,8 @@ struct PluginAccessCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
     let request: PluginAccessRequest
+    var onRequestChanges: () -> Void = {}
     @State private var busy = false
-    @State private var edits: [[String]: String] = [:]
     @State private var error: String?
     @State private var loginURL: URL?
     @State private var callbackURL = ""
@@ -30,35 +30,7 @@ struct PluginAccessCard: View {
                                             if case .active = phase { NSCursor.arrow.set() }
                                         }
                                         #endif
-                                    if detail.editable && (action.preview == nil || action.editableFields?.contains(detail.path.first ?? "") == true) {
-                                        let text = Binding(
-                                            get: { edits[detail.path] ?? detail.value },
-                                            set: { edits[detail.path] = $0 }
-                                        )
-                                        Group {
-                                            if detail.path.last == "body" || detail.path.last == "htmlBody" {
-                                                TextEditor(text: text)
-                                                    .font(.body)
-                                                    .scrollContentBackground(.hidden)
-                                                    .padding(.vertical, 6)
-                                                    .padding(.horizontal, 1)
-                                                    .frame(height: 120)
-                                                    #if os(macOS)
-                                                    .background(Color(nsColor: .textBackgroundColor), in: .rect(cornerRadius: 6))
-                                                    #else
-                                                    .background(Color(uiColor: .systemBackground), in: .rect(cornerRadius: 6))
-                                                    #endif
-                                                    .overlay { RoundedRectangle(cornerRadius: 6).stroke(.quaternary).allowsHitTesting(false) }
-                                                    .accessibilityLabel(detail.label)
-                                            } else {
-                                                TextField(detail.label, text: text, axis: .vertical)
-                                                    .textFieldStyle(.roundedBorder)
-                                                    .lineLimit(1...3)
-                                            }
-                                        }.disabled(busy)
-                                    } else {
-                                        Text(detail.value).textSelection(.enabled)
-                                    }
+                                    Text(detail.value).textSelection(.enabled)
                                 }
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading)
@@ -67,7 +39,7 @@ struct PluginAccessCard: View {
                 } else {
                     Text("Couldn’t load the details. Ask the bot to try again.")
                 }
-                Text(action.editableFields?.isEmpty == false ? "Your changes are saved when you send." : "This approves only this action.")
+                Text("This approves only this action.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 Text(request.connected
@@ -93,13 +65,9 @@ struct PluginAccessCard: View {
             }
             HStack {
                 if !request.connecting {
-                    Button(request.action?.title ?? (request.connected ? "Allow" : "Connect")) {
+                    Button((request.action?.isEmailSend == true ? "Send" : request.action?.title) ?? (request.connected ? "Allow" : "Connect")) {
                         perform {
-                            var params: [String: Any] = ["id": request.id, "allow": true]
-                            if let action = request.action, !edits.isEmpty {
-                                params["arguments"] = try action.editedArguments(edits)
-                            }
-                            let result = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: params)
+                            let result = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": true])
                             if let text = result["url"] as? String, let url = URL(string: text) {
                                 loginURL = url
                                 openURL(url)
@@ -107,6 +75,14 @@ struct PluginAccessCard: View {
                         }
                     }.buttonStyle(.borderedProminent)
                     .disabled(request.action != nil && request.action?.details == nil)
+                }
+                if request.action != nil {
+                    Button("Request changes") {
+                        perform {
+                            _ = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": false])
+                            onRequestChanges()
+                        }
+                    }
                 }
                 Button("Not now") {
                     perform {

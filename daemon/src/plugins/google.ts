@@ -88,42 +88,9 @@ export const gmailSendDraft: NonNullable<McpPluginDefinition['localTools']>[numb
     details.body = text.map(part => Buffer.from(part.body!.data!, 'base64url').toString('utf8')).join('\n')
     const attachments = all.filter(part => part.filename).map(part => part.filename!)
     if (attachments.length) details.attachments = attachments
-    return { details, editableFields: ['to', 'cc', 'bcc', 'subject', 'body'], beforeRun: async (accessToken, currentSignal, edits) => {
+    return { details, beforeRun: async (accessToken, currentSignal) => {
       const current = await gmailDraft(args.draftId, accessToken, currentSignal)
       if (current.id !== draft.id) throw new Error('The draft changed. Request approval again before sending.')
-      if (!edits) return
-      const headers = Object.fromEntries((draft.payload.headers ?? []).map(h => [h.name.toLowerCase(), h.value]))
-      const attachments = await Promise.all(all.filter(part => !part.parts?.length && (part.filename || !['text/plain', 'text/html'].includes(part.mimeType ?? ''))).map(async part => {
-        let data = part.body?.data
-        if (data === undefined && part.body?.attachmentId) {
-          const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(draft.id)}/attachments/${encodeURIComponent(part.body.attachmentId)}`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(currentSignal ? [currentSignal] : [])]),
-          })
-          if (!response.ok) throw new Error('Could not preserve the attachment')
-          data = ((await response.json()) as { data?: string }).data
-        }
-        if (data === undefined) throw new Error('Could not preserve the attachment')
-        const cid = part.headers?.find(h => h.name.toLowerCase() === 'content-id')?.value.replace(/^<|>$/g, '')
-        return { filename: part.filename || 'attachment', contentType: part.mimeType, content: Buffer.from(data, 'base64url'), cid }
-      }))
-      const html = edits.body === details.body
-        ? all.filter(part => part.mimeType === 'text/html' && !part.filename).map(part => Buffer.from(part.body?.data ?? '', 'base64url').toString('utf8')).join('')
-        : undefined
-      const composed = new MailComposer({
-        from: headers.from, to: String(edits.to), cc: String(edits.cc), bcc: String(edits.bcc),
-        subject: String(edits.subject), text: String(edits.body), html: html || undefined, attachments,
-        replyTo: headers['reply-to'], inReplyTo: headers['in-reply-to'], references: headers.references,
-        disableFileAccess: true, disableUrlAccess: true,
-      }).compile()
-      composed.keepBcc = true
-      const raw = await composed.build()
-      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/drafts/${encodeURIComponent(String(args.draftId))}`, {
-        method: 'PUT', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: { raw: raw.toString('base64url'), threadId: draft.threadId } }),
-        signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(currentSignal ? [currentSignal] : [])]),
-      })
-      if (!response.ok) throw new Error('Could not save draft changes. No email was sent.')
     } }
   },
   requiredScopes: ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send', 'https://mail.google.com/'],
@@ -162,7 +129,7 @@ export const gmailSendEmail: NonNullable<McpPluginDefinition['localTools']>[numb
   requiredScopes: gmailSendDraft.requiredScopes,
   spec: {
     name: 'gmail_send_email',
-    description: 'Send a new plain-text email with one editable confirmation. Use this directly when asked to send email; do not create a draft first. Cancellation sends nothing and saves no draft. Never retry an uncertain send without checking Sent mail.',
+    description: 'Send a new plain-text email with one confirmation. Use this directly when asked to send email; do not create a draft first. Cancellation sends nothing and saves no draft. Never retry an uncertain send without checking Sent mail.',
     inputSchema: { type: 'object', properties: {
       to: { type: 'array', items: { type: 'string' }, minItems: 1 },
       cc: { type: 'array', items: { type: 'string' } },

@@ -43,7 +43,7 @@ struct PluginAccessCard: View {
                                                     #else
                                                     .background(Color(uiColor: .systemBackground), in: .rect(cornerRadius: 6))
                                                     #endif
-                                                    .overlay { RoundedRectangle(cornerRadius: 6).stroke(.quaternary) }
+                                                    .overlay { RoundedRectangle(cornerRadius: 6).stroke(.quaternary).allowsHitTesting(false) }
                                                     .accessibilityLabel(detail.label)
                                             } else {
                                                 TextField(detail.label, text: text, axis: .vertical)
@@ -115,7 +115,7 @@ struct PluginAccessCard: View {
         .padding(16)
         .frame(maxWidth: 420, alignment: .leading)
         .background(.background.secondary, in: .rect(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).stroke(.quaternary) }
+        .overlay { RoundedRectangle(cornerRadius: 14).stroke(.quaternary).allowsHitTesting(false) }
     }
 
     private func perform(_ action: @escaping @MainActor () async throws -> Void) {

@@ -77,6 +77,7 @@ struct Composer: View {
         }
         .overlay {
             Capsule(style: .continuous).stroke(.separator.opacity(0.6), lineWidth: 0.5)
+                .allowsHitTesting(false)
         }
     }
 

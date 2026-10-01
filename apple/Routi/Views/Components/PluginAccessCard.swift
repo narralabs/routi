@@ -25,7 +25,7 @@ struct PluginAccessCard: View {
                             ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(detail.label).font(.caption).foregroundStyle(.secondary)
-                                    if detail.editable {
+                                    if detail.editable && action.preview == nil {
                                         TextField(detail.label, text: Binding(
                                             get: { edits[detail.path] ?? detail.value },
                                             set: { edits[detail.path] = $0 }

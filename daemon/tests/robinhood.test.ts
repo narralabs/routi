@@ -530,12 +530,12 @@ for (const definition of googleDefinitions()) test(`${definition.name} reports g
   assert.equal((await f.plugin.status('default')).grantedScopes, null)
 })
 
-async function connectedGmail(t: TestContext) {
+async function connectedGmail(t: TestContext, preview?: NonNullable<McpPluginDefinition['localTools']>[number]['preview']) {
   const definition = googleDefinitions()[0]!
   const localCalls: Record<string, unknown>[] = []
   const f = await fixture(t, { ...definition, accountEmail: undefined,
     oauth: { ...definition.oauth!, client: { client_id: 'google-test' } },
-    localTools: [{ ...definition.localTools![0]!, run: async args => {
+    localTools: [{ ...definition.localTools![0]!, preview, run: async args => {
       localCalls.push(args)
       return { content: [{ type: 'text', text: 'sent' }] }
     } }],
@@ -608,6 +608,23 @@ test('approval executes the edited details once and reports them to the bot', as
   await f.plugin.respondAccess('default', (await deniedApproval).id, false, edits)
   assert.equal((await denied).ok, false)
   assert.deepEqual(f.calls, ['send_message'])
+})
+
+for (const changed of [false, true]) test(`saved draft preview is bound to the approved draft (changed=${changed})`, async t => {
+  const f = await connectedGmail(t, async args => {
+    assert.equal(args.draftId, 'draft')
+    return { details: { to: 'reader@example.com', subject: 'Hello', body: 'Review this' }, validate: async () => {
+      if (changed) throw new Error('Draft changed')
+    } }
+  })
+  const approval = f.nextApproval()
+  const call = f.context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
+  const request = await approval
+  assert.deepEqual(JSON.parse(request.action!.preview!), { to: 'reader@example.com', subject: 'Hello', body: 'Review this' })
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true, { draftId: 'other' }), /Edit the draft/)
+  await f.plugin.respondAccess('default', request.id, true)
+  assert.equal((await call).ok, !changed)
+  assert.deepEqual(f.localCalls, changed ? [] : [{ draftId: 'draft' }])
 })
 
 test('Deny blocks direct and discovered tools, persists across restart, and does not change Google grants', async t => {

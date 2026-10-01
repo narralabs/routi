@@ -11,6 +11,11 @@ import type { Store } from '../db/store.js'
 import type { Credentials } from '../auth/credentials.js'
 import type { ToolContext } from '../surfaces/tools.js'
 
+interface ActionPreview {
+  details: Record<string, unknown>
+  validate: (accessToken: string, signal?: AbortSignal) => Promise<void>
+}
+
 export interface McpPluginDefinition {
   id: string
   name: string
@@ -18,7 +23,7 @@ export interface McpPluginDefinition {
   /** Existing credential slot, when a plugin predates the shared MCP service. */
   credentialProvider?: string
   callInstructions?: string
-  localTools?: { spec: Tool; requiredScopes?: string[]; run: (args: Record<string, unknown>, accessToken: string, signal?: AbortSignal) => Promise<CallToolResult> }[]
+  localTools?: { preview?: (args: Record<string, unknown>, accessToken: string, signal?: AbortSignal) => Promise<ActionPreview>; spec: Tool; requiredScopes?: string[]; run: (args: Record<string, unknown>, accessToken: string, signal?: AbortSignal) => Promise<CallToolResult> }[]
   accountEmail?: (accessToken: string) => Promise<string | null>
   permissions?: PermissionGroup[]
   failedCallInstructions?: string
@@ -43,7 +48,7 @@ type Pending = { provider: OAuthClientProvider; state: string; server: Server; t
 export interface PluginAccessRequest {
   pluginId: string; id: string; botId: string; conversationId: string; profileId: string
   connected: boolean; connecting: boolean; expiresAt: number
-  action?: { tool: string; arguments: string }
+  action?: { tool: string; arguments: string; preview?: string }
 }
 
 /** One remote MCP connection per plugin and profile, with explicit per-bot access. */
@@ -114,7 +119,7 @@ export class McpPlugin {
     for (const request of this.accessList(profileId)) if (request.action) this.decisions.get(request.id)?.(false)
   }
 
-  private ask(botId: string, conversationId: string | undefined, tool: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown> | false> {
+  private ask(botId: string, conversationId: string | undefined, tool: string, args: Record<string, unknown>, signal?: AbortSignal, preview?: Record<string, unknown>): Promise<Record<string, unknown> | false> {
     const bot = this.store.getBot(botId)
     const conversation = conversationId ? this.store.getConversation(conversationId) : undefined
     if (!bot || !conversation || (conversation.botId !== botId && !this.store.channelMembers(conversation.id).some(b => b.id === botId)) || signal?.aborted) return Promise.resolve(false)
@@ -122,7 +127,7 @@ export class McpPlugin {
       const request: PluginAccessRequest = {
         id: randomUUID(), pluginId: this.definition.id, profileId: bot.profileId, botId, conversationId: conversation.id,
         connected: true, connecting: false, expiresAt: Date.now() + LOGIN_TIMEOUT,
-        action: { tool, arguments: JSON.stringify(args, null, 2) },
+        action: { tool, arguments: JSON.stringify(args, null, 2), ...(preview ? { preview: JSON.stringify(preview) } : {}) },
       }
       const finish = (allow: boolean | Record<string, unknown>) => {
         clearTimeout(timer)
@@ -325,6 +330,7 @@ export class McpPlugin {
         const group = name === `${this.definition.id}_call_tool` ? this.definition.permissions?.find(group => group.tools.includes(String(args['name']))) : undefined
         let approved = false
         let edited = false
+        let preview: ActionPreview | undefined
         if (name === `${this.definition.id}_call_tool` && (!args['arguments'] || typeof args['arguments'] !== 'object' || Array.isArray(args['arguments']) || typeof args['name'] !== 'string')) return { ok: false, output: 'Provide a tool name and arguments object.', summary: 'Invalid arguments' }
         if (name === `${this.definition.id}_call_tool` && this.definition.permissions) {
           if (!this.store.pluginEnabled(this.definition.id, botId)) return { ok: false, output: 'Plugin access is disabled for this bot.', summary: 'Access disabled' }
@@ -334,7 +340,23 @@ export class McpPlugin {
           const rule = this.rule(bot.profileId, group.id)
           if (rule === 'deny') return { ok: false, output: 'This action is denied by Bot permissions in Plugins.', summary: 'Action denied' }
           if (rule === 'ask') {
-            const decision = await this.ask(botId, conversationId, String(args['name']), args['arguments'] as Record<string, unknown>, signal)
+            const prepare = this.definition.localTools?.find(tool => tool.spec.name === args['name'])?.preview
+            if (prepare) {
+              try {
+                preview = await this.serial(bot.profileId, async () => {
+                  const login = await this.load(bot.profileId)
+                  if (!login?.tokens) throw new Error('Reconnect the plugin to review this action.')
+                  const client = new Client({ name: 'Routi Bot', version: '1.0.0' })
+                  try {
+                    await client.connect(new StreamableHTTPClientTransport(new URL(this.definition.url), { authProvider: this.provider(bot.profileId, login), fetch: networkFetch }))
+                    return await prepare(args['arguments'] as Record<string, unknown>, login.tokens!.access_token, signal)
+                  } finally { await client.close().catch(() => {}) }
+                })
+              } catch {
+                return { ok: false, output: 'Could not load the email for review. No email was sent. Check the connection and request approval again.', summary: 'Email preview unavailable' }
+              }
+            }
+            const decision = await this.ask(botId, conversationId, String(args['name']), args['arguments'] as Record<string, unknown>, signal, preview?.details)
             if (!decision) return { ok: false, output: 'This action was not approved. No tool was executed.', summary: 'Not approved' }
             approved = true
             edited = JSON.stringify(decision) !== JSON.stringify(args['arguments'])
@@ -387,6 +409,8 @@ export class McpPlugin {
             signal?.throwIfAborted()
             // Recheck after network setup: access may have been revoked meanwhile.
             if (!this.store.pluginEnabled(this.definition.id, botId)) throw new Error('Access revoked')
+            try { await preview?.validate(saved.tokens!.access_token, signal) }
+            catch { return { ok: false, output: 'The draft changed or could not be checked. No email was sent. Request a fresh preview and approval.', summary: 'Review the draft again' } }
             stage = 'call'
             const local = this.definition.localTools?.find(tool => tool.spec.name === args['name'])
             if (local && !localTools.includes(local)) return { ok: false, output: 'This connection does not allow this action. Change permissions in Plugins to enable it.', summary: 'Permission required' }
@@ -468,6 +492,7 @@ export class McpPlugin {
     this.checkProfile(profileId)
     const request = this.findAccess(id, profileId)
     if (request.action) {
+      if (allow && request.action.preview && editedArguments !== undefined) throw new Error('Edit the draft before requesting send approval again.')
       if (editedArguments !== undefined && (!editedArguments || typeof editedArguments !== 'object' || Array.isArray(editedArguments))) throw new Error('Action details must be an object.')
       this.decisions.get(id)?.(allow && editedArguments !== undefined ? structuredClone(editedArguments) : allow)
       return {}

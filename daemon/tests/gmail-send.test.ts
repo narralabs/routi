@@ -47,3 +47,33 @@ test('Gmail identifies a disabled API without suggesting reconnecting or retryin
   assert.match(JSON.stringify(result), /gmail.googleapis.com/)
   assert.match(JSON.stringify(result), /Reconnecting Gmail will not fix this/)
 })
+
+test('send preview shows saved recipients, subject, message and attachments without sending', async t => {
+  let messageId = 'version-1'
+  let calls = 0
+  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+    calls++
+    assert.match(url, /\/drafts\/draft-123\?format=full$/)
+    assert.notEqual(init.method, 'POST')
+    return Response.json({ message: { id: messageId, payload: {
+      headers: [{ name: 'To', value: 'reader@example.com' }, { name: 'Bcc', value: 'copy@example.com' }, { name: 'Subject', value: 'Review me' }],
+      parts: [
+        { mimeType: 'text/plain', body: { data: Buffer.from('Hello\n世界').toString('base64url') } },
+        { mimeType: 'application/pdf', filename: 'report.pdf', body: {} },
+      ],
+    } } })
+  })
+  const preview = await gmailSendDraft.preview!({ draftId: 'draft-123' }, 'token')
+  assert.deepEqual(preview.details, { to: 'reader@example.com', bcc: 'copy@example.com', subject: 'Review me', body: 'Hello\n世界', attachments: ['report.pdf'] })
+  await preview.validate('token')
+  messageId = 'version-2'
+  await assert.rejects(preview.validate('token'), /draft changed/)
+  assert.equal(calls, 3)
+})
+
+test('send preview fails closed when Gmail cannot return readable draft contents', async t => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 403 }))
+  await assert.rejects(gmailSendDraft.preview!({ draftId: 'draft' }, 'token'), /Could not load/)
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ message: { id: 'v1', payload: { mimeType: 'text/html', body: { data: 'PGI+aGk8L2I+' } } } }))
+  await assert.rejects(gmailSendDraft.preview!({ draftId: 'draft' }, 'token'), /plain-text preview/)
+})

@@ -22,6 +22,7 @@ struct PluginAccessRequest: Decodable, Identifiable {
     struct Action: Decodable {
         let tool: String
         let arguments: String
+        var preview: String? = nil
 
         var title: String {
             switch tool {
@@ -60,7 +61,7 @@ struct PluginAccessRequest: Decodable, Identifiable {
         }
 
         var details: [Detail]? {
-            guard let object = try? JSONSerialization.jsonObject(with: Data(arguments.utf8)) as? [String: Any] else { return nil }
+            guard let object = try? JSONSerialization.jsonObject(with: Data((preview ?? arguments).utf8)) as? [String: Any] else { return nil }
             return Self.rows(object, path: [])
         }
 

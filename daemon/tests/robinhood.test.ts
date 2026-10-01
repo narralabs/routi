@@ -390,6 +390,28 @@ test('oversized schemas and results are withheld without replaying actions', asy
 })
 
 
+for (const expiresAt of [0, undefined]) test(`local Gmail send refreshes ${expiresAt === 0 ? 'expired' : 'undated'} credentials even when MCP accepts them`, async t => {
+  const definition = googleDefinitions()[0]!
+  const tokens: string[] = []
+  const f = await fixture(t, { ...definition, accountEmail: undefined,
+    oauth: { ...definition.oauth!, client: { client_id: 'google-test' } },
+    localTools: [{ ...definition.localTools![1]!, run: async (_args, token) => {
+      tokens.push(token)
+      return { content: [] }
+    } }],
+  })
+  f.setScope(definition.oauth!.scope)
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  f.plugin.setPermission('default', 'send', 'allow')
+  for (const [key, value] of f.saved) f.saved.set(key, JSON.stringify({ ...JSON.parse(value), expiresAt }))
+  const context = f.plugin.context(f.bot.id)!
+  for (let i = 0; i < 2; i++) assert.equal((await context.run('gmail_send_email', { to: ['test@example.com'], subject: 'Test', body: 'Test' })).ok, true)
+  assert.deepEqual(tokens, ['refreshed-access', 'refreshed-access'])
+  assert.equal(f.tokenCalls(), 2, 'one initial exchange and one refresh; reuse the fresh token')
+  assert.deepEqual(f.calls, [])
+})
+
 for (const definition of googleDefinitions()) test(`${definition.name} uses a registered OAuth client, service scopes and offline consent`, async t => {
   const f = await fixture(t, { ...definition, accountEmail: async () => 'test@example.com', oauth: { ...definition.oauth!, client: { client_id: 'google-test', client_secret: 'test-client-secret' } } })
   f.setScope(definition.oauth!.scope)
@@ -649,6 +671,19 @@ test('send edits reach the save step only after approval, without changing the d
   assert.equal((await cancelled).ok, false)
   assert.equal(saved.length, 1)
   assert.equal(f.localCalls.length, 1)
+})
+
+test('email approval refreshes credentials that expired while the user was reviewing', async t => {
+  const f = await connectedGmail(t)
+  const approval = f.nextApproval()
+  const call = f.context.run('gmail_send_email', { to: ['test@example.com'], subject: 'Test', body: 'Test' })
+  const request = await approval
+  for (const [key, value] of f.saved) f.saved.set(key, JSON.stringify({ ...JSON.parse(value), expiresAt: 0 }))
+  assert.equal(f.tokenCalls(), 1)
+  await f.plugin.respondAccess('default', request.id, true)
+  assert.equal((await call).ok, true)
+  assert.equal(f.tokenCalls(), 2)
+  assert.equal(f.localCalls.length, 1, 'send executes once after refresh')
 })
 
 test('new email needs one editable send approval and cancellation creates no draft', async t => {

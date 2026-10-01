@@ -535,10 +535,10 @@ async function connectedGmail(t: TestContext, preview?: NonNullable<McpPluginDef
   const localCalls: Record<string, unknown>[] = []
   const f = await fixture(t, { ...definition, accountEmail: undefined,
     oauth: { ...definition.oauth!, client: { client_id: 'google-test' } },
-    localTools: [{ ...definition.localTools![0]!, preview, run: async args => {
+    localTools: definition.localTools!.map(tool => ({ ...tool, preview: tool.spec.name === 'gmail_send_draft' ? preview : undefined, run: async args => {
       localCalls.push(args)
-      return { content: [{ type: 'text', text: 'sent' }] }
-    } }],
+      return { content: [{ type: 'text' as const, text: 'sent' }] }
+    } })),
   })
   f.setScope(definition.oauth!.scope)
   await f.plugin.finish('default', (await f.begin()).href)
@@ -649,6 +649,27 @@ test('send edits reach the save step only after approval, without changing the d
   assert.equal((await cancelled).ok, false)
   assert.equal(saved.length, 1)
   assert.equal(f.localCalls.length, 1)
+})
+
+test('new email needs one editable send approval and cancellation creates no draft', async t => {
+  const f = await connectedGmail(t)
+  const details = { to: ['reader@example.com'], subject: 'Hello', body: 'Original' }
+  const next = f.nextApproval()
+  const call = f.context.run('gmail_call_tool', { name: 'gmail_send_email', arguments: details })
+  const request = await next
+  assert.equal(request.action!.tool, 'gmail_send_email')
+  assert.deepEqual(f.localCalls, [])
+  await f.plugin.respondAccess('default', request.id, true, { ...details, body: 'Changed' })
+  assert.equal((await call).ok, true)
+  assert.deepEqual(f.localCalls, [{ ...details, body: 'Changed' }])
+  assert.deepEqual(f.calls, [], 'no remote create_draft call')
+  assert.deepEqual(f.plugin.accessList('default'), [])
+  const deniedApproval = f.nextApproval()
+  const denied = f.context.run('gmail_call_tool', { name: 'gmail_send_email', arguments: details })
+  await f.plugin.respondAccess('default', (await deniedApproval).id, false)
+  assert.equal((await denied).ok, false)
+  assert.equal(f.localCalls.length, 1)
+  assert.deepEqual(f.calls, [])
 })
 
 test('Deny blocks direct and discovered tools, persists across restart, and does not change Google grants', async t => {

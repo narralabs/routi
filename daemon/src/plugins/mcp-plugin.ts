@@ -360,7 +360,7 @@ export class McpPlugin {
               }
             }
             const decision = await this.ask(botId, conversationId, String(args['name']), args['arguments'] as Record<string, unknown>, signal, preview)
-            if (!decision) return { ok: false, output: 'This action was not approved. No tool was executed.', summary: 'Not approved' }
+            if (!decision) return { ok: false, output: 'This action was not approved. No tool was executed. Stop and wait for the user; do not retry, substitute another action, or clean up drafts.', summary: 'Not approved' }
             approved = true
             edited = !isDeepStrictEqual(decision, preview?.details ?? args['arguments'])
             if (preview) { if (edited) previewEdits = decision }

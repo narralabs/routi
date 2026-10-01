@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { gmailSendDraft } from '../src/plugins/google.js'
+import { gmailSendDraft, gmailSendEmail } from '../src/plugins/google.js'
 
 test('Gmail sends only the specified draft using the connected account token', async t => {
   const requests: RequestInit[] = []
@@ -116,4 +116,27 @@ test('failed draft updates stop before sending', async t => {
   })
   const preview = await gmailSendDraft.preview!({ draftId: 'draft' }, 'token')
   await assert.rejects(preview.beforeRun('token', undefined, { ...preview.details, body: 'Changed' }), /Could not save/)
+})
+
+
+test('new email sends directly without creating a draft', async t => {
+  let calls = 0
+  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+    calls++
+    assert.equal(url, 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send')
+    assert.equal(init.method, 'POST')
+    const mime = Buffer.from(JSON.parse(String(init.body)).raw, 'base64url').toString()
+    assert.match(mime, /To: reader@example.com/)
+    assert.match(mime, /Bcc: copy@example.com/)
+    assert.match(mime, /Subject: Hello/)
+    assert.match(mime, /Edited message/)
+    return Response.json({ id: 'sent', threadId: 'thread' })
+  })
+  const result = await gmailSendEmail.run({ to: ['reader@example.com'], bcc: ['copy@example.com'], subject: 'Hello', body: 'Edited message' }, 'token')
+  assert.ok(!result.isError)
+  assert.equal(calls, 1)
+  for (const args of [{ to: [], subject: '', body: '' }, { to: ['reader@example.com'], subject: '', body: '', draftId: 'hidden' }]) {
+    assert.equal((await gmailSendEmail.run(args, 'token')).isError, true)
+  }
+  assert.equal(calls, 1)
 })

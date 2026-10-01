@@ -29,7 +29,7 @@ struct PluginAccessRequest: Decodable, Identifiable {
             switch tool {
             case "create_draft": "Create email draft"
             case "update_draft": "Update email draft"
-            case "gmail_send_draft", "send_message": "Send email"
+            case "gmail_send_email", "gmail_send_draft", "send_message": "Send email"
             case "reply": "Reply to email"
             case "forward": "Forward email"
             default: Self.label(tool)

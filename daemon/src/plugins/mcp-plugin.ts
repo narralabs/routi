@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { hasScope, type PermissionGroup, type PermissionRule } from './google-permissions.js'
 import { mcpFailure } from './mcp-error.js'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
@@ -13,7 +14,8 @@ import type { ToolContext } from '../surfaces/tools.js'
 
 interface ActionPreview {
   details: Record<string, unknown>
-  validate: (accessToken: string, signal?: AbortSignal) => Promise<void>
+  editableFields?: string[]
+  beforeRun: (accessToken: string, signal?: AbortSignal, edits?: Record<string, unknown>) => Promise<void>
 }
 
 export interface McpPluginDefinition {
@@ -48,7 +50,7 @@ type Pending = { provider: OAuthClientProvider; state: string; server: Server; t
 export interface PluginAccessRequest {
   pluginId: string; id: string; botId: string; conversationId: string; profileId: string
   connected: boolean; connecting: boolean; expiresAt: number
-  action?: { tool: string; arguments: string; preview?: string }
+  action?: { tool: string; arguments: string; preview?: string; editableFields?: string[] }
 }
 
 /** One remote MCP connection per plugin and profile, with explicit per-bot access. */
@@ -119,7 +121,7 @@ export class McpPlugin {
     for (const request of this.accessList(profileId)) if (request.action) this.decisions.get(request.id)?.(false)
   }
 
-  private ask(botId: string, conversationId: string | undefined, tool: string, args: Record<string, unknown>, signal?: AbortSignal, preview?: Record<string, unknown>): Promise<Record<string, unknown> | false> {
+  private ask(botId: string, conversationId: string | undefined, tool: string, args: Record<string, unknown>, signal?: AbortSignal, preview?: ActionPreview): Promise<Record<string, unknown> | false> {
     const bot = this.store.getBot(botId)
     const conversation = conversationId ? this.store.getConversation(conversationId) : undefined
     if (!bot || !conversation || (conversation.botId !== botId && !this.store.channelMembers(conversation.id).some(b => b.id === botId)) || signal?.aborted) return Promise.resolve(false)
@@ -127,7 +129,7 @@ export class McpPlugin {
       const request: PluginAccessRequest = {
         id: randomUUID(), pluginId: this.definition.id, profileId: bot.profileId, botId, conversationId: conversation.id,
         connected: true, connecting: false, expiresAt: Date.now() + LOGIN_TIMEOUT,
-        action: { tool, arguments: JSON.stringify(args, null, 2), ...(preview ? { preview: JSON.stringify(preview) } : {}) },
+        action: { tool, arguments: JSON.stringify(args, null, 2), ...(preview ? { preview: JSON.stringify(preview.details), editableFields: preview.editableFields } : {}) },
       }
       const finish = (allow: boolean | Record<string, unknown>) => {
         clearTimeout(timer)
@@ -135,7 +137,7 @@ export class McpPlugin {
         this.decisions.delete(request.id)
         this.access.delete(request.id)
         this.onAccessChanged(bot.profileId)
-        resolve(allow === true ? args : allow)
+        resolve(allow === true ? (preview?.details ?? args) : allow)
       }
       const cancel = () => finish(false)
       const timer = setTimeout(cancel, LOGIN_TIMEOUT)
@@ -331,6 +333,7 @@ export class McpPlugin {
         let approved = false
         let edited = false
         let preview: ActionPreview | undefined
+        let previewEdits: Record<string, unknown> | undefined
         if (name === `${this.definition.id}_call_tool` && (!args['arguments'] || typeof args['arguments'] !== 'object' || Array.isArray(args['arguments']) || typeof args['name'] !== 'string')) return { ok: false, output: 'Provide a tool name and arguments object.', summary: 'Invalid arguments' }
         if (name === `${this.definition.id}_call_tool` && this.definition.permissions) {
           if (!this.store.pluginEnabled(this.definition.id, botId)) return { ok: false, output: 'Plugin access is disabled for this bot.', summary: 'Access disabled' }
@@ -356,11 +359,12 @@ export class McpPlugin {
                 return { ok: false, output: 'Could not load the email for review. No email was sent. Check the connection and request approval again.', summary: 'Email preview unavailable' }
               }
             }
-            const decision = await this.ask(botId, conversationId, String(args['name']), args['arguments'] as Record<string, unknown>, signal, preview?.details)
+            const decision = await this.ask(botId, conversationId, String(args['name']), args['arguments'] as Record<string, unknown>, signal, preview)
             if (!decision) return { ok: false, output: 'This action was not approved. No tool was executed.', summary: 'Not approved' }
             approved = true
-            edited = JSON.stringify(decision) !== JSON.stringify(args['arguments'])
-            args['arguments'] = decision
+            edited = !isDeepStrictEqual(decision, preview?.details ?? args['arguments'])
+            if (preview) { if (edited) previewEdits = decision }
+            else args['arguments'] = decision
           }
         }
         const result = await this.serial(bot.profileId, async () => {
@@ -409,15 +413,15 @@ export class McpPlugin {
             signal?.throwIfAborted()
             // Recheck after network setup: access may have been revoked meanwhile.
             if (!this.store.pluginEnabled(this.definition.id, botId)) throw new Error('Access revoked')
-            try { await preview?.validate(saved.tokens!.access_token, signal) }
-            catch { return { ok: false, output: 'The draft changed or could not be checked. No email was sent. Request a fresh preview and approval.', summary: 'Review the draft again' } }
+            try { await preview?.beforeRun(saved.tokens!.access_token, signal, previewEdits) }
+            catch { return { ok: false, output: 'The draft changed or could not be checked or updated. No email was sent. Request a fresh preview and approval.', summary: 'Review the draft again' } }
             stage = 'call'
             const local = this.definition.localTools?.find(tool => tool.spec.name === args['name'])
             if (local && !localTools.includes(local)) return { ok: false, output: 'This connection does not allow this action. Change permissions in Plugins to enable it.', summary: 'Permission required' }
             const result = local
               ? await local.run(args['arguments'] as Record<string, unknown>, saved.tokens!.access_token, signal)
               : await client.callTool({ name: args['name'], arguments: args['arguments'] as Record<string, unknown> }, CallToolResultSchema, { timeout: 30_000, signal })
-            return { ok: !result.isError, output: JSON.stringify(edited ? { approvedArguments: args['arguments'], result } : result), summary: `${this.definition.name}: ${args['name']}` }
+            return { ok: !result.isError, output: JSON.stringify(edited ? { approvedArguments: previewEdits ?? args['arguments'], result } : result), summary: `${this.definition.name}: ${args['name']}` }
           } catch (error) {
             const failure = mcpFailure(this.definition, error, signal?.aborted)
             if (failure.kind === 'authentication') {
@@ -492,8 +496,14 @@ export class McpPlugin {
     this.checkProfile(profileId)
     const request = this.findAccess(id, profileId)
     if (request.action) {
-      if (allow && request.action.preview && editedArguments !== undefined) throw new Error('Edit the draft before requesting send approval again.')
       if (editedArguments !== undefined && (!editedArguments || typeof editedArguments !== 'object' || Array.isArray(editedArguments))) throw new Error('Action details must be an object.')
+      if (allow && request.action.preview && editedArguments !== undefined) {
+        const original = JSON.parse(request.action.preview) as Record<string, unknown>
+        for (const key of new Set([...Object.keys(original), ...Object.keys(editedArguments)])) {
+          if (JSON.stringify(original[key]) === JSON.stringify(editedArguments[key])) continue
+          if (!request.action.editableFields?.includes(key) || typeof editedArguments[key] !== 'string') throw new Error('This field cannot be changed in the send preview.')
+        }
+      }
       this.decisions.get(id)?.(allow && editedArguments !== undefined ? structuredClone(editedArguments) : allow)
       return {}
     }

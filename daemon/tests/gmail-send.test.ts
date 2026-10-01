@@ -64,10 +64,10 @@ test('send preview shows saved recipients, subject, message and attachments with
     } } })
   })
   const preview = await gmailSendDraft.preview!({ draftId: 'draft-123' }, 'token')
-  assert.deepEqual(preview.details, { to: 'reader@example.com', bcc: 'copy@example.com', subject: 'Review me', body: 'Hello\n世界', attachments: ['report.pdf'] })
-  await preview.validate('token')
+  assert.deepEqual(preview.details, { to: 'reader@example.com', bcc: 'copy@example.com', subject: 'Review me', cc: '', body: 'Hello\n世界', attachments: ['report.pdf'] })
+  await preview.beforeRun('token')
   messageId = 'version-2'
-  await assert.rejects(preview.validate('token'), /draft changed/)
+  await assert.rejects(preview.beforeRun('token'), /draft changed/)
   assert.equal(calls, 3)
 })
 
@@ -76,4 +76,44 @@ test('send preview fails closed when Gmail cannot return readable draft contents
   await assert.rejects(gmailSendDraft.preview!({ draftId: 'draft' }, 'token'), /Could not load/)
   t.mock.method(globalThis, 'fetch', async () => Response.json({ message: { id: 'v1', payload: { mimeType: 'text/html', body: { data: 'PGI+aGk8L2I+' } } } }))
   await assert.rejects(gmailSendDraft.preview!({ draftId: 'draft' }, 'token'), /plain-text preview/)
+})
+
+test('approved edits save the draft with Bcc, attachments and reply threading intact', async t => {
+  const writes: { method: string; body: Record<string, any> }[] = []
+  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+    if (init.method === 'PUT') {
+      writes.push({ method: init.method, body: JSON.parse(String(init.body)) })
+      return Response.json({ id: 'draft' })
+    }
+    assert.notEqual(init.method, 'POST', 'preview and save must not send mail')
+    return Response.json({ message: { id: 'v1', threadId: 'thread', payload: {
+      headers: [{ name: 'From', value: 'sender@example.com' }, { name: 'To', value: 'old@example.com' }, { name: 'In-Reply-To', value: '<parent@example.com>' }],
+      parts: [
+        { mimeType: 'text/plain', body: { data: Buffer.from('Original').toString('base64url') } },
+        { mimeType: 'text/html', body: { data: Buffer.from('<p>Original</p>').toString('base64url') } },
+        { mimeType: 'application/pdf', filename: 'report.pdf', body: { data: Buffer.from('attachment-content').toString('base64url') } },
+      ],
+    } } })
+  })
+  const preview = await gmailSendDraft.preview!({ draftId: 'draft' }, 'token')
+  assert.equal(writes.length, 0)
+  await preview.beforeRun('token')
+  assert.equal(writes.length, 0, 'unchanged approval does not rewrite the draft')
+  await preview.beforeRun('token', undefined, { ...preview.details, to: 'new@example.com', bcc: 'hidden@example.com', subject: 'Updated', body: 'Added detail' })
+  assert.equal(writes.length, 1)
+  const message = writes[0]!.body.message
+  assert.equal(message.threadId, 'thread')
+  const mime = Buffer.from(message.raw, 'base64url').toString()
+  for (const text of ['To: new@example.com', 'Bcc: hidden@example.com', 'Subject: Updated', 'Added detail', 'report.pdf', 'In-Reply-To: <parent@example.com>', Buffer.from('attachment-content').toString('base64')]) assert.ok(mime.includes(text), text)
+  assert.ok(!mime.includes('Original'), 'the old HTML body must not override the edited message')
+})
+
+test('failed draft updates stop before sending', async t => {
+  t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
+    assert.notEqual(init.method, 'POST')
+    if (init.method === 'PUT') return new Response('', { status: 500 })
+    return Response.json({ message: { id: 'v1', payload: { mimeType: 'text/plain', body: { data: Buffer.from('Original').toString('base64url') } } } })
+  })
+  const preview = await gmailSendDraft.preview!({ draftId: 'draft' }, 'token')
+  await assert.rejects(preview.beforeRun('token', undefined, { ...preview.details, body: 'Changed' }), /Could not save/)
 })

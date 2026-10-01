@@ -613,7 +613,7 @@ test('approval executes the edited details once and reports them to the bot', as
 for (const changed of [false, true]) test(`saved draft preview is bound to the approved draft (changed=${changed})`, async t => {
   const f = await connectedGmail(t, async args => {
     assert.equal(args.draftId, 'draft')
-    return { details: { to: 'reader@example.com', subject: 'Hello', body: 'Review this' }, validate: async () => {
+    return { details: { to: 'reader@example.com', subject: 'Hello', body: 'Review this' }, beforeRun: async () => {
       if (changed) throw new Error('Draft changed')
     } }
   })
@@ -621,10 +621,34 @@ for (const changed of [false, true]) test(`saved draft preview is bound to the a
   const call = f.context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
   const request = await approval
   assert.deepEqual(JSON.parse(request.action!.preview!), { to: 'reader@example.com', subject: 'Hello', body: 'Review this' })
-  await assert.rejects(f.plugin.respondAccess('default', request.id, true, { draftId: 'other' }), /Edit the draft/)
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true, { draftId: 'other' }), /cannot be changed/)
   await f.plugin.respondAccess('default', request.id, true)
   assert.equal((await call).ok, !changed)
   assert.deepEqual(f.localCalls, changed ? [] : [{ draftId: 'draft' }])
+})
+
+test('send edits reach the save step only after approval, without changing the draft ID', async t => {
+  const saved: unknown[] = []
+  const details = { to: 'reader@example.com', body: 'Original', from: 'sender@example.com' }
+  const f = await connectedGmail(t, async () => ({ details, editableFields: ['to', 'body'], beforeRun: async (_token, _signal, edits) => { saved.push(edits) } }))
+  const next = f.nextApproval()
+  const call = f.context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
+  const request = await next
+  const edits = { ...details, body: 'More detail' }
+  await assert.rejects(f.plugin.respondAccess('default', request.id, true, { ...edits, from: 'other@example.com' }), /cannot be changed/)
+  await f.plugin.respondAccess('default', request.id, true, edits)
+  const result = await call
+  assert.equal(result.ok, true)
+  assert.deepEqual(saved, [edits])
+  assert.deepEqual(f.localCalls, [{ draftId: 'draft' }])
+  assert.deepEqual(JSON.parse(result.output).approvedArguments, edits)
+
+  const cancelledApproval = f.nextApproval()
+  const cancelled = f.context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
+  await f.plugin.respondAccess('default', (await cancelledApproval).id, false, { ...details, body: 'Do not save' })
+  assert.equal((await cancelled).ok, false)
+  assert.equal(saved.length, 1)
+  assert.equal(f.localCalls.length, 1)
 })
 
 test('Deny blocks direct and discovered tools, persists across restart, and does not change Google grants', async t => {

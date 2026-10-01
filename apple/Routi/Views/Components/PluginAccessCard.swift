@@ -25,7 +25,7 @@ struct PluginAccessCard: View {
                             ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(detail.label).font(.caption).foregroundStyle(.secondary)
-                                    if detail.editable && action.preview == nil {
+                                    if detail.editable && (action.preview == nil || action.editableFields?.contains(detail.path.first ?? "") == true) {
                                         TextField(detail.label, text: Binding(
                                             get: { edits[detail.path] ?? detail.value },
                                             set: { edits[detail.path] = $0 }
@@ -44,7 +44,7 @@ struct PluginAccessCard: View {
                 } else {
                     Text("Couldn’t load the details. Ask the bot to try again.")
                 }
-                Text("This approves only this action.")
+                Text(action.editableFields?.isEmpty == false ? "Your changes are saved when you send." : "This approves only this action.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 Text(request.connected

@@ -23,6 +23,7 @@ struct PluginAccessRequest: Decodable, Identifiable {
         let tool: String
         let arguments: String
         var preview: String? = nil
+        var editableFields: [String]? = nil
 
         var title: String {
             switch tool {
@@ -55,7 +56,7 @@ struct PluginAccessRequest: Decodable, Identifiable {
                 }
                 return value
             }
-            let object = try JSONSerialization.jsonObject(with: Data(arguments.utf8))
+            let object = try JSONSerialization.jsonObject(with: Data((preview ?? arguments).utf8))
             guard let edited = apply(object, path: []) as? [String: Any] else { throw CocoaError(.propertyListReadCorrupt) }
             return edited
         }

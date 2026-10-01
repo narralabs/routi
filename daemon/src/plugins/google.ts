@@ -1,3 +1,4 @@
+import MailComposer from 'nodemailer/lib/mail-composer'
 import { googlePermissions } from './google-permissions.js'
 import { bundledGoogleClient } from './google-oauth-client.js'
 import type { McpPluginDefinition } from './mcp-plugin.js'
@@ -54,7 +55,7 @@ export function googleDefinitions(): McpPluginDefinition[] {
 /** Sends drafts when the connected Google MCP toolset lacks sending. Never retries. */
 type GmailPart = {
   mimeType?: string; filename?: string; headers?: { name: string; value: string }[]
-  body?: { data?: string }; parts?: GmailPart[]
+  body?: { data?: string; attachmentId?: string }; parts?: GmailPart[]
 }
 
 async function gmailDraft(draftId: unknown, token: string, signal?: AbortSignal) {
@@ -66,7 +67,7 @@ async function gmailDraft(draftId: unknown, token: string, signal?: AbortSignal)
   if (!response.ok) throw new Error('Could not load the Gmail draft')
   const draft = await response.json() as { message?: { id?: string; payload?: GmailPart } }
   if (!draft.message?.id || !draft.message.payload) throw new Error('Incomplete Gmail draft')
-  return draft.message as { id: string; payload: GmailPart }
+  return draft.message as { id: string; threadId?: string; payload: GmailPart }
 }
 
 export const gmailSendDraft: NonNullable<McpPluginDefinition['localTools']>[number] = {
@@ -82,12 +83,46 @@ export const gmailSendDraft: NonNullable<McpPluginDefinition['localTools']>[numb
       const values = draft.payload.headers?.filter(header => header.name.toLowerCase() === name).map(header => header.value)
       if (values?.length) details[name] = values.join(', ')
     }
+    for (const field of ['to', 'cc', 'bcc', 'subject']) details[field] ??= ''
     details.body = text.map(part => Buffer.from(part.body!.data!, 'base64url').toString('utf8')).join('\n')
     const attachments = all.filter(part => part.filename).map(part => part.filename!)
     if (attachments.length) details.attachments = attachments
-    return { details, validate: async (accessToken, currentSignal) => {
+    return { details, editableFields: ['to', 'cc', 'bcc', 'subject', 'body'], beforeRun: async (accessToken, currentSignal, edits) => {
       const current = await gmailDraft(args.draftId, accessToken, currentSignal)
       if (current.id !== draft.id) throw new Error('The draft changed. Request approval again before sending.')
+      if (!edits) return
+      const headers = Object.fromEntries((draft.payload.headers ?? []).map(h => [h.name.toLowerCase(), h.value]))
+      const attachments = await Promise.all(all.filter(part => !part.parts?.length && (part.filename || !['text/plain', 'text/html'].includes(part.mimeType ?? ''))).map(async part => {
+        let data = part.body?.data
+        if (data === undefined && part.body?.attachmentId) {
+          const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(draft.id)}/attachments/${encodeURIComponent(part.body.attachmentId)}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(currentSignal ? [currentSignal] : [])]),
+          })
+          if (!response.ok) throw new Error('Could not preserve the attachment')
+          data = ((await response.json()) as { data?: string }).data
+        }
+        if (data === undefined) throw new Error('Could not preserve the attachment')
+        const cid = part.headers?.find(h => h.name.toLowerCase() === 'content-id')?.value.replace(/^<|>$/g, '')
+        return { filename: part.filename || 'attachment', contentType: part.mimeType, content: Buffer.from(data, 'base64url'), cid }
+      }))
+      const html = edits.body === details.body
+        ? all.filter(part => part.mimeType === 'text/html' && !part.filename).map(part => Buffer.from(part.body?.data ?? '', 'base64url').toString('utf8')).join('')
+        : undefined
+      const composed = new MailComposer({
+        from: headers.from, to: String(edits.to), cc: String(edits.cc), bcc: String(edits.bcc),
+        subject: String(edits.subject), text: String(edits.body), html: html || undefined, attachments,
+        replyTo: headers['reply-to'], inReplyTo: headers['in-reply-to'], references: headers.references,
+        disableFileAccess: true, disableUrlAccess: true,
+      }).compile()
+      composed.keepBcc = true
+      const raw = await composed.build()
+      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/drafts/${encodeURIComponent(String(args.draftId))}`, {
+        method: 'PUT', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: { raw: raw.toString('base64url'), threadId: draft.threadId } }),
+        signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(currentSignal ? [currentSignal] : [])]),
+      })
+      if (!response.ok) throw new Error('Could not save draft changes. No email was sent.')
     } }
   },
   requiredScopes: ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send', 'https://mail.google.com/'],

@@ -31,6 +31,7 @@ struct PluginAccessCard: View {
                                             set: { edits[detail.path] = $0 }
                                         ), axis: .vertical)
                                         .textFieldStyle(.roundedBorder)
+                                        .lineLimit(detail.path.last == "body" || detail.path.last == "htmlBody" ? 5...10 : 1...3)
                                         .disabled(busy)
                                     } else {
                                         Text(detail.value).textSelection(.enabled)
@@ -38,7 +39,8 @@ struct PluginAccessCard: View {
                                 }
                             }
                         }.frame(maxWidth: .infinity, alignment: .leading)
-                    }.frame(maxHeight: 260)
+                        .padding(4)
+                    }.frame(maxHeight: 340)
                 } else {
                     Text("Couldn’t load the details. Ask the bot to try again.")
                 }

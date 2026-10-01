@@ -669,3 +669,8 @@ Drive uses Google’s hosted MCP with a separate connection and bot grants. Enab
 `drive.readonly` and `drive.file`, plus `openid email`. Existing files are readable;
 writes are limited to files created by or explicitly shared with the app.
 Include these scopes in the OAuth verification request.
+
+Google connections offer read-only or read/write consent. Plugin settings display
+the scopes returned by Google, not the requested choice. Changing permissions
+opens Google consent again; existing grants may require removal in the Google
+Account first. Removing Google's Routi grant can affect other Google connections.

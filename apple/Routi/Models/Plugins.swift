@@ -1,6 +1,8 @@
 import Foundation
 
 struct PluginStatus: Decodable {
+    let grantedScopes: [String]?
+    let supportsReadOnly: Bool?
     let accountEmail: String?
     let connected: Bool
     let connecting: Bool

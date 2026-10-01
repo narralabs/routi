@@ -86,7 +86,8 @@ struct PluginAccessRequest: Decodable, Identifiable {
                 return array.enumerated().flatMap { rows($0.element, path: path + [String($0.offset)]) }
             }
             if path.isEmpty { return [] }
-            let title = path.map { Int($0).map { String($0 + 1) } ?? label($0) }.joined(separator: " · ")
+            let labelPath = ["to", "cc", "bcc"].contains(path.first ?? "") ? path.filter { Int($0) == nil } : path
+            let title = labelPath.map { Int($0).map { String($0 + 1) } ?? label($0) }.joined(separator: " · ")
             let text: String
             if value is NSNull || value is [Any] || value is [String: Any] { text = "None" }
             else if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { text = number.boolValue ? "Yes" : "No" }

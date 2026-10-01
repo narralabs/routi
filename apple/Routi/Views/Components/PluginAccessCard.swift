@@ -37,7 +37,11 @@ struct PluginAccessCard: View {
                                                     .scrollContentBackground(.hidden)
                                                     .padding(6)
                                                     .frame(height: 120)
-                                                    .background(.background, in: .rect(cornerRadius: 6))
+                                                    #if os(macOS)
+                                                    .background(Color(nsColor: .textBackgroundColor), in: .rect(cornerRadius: 6))
+                                                    #else
+                                                    .background(Color(uiColor: .systemBackground), in: .rect(cornerRadius: 6))
+                                                    #endif
                                                     .overlay { RoundedRectangle(cornerRadius: 6).stroke(.quaternary) }
                                                     .accessibilityLabel(detail.label)
                                             } else {

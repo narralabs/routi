@@ -27,6 +27,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
   const calls: string[] = []
   let tokenCalls = 0
   let fail = false
+  let revoked = false
   let payload = ''
   let challenge = ''
   let accessToken = 'test-access'
@@ -49,6 +50,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
     }
     if (path === '/token') {
       tokenCalls++
+      if (revoked) return json({ error: 'invalid_grant', error_description: 'Token revoked' }, 400)
       const params = new URLSearchParams(body)
       if (definition?.oauth?.client?.client_secret) {
         assert.equal(params.get('client_id'), definition.oauth.client.client_id)
@@ -105,6 +107,7 @@ async function fixture(t: TestContext, definition: McpPluginDefinition = robinho
   return { plugin, store, bot, saved, clients, calls, changed, begin, callbackFor, secrets, dir, url,
     setScope: (value: string | undefined) => { grantedScope = value },
     setPayload: (value: string) => { payload = value },
+    revoke: () => { revoked = true; accessToken = 'revoked-on-server' },
     expire: () => { accessToken = 'expired-on-server' }, tokenCalls: () => tokenCalls, fail: () => { fail = true } }
 }
 
@@ -519,4 +522,55 @@ for (const definition of googleDefinitions()) test(`${definition.name} reports g
   assert.equal((await f.plugin.status('default')).grantedScopes, null, 'new consent without scope must not inherit old permissions')
   await f.plugin.disconnect('default')
   assert.equal((await f.plugin.status('default')).grantedScopes, null)
+})
+
+for (const expiresAt of [0, undefined]) test(`local Gmail send refreshes ${expiresAt === 0 ? 'expired' : 'undated'} credentials even when MCP accepts them`, async t => {
+  const definition = googleDefinitions()[0]!
+  const tokens: string[] = []
+  const f = await fixture(t, { ...definition, accountEmail: undefined,
+    oauth: { ...definition.oauth!, client: { client_id: 'google-test' } },
+    localTools: [{ ...definition.localTools![0]!, run: async (_args, token) => {
+      tokens.push(token)
+      return { content: [] }
+    } }],
+  })
+  f.setScope(definition.oauth!.scope)
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  for (const [key, value] of f.saved) f.saved.set(key, JSON.stringify({ ...JSON.parse(value), expiresAt }))
+  const context = f.plugin.context(f.bot.id)!
+  for (let i = 0; i < 2; i++) assert.equal((await context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'test' } })).ok, true)
+  assert.deepEqual(tokens, ['refreshed-access', 'refreshed-access'])
+  assert.equal(f.tokenCalls(), 2, 'one initial exchange and one refresh; reuse the fresh token')
+  assert.deepEqual(f.calls, [])
+})
+
+test('revoked Google login stops calls and asks the user to reconnect', async t => {
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const context = f.plugin.context(f.bot.id)!
+  f.revoke()
+  const result = await context.run('gmail_call_tool', { name: 'get_message', arguments: {} })
+  assert.equal(result.ok, false)
+  assert.deepEqual(f.calls, [])
+  const status = await f.plugin.status('default')
+  assert.equal(status.connected, false)
+  assert.match(status.error!, /Reconnect/)
+  assert.deepEqual(status.botIds, [])
+})
+
+test('temporary Google server errors do not disconnect a valid login', async t => {
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const context = f.plugin.context(f.bot.id)!
+  f.fail()
+  assert.equal((await context.run('gmail_call_tool', { name: 'get_message', arguments: {} })).ok, false)
+  const status = await f.plugin.status('default')
+  assert.equal(status.connected, true)
+  assert.equal(status.error, null)
+  assert.deepEqual(status.botIds, [f.bot.id])
 })

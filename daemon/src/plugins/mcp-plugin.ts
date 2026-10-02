@@ -34,7 +34,7 @@ const networkFetch: typeof fetch = (url, init) => fetch(url, {
   ...init, signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(init?.signal ? [init.signal] : [])]),
 })
 
-type SavedLogin = { redirectUrl: string; client?: OAuthClientInformationMixed; tokens?: OAuthTokens; accountEmail?: string | null }
+type SavedLogin = { redirectUrl: string; client?: OAuthClientInformationMixed; tokens?: OAuthTokens; expiresAt?: number; accountEmail?: string | null }
 type Secrets = Pick<Credentials, 'getApiKey' | 'setApiKey' | 'clearApiKey'>
 type Pending = { provider: OAuthClientProvider; state: string; server: Server; timer: NodeJS.Timeout; redirectUrl: string; accessId?: string }
 
@@ -73,6 +73,16 @@ export class McpPlugin {
     const raw = await this.secrets.getApiKey(this.definition.credentialProvider ?? `mcp:${this.definition.id}`, this.slot(profileId))
     return raw ? JSON.parse(raw) as SavedLogin : undefined
   }
+  private async freshLogin(profileId: string): Promise<SavedLogin> {
+    const saved = await this.load(profileId)
+    if (!saved?.tokens) throw new UnauthorizedError('Not connected')
+    // MCP initialization may accept expired tokens; refresh before REST calls too.
+    if (saved.tokens.expires_in !== undefined && (saved.expiresAt ?? 0) <= Date.now() + 60_000) {
+      await auth(this.provider(profileId, saved), { serverUrl: this.definition.url, fetchFn: networkFetch })
+    }
+    return saved
+  }
+
   // Serialize refresh, disconnect, and tool calls so rotated refresh tokens cannot race.
   private async serial<T>(profileId: string, work: () => Promise<T>): Promise<T> {
     const previous = this.queues.get(profileId) ?? Promise.resolve()
@@ -116,6 +126,7 @@ export class McpPlugin {
       saveClientInformation: info => { saved.client = info },
       tokens: () => saved.tokens,
       saveTokens: async tokens => {
+        saved.expiresAt = tokens.expires_in === undefined ? undefined : Date.now() + tokens.expires_in * 1000
         saved.tokens = { ...tokens, scope: tokens.scope ?? (!interactive ? saved.tokens?.scope : undefined) }
         if (this.definition.accountEmail) {
           saved.accountEmail = await this.definition.accountEmail(tokens.access_token).catch(() => null) ?? saved.accountEmail ?? null
@@ -125,7 +136,7 @@ export class McpPlugin {
       saveCodeVerifier: code => { verifier = code },
       codeVerifier: () => { if (!verifier) throw new Error('Login expired. Connect again.'); return verifier },
       redirectToAuthorization: url => {
-        if (!interactive) throw new Error(`Reconnect ${this.definition.name} in Plugins.`)
+        if (!interactive) throw new UnauthorizedError(`Reconnect ${this.definition.name} in Plugins.`)
         if (this.definition.oauth) url.searchParams.set('scope', interactive.scope ?? this.definition.oauth.scope)
         for (const [key, value] of Object.entries(this.definition.oauth?.authorizationParams ?? {})) url.searchParams.set(key, value)
         interactive.redirect(url)
@@ -278,8 +289,7 @@ export class McpPlugin {
           const client = new Client({ name: 'Routi Bot', version: '1.0.0' })
           let stage: 'connect' | 'discover' | 'call' = 'connect'
           try {
-            const saved = await this.load(bot.profileId)
-            if (!saved?.tokens) throw new UnauthorizedError('Not connected')
+            const saved = await this.freshLogin(bot.profileId)
             const transport = new StreamableHTTPClientTransport(new URL(this.definition.url), { authProvider: this.provider(bot.profileId, saved), fetch: (url, init) => networkFetch(url, { ...init,
               signal: AbortSignal.any([...(signal ? [signal] : []), ...(init?.signal ? [init.signal] : [])]),
             }) })
@@ -322,6 +332,11 @@ export class McpPlugin {
             return { ok: !result.isError, output: JSON.stringify(result), summary: `${this.definition.name}: ${args['name']}` }
           } catch (error) {
             const failure = mcpFailure(this.definition, error, signal?.aborted)
+            if (failure.kind === 'authentication') {
+              await this.secrets.clearApiKey(this.definition.credentialProvider ?? `mcp:${this.definition.id}`, this.slot(bot.profileId))
+              this.revoke(bot.profileId)
+              this.errors.set(bot.profileId, failure.message)
+            }
             console.warn(`${this.definition.name} request failed`, { botId, stage, kind: failure.kind })
             const outcome = stage === 'call'
               ? (this.definition.failedCallInstructions ?? 'The action outcome may be unknown. Check its status before repeating it. Routi did not automatically replay the tool call.')

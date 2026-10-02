@@ -100,6 +100,7 @@ struct PluginInfo: Identifiable {
         .init(id: "google_drive", name: "Google Drive", summary: "Find and read files, and create new ones", asset: "PluginGoogleDrive", accessDescription: "Allows searching, reading, downloading, copying, and creating Drive files when authorized."),
         .init(id: "google_docs", name: "Google Docs", summary: "Read and edit documents", asset: "PluginGoogleDocs", accessDescription: "Allows reading document contents and editing text, structure, and formatting when authorized."),
         .init(id: "google_sheets", name: "Google Sheets", summary: "Read and edit spreadsheets", asset: "PluginGoogleSheets", accessDescription: "Allows reading spreadsheets and editing values, formulas, and formatting when authorized."),
+        .init(id: "google_slides", name: "Google Slides", summary: "Read and edit presentations", asset: "PluginGoogleSlides", accessDescription: "Allows reading presentations and editing slides, text, and layouts when authorized."),
     ]
     static func find(_ id: String) -> PluginInfo? { all.first { $0.id == id } }
 }

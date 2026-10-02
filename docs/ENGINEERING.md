@@ -698,3 +698,11 @@ spreadsheet access.
 
 Sheets edits default to Allow once Google grants write access. Users can choose
 Ask or Deny in Bot permissions; saved choices take precedence over the default.
+
+### Google Slides
+
+Slides uses `https://slidesmcp.googleapis.com/mcp/v1` to read and edit presentations.
+Enable `slidesmcp.googleapis.com` and `slides.googleapis.com`. Configure
+`presentations` and `presentations.readonly`, plus `openid email`, in Google OAuth
+and verification. Read-only consent requests only `presentations.readonly` for
+presentation access. Edits default to Ask in Bot permissions.

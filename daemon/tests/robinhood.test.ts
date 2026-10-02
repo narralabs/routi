@@ -451,8 +451,8 @@ test('plugin roster routes approvals and keeps service and profile grants separa
   t.after(() => plugins.close())
   const conversation = f.store.listConversations().find(c => c.botId === f.bot.id)!
   const ctx = plugins.toolContext(f.bot.id, conversation.id)
-  assert.equal(ctx.external!.specs.length, 14, 'two entry points per service plus the two local Gmail send tools')
-  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar', 'google_drive', 'google_docs', 'google_sheets'])
+  assert.equal(ctx.external!.specs.length, 16, 'two entry points per service plus the two local Gmail send tools')
+  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar', 'google_drive', 'google_docs', 'google_sheets', 'google_slides'])
   await ctx.requestPluginAccess!('gmail')
   const request = plugins.accessList('default')[0]!
   assert.equal(request.pluginId, 'gmail')
@@ -569,6 +569,46 @@ for (const definition of googleDefinitions()) test(`${definition.name} reports g
   assert.equal((await f.plugin.status('default')).grantedScopes, null, 'new consent without scope must not inherit old permissions')
   await f.plugin.disconnect('default')
   assert.equal((await f.plugin.status('default')).grantedScopes, null)
+})
+
+test('Slides blocks read-only edits, upgrades access, and enforces Ask and Deny', { timeout: 10_000 }, async t => {
+  const definition = googleDefinitions().find(plugin => plugin.id === 'google_slides')!
+  const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  f.setScope(definition.oauth!.readOnlyScope)
+  const login = await f.plugin.connect('default', undefined, true)
+  await f.plugin.finish('default', f.callbackFor(login.url).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const conversation = f.store.listConversations().find(conversation => conversation.botId === f.bot.id)!
+  const context = f.plugin.context(f.bot.id, undefined, false, conversation.id)!
+  assert.equal((await f.plugin.status('default')).permissions!.find(permission => permission.id === 'write')!.rule, 'ask')
+  const edit = () => context.run('google_slides_call_tool', { name: 'update_presentation', arguments: { presentationId: 'test' } })
+  assert.equal((await context.run('google_slides_call_tool', { name: 'read_presentation', arguments: { presentationId: 'test' } })).ok, true)
+  f.plugin.setPermission('default', 'write', 'allow')
+  assert.equal((await edit()).ok, false, 'Allow cannot bypass read-only Google access')
+  assert.deepEqual(f.calls, ['read_presentation'])
+
+  const upgrade = await f.plugin.connect('default')
+  assert.equal(new URL(upgrade.url).searchParams.get('scope'), definition.oauth!.scope)
+  f.setScope(definition.oauth!.scope)
+  await f.plugin.finish('default', f.callbackFor(upgrade.url).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  f.plugin.setPermission('default', 'write', 'ask')
+  const approval = new Promise<ReturnType<typeof f.plugin.accessList>[number]>(resolve => {
+    f.plugin.onAccessChanged = () => {
+      const request = f.plugin.accessList('default').find(request => request.action)
+      if (request) resolve(request)
+    }
+  })
+  const pending = edit()
+  const request = await approval
+  assert.deepEqual(f.calls, ['read_presentation'], 'Ask waits before executing the edit')
+  await f.plugin.respondAccess('default', request.id, true)
+  assert.equal((await pending).ok, true)
+  f.plugin.setPermission('default', 'write', 'deny')
+  assert.equal((await edit()).ok, false)
+  assert.deepEqual(f.calls, ['read_presentation', 'update_presentation'])
+  await f.plugin.disconnect('default')
+  assert.equal((await context.run('google_slides_list_tools', {})).ok, false)
 })
 
 async function connectedGmail(t: TestContext, preview?: NonNullable<McpPluginDefinition['localTools']>[number]['preview']) {

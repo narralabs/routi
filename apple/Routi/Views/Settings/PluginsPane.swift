@@ -101,7 +101,7 @@ private struct PluginRow: View {
                         if let scopes = status.grantedScopes {
                             let permissions = plugin.permissions(scopes)
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Granted permissions").font(.headline)
+                                Text("Google access").font(.headline)
                                 ForEach(permissions, id: \.self) { Text($0) }
                                 if permissions.isEmpty { Text("No service permissions reported.") }
                             }.padding(.vertical, 8)
@@ -178,6 +178,31 @@ private struct PluginRow: View {
                     Text(error).foregroundStyle(.red)
                     Button("Retry") { Task { await refresh(profileID: model.currentProfileID) } }
                 } else { ProgressView() }
+            }
+            if let status, status.connected, let permissions = status.permissions {
+                Section("Bot permissions") {
+                    Text("Applies to all bots using this connection in this profile. These rules don’t change your Google access.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(permissions) { permission in
+                        if permission.available {
+                            Picker(permission.label, selection: Binding(
+                                get: { permission.rule },
+                                set: { rule in
+                                    perform { profileID in
+                                        _ = try await model.pluginAction(plugin.id, "permission", profileID: profileID,
+                                            params: ["permissionId": permission.id, "rule": rule])
+                                    }
+                                }
+                            )) {
+                                Text("Allow").tag("allow")
+                                Text("Ask").tag("ask")
+                                Text("Deny").tag("deny")
+                            }.disabled(busy)
+                        } else {
+                            LabeledContent(permission.label, value: "Requires Google access")
+                        }
+                    }
+                }
             }
             if let status, status.connected {
                 Section("Bots with access") {

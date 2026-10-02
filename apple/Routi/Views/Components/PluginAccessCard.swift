@@ -14,13 +14,39 @@ struct PluginAccessCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("\(plugin.name) access", systemImage: "link")
+            Label(request.action.map { "\($0.title)?" } ?? "\(plugin.name) access", systemImage: "link")
                 .font(.headline)
-            Text(request.connected
-                 ? "Allow \(botName) to use your \(plugin.name) connection?"
-                 : "Connect \(plugin.name) for \(botName)")
-            Text("\(plugin.accessDescription) Access applies to this bot only and can be removed in Plugins.")
-                .font(.caption).foregroundStyle(.secondary)
+            if let action = request.action {
+                Text("\(botName) · \(plugin.name)").foregroundStyle(.secondary)
+                if let details = action.details {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(detail.label).font(.caption).foregroundStyle(.secondary)
+                                        #if os(macOS)
+                                        .onContinuousHover { phase in
+                                            if case .active = phase { NSCursor.arrow.set() }
+                                        }
+                                        #endif
+                                    Text(detail.value).textSelection(.enabled)
+                                }
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(4)
+                    }.frame(maxHeight: 340)
+                } else {
+                    Text("Couldn’t load the details. Ask the bot to try again.")
+                }
+                Text("This approves only this action.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text(request.connected
+                     ? "Allow \(botName) to use your \(plugin.name) connection?"
+                     : "Connect \(plugin.name) for \(botName)")
+                Text("\(plugin.accessDescription) Access applies to this bot only and can be removed in Plugins.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if request.connecting {
                 Text("Waiting for \(plugin.name) sign-in…").font(.callout)
                 if let loginURL { Link("Open sign-in again", destination: loginURL) }
@@ -38,7 +64,7 @@ struct PluginAccessCard: View {
             }
             HStack {
                 if !request.connecting {
-                    Button(request.connected ? "Allow" : "Connect") {
+                    Button((request.action?.isEmailSend == true ? "Send" : request.action?.title) ?? (request.connected ? "Allow" : "Connect")) {
                         perform {
                             let result = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": true])
                             if let text = result["url"] as? String, let url = URL(string: text) {
@@ -47,6 +73,7 @@ struct PluginAccessCard: View {
                             }
                         }
                     }.buttonStyle(.borderedProminent)
+                    .disabled(request.action != nil && request.action?.details == nil)
                 }
                 Button("Not now") {
                     perform {
@@ -60,7 +87,7 @@ struct PluginAccessCard: View {
         .padding(16)
         .frame(maxWidth: 420, alignment: .leading)
         .background(.background.secondary, in: .rect(cornerRadius: 14))
-        .overlay { RoundedRectangle(cornerRadius: 14).stroke(.quaternary) }
+        .overlay { RoundedRectangle(cornerRadius: 14).stroke(.quaternary).allowsHitTesting(false) }
     }
 
     private func perform(_ action: @escaping @MainActor () async throws -> Void) {

@@ -1,3 +1,4 @@
+import { googlePermissions } from './google-permissions.js'
 import { bundledGoogleClient } from './google-oauth-client.js'
 import type { McpPluginDefinition } from './mcp-plugin.js'
 
@@ -38,6 +39,7 @@ export function googleDefinitions(): McpPluginDefinition[] {
     readOnlyScope: 'https://www.googleapis.com/auth/documents.readonly',
   }].map(({ scope, readOnlyScope, ...definition }) => ({
     ...definition,
+    permissions: googlePermissions[definition.id],
     accountEmail: googleAccountEmail,
     oauth: {
       client: clientId ? { client_id: clientId, ...(clientSecret ? { client_secret: clientSecret } : {}) } : bundledGoogleClient,
@@ -50,7 +52,45 @@ export function googleDefinitions(): McpPluginDefinition[] {
 }
 
 /** Sends drafts when the connected Google MCP toolset lacks sending. Never retries. */
+type GmailPart = {
+  mimeType?: string; filename?: string; headers?: { name: string; value: string }[]
+  body?: { data?: string; attachmentId?: string }; parts?: GmailPart[]
+}
+
+async function gmailDraft(draftId: unknown, token: string, signal?: AbortSignal) {
+  if (typeof draftId !== 'string' || !draftId.trim()) throw new Error('Missing draft ID')
+  const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/drafts/${encodeURIComponent(draftId)}?format=full`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.any([AbortSignal.timeout(30_000), ...(signal ? [signal] : [])]),
+  })
+  if (!response.ok) throw new Error('Could not load the Gmail draft')
+  const draft = await response.json() as { message?: { id?: string; payload?: GmailPart } }
+  if (!draft.message?.id || !draft.message.payload) throw new Error('Incomplete Gmail draft')
+  return draft.message as { id: string; threadId?: string; payload: GmailPart }
+}
+
 export const gmailSendDraft: NonNullable<McpPluginDefinition['localTools']>[number] = {
+  preview: async (args, token, signal) => {
+    const draft = await gmailDraft(args.draftId, token, signal)
+    const parts = (part: GmailPart): GmailPart[] => [part, ...(part.parts ?? []).flatMap(parts)]
+    const all = parts(draft.payload)
+    const text = all.filter(part => part.mimeType === 'text/plain' && !part.filename)
+    // Do not substitute a truncated snippet or an attachment for the message being approved.
+    if (!text.length || text.some(part => part.body?.data === undefined)) throw new Error('Draft has no readable plain-text preview')
+    const details: Record<string, unknown> = {}
+    for (const name of ['from', 'to', 'cc', 'bcc', 'subject']) {
+      const values = draft.payload.headers?.filter(header => header.name.toLowerCase() === name).map(header => header.value)
+      if (values?.length) details[name] = values.join(', ')
+    }
+    for (const field of ['to', 'cc', 'bcc', 'subject']) details[field] ??= ''
+    details.body = text.map(part => Buffer.from(part.body!.data!, 'base64url').toString('utf8')).join('\n')
+    const attachments = all.filter(part => part.filename).map(part => part.filename!)
+    if (attachments.length) details.attachments = attachments
+    return { details, beforeRun: async (accessToken, currentSignal) => {
+      const current = await gmailDraft(args.draftId, accessToken, currentSignal)
+      if (current.id !== draft.id) throw new Error('The draft changed. Request approval again before sending.')
+    } }
+  },
   requiredScopes: ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send', 'https://mail.google.com/'],
   spec: {
     name: 'gmail_send_draft',

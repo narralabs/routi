@@ -41,7 +41,9 @@ struct ChatView: View {
             .sheet(isPresented: $showingSettings) {
                 BotSettingsSheet(bot: bot)
             }
-            .onChange(of: model.selectedConversationID) { draft = "" }
+            .onChange(of: model.selectedConversationID) {
+                draft = ""
+            }
     }
 
     private var content: some View {
@@ -94,10 +96,11 @@ struct ChatView: View {
                     if let handover = model.handover(for: bot.id) {
                         HandoverCard(handover: handover).padding(.top, 12)
                     }
-                    ForEach(model.pluginAccessRequests.filter { $0.conversationId == model.selectedConversationID }) { request in
+                    let approvals = model.pluginAccessRequests.filter { $0.conversationId == model.selectedConversationID }
+                    ForEach(approvals) { request in
                         PluginAccessCard(request: request).padding(.top, 12)
                     }
-                    if model.isBusy {
+                    if model.isBusy && approvals.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             // A bot working on its own schedule says so, or it looks
                             // like a bot answering a question nobody asked.

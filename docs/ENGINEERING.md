@@ -675,6 +675,11 @@ Initial connection offers read-only access; additional access requires Google
 consent. Reconnecting with fewer scopes does not revoke existing grants.
 Removing Google's Routi grant can affect other Google connections.
 
+Bot permissions apply per connection/profile: reads default to Allow, changes to
+Ask. Core enforces Allow/Ask/Deny for remote tools and local draft sending. Each
+approval covers one tool call with its displayed arguments; unknown tools are
+blocked until classified. These controls do not revoke Google's grants.
+
 ### Google Docs
 
 Docs uses `https://docsmcp.googleapis.com/mcp/v1` to read and edit existing documents.

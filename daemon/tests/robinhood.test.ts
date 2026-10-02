@@ -395,7 +395,7 @@ for (const expiresAt of [0, undefined]) test(`local Gmail send refreshes ${expir
   const tokens: string[] = []
   const f = await fixture(t, { ...definition, accountEmail: undefined,
     oauth: { ...definition.oauth!, client: { client_id: 'google-test' } },
-    localTools: [{ ...definition.localTools![1]!, run: async (_args, token) => {
+    localTools: [{ ...definition.localTools![0]!, run: async (_args, token) => {
       tokens.push(token)
       return { content: [] }
     } }],
@@ -403,10 +403,9 @@ for (const expiresAt of [0, undefined]) test(`local Gmail send refreshes ${expir
   f.setScope(definition.oauth!.scope)
   await f.plugin.finish('default', (await f.begin()).href)
   await f.plugin.enable('default', f.bot.id, true)
-  f.plugin.setPermission('default', 'send', 'allow')
   for (const [key, value] of f.saved) f.saved.set(key, JSON.stringify({ ...JSON.parse(value), expiresAt }))
   const context = f.plugin.context(f.bot.id)!
-  for (let i = 0; i < 2; i++) assert.equal((await context.run('gmail_send_email', { to: ['test@example.com'], subject: 'Test', body: 'Test' })).ok, true)
+  for (let i = 0; i < 2; i++) assert.equal((await context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'test' } })).ok, true)
   assert.deepEqual(tokens, ['refreshed-access', 'refreshed-access'])
   assert.equal(f.tokenCalls(), 2, 'one initial exchange and one refresh; reuse the fresh token')
   assert.deepEqual(f.calls, [])
@@ -727,9 +726,13 @@ test('Allow cannot grant missing Google access or bypass classification; reads s
 
 
 test('revoked Google login stops calls and asks the user to reconnect', async t => {
-  const f = await connectedGmail(t)
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const context = f.plugin.context(f.bot.id)!
   f.revoke()
-  const result = await f.context.run('gmail_call_tool', { name: 'get_message', arguments: {} })
+  const result = await context.run('gmail_call_tool', { name: 'get_message', arguments: {} })
   assert.equal(result.ok, false)
   assert.deepEqual(f.calls, [])
   const status = await f.plugin.status('default')
@@ -772,9 +775,13 @@ test('Gmail upgrade uses returned grants; cancelled consent preserves read acces
 
 
 test('temporary Google server errors do not disconnect a valid login', async t => {
-  const f = await connectedGmail(t)
+  const definition = googleDefinitions()[0]!
+  const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  await f.plugin.finish('default', (await f.begin()).href)
+  await f.plugin.enable('default', f.bot.id, true)
+  const context = f.plugin.context(f.bot.id)!
   f.fail()
-  assert.equal((await f.context.run('gmail_call_tool', { name: 'get_message', arguments: {} })).ok, false)
+  assert.equal((await context.run('gmail_call_tool', { name: 'get_message', arguments: {} })).ok, false)
   const status = await f.plugin.status('default')
   assert.equal(status.connected, true)
   assert.equal(status.error, null)

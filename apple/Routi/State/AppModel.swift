@@ -1246,9 +1246,9 @@ final class AppModel {
 
     // MARK: - Actions
 
-    func send(_ text: String, conversationID: String? = nil) async {
+    func send(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let conversationID = conversationID ?? selectedConversationID, !trimmed.isEmpty else { return }
+        guard let conversationID = selectedConversationID, !trimmed.isEmpty else { return }
         do {
             try await client.rpc("messages.send", [
                 "conversationId": conversationID,

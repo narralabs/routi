@@ -8,7 +8,7 @@ const group = (id: string, label: string, scopes: string[], tools: string[]): Pe
 export const googlePermissions: Record<string, PermissionGroup[]> = {
   gmail: [
     group('read', 'Read email', ['gmail.readonly', 'gmail.modify'], ['get_message', 'get_thread', 'get_draft', 'list_drafts', 'list_labels', 'list_filters', 'search_threads']),
-    group('send', 'Send email', ['gmail.send', 'gmail.compose', 'gmail.modify'], ['gmail_send_email', 'gmail_send_draft', 'send_message', 'reply', 'forward']),
+    group('send', 'Send email', ['gmail.send', 'gmail.compose', 'gmail.modify'], ['gmail_send_draft', 'send_message', 'reply', 'forward']),
     group('write', 'Manage drafts and messages', ['gmail.modify'], ['create_draft', 'update_draft', 'delete_draft', 'create_filter', 'create_label', 'delete_label', 'update_label', 'label_message', 'label_thread', 'unlabel_message', 'unlabel_thread', 'apply_sensitive_message_label', 'apply_sensitive_thread_label', 'update_message_labels', 'mark_message_spam', 'mark_thread_spam', 'unmark_message_spam', 'unmark_thread_spam', 'trash_message', 'trash_thread', 'untrash_message', 'untrash_thread']),
   ],
   google_calendar: [

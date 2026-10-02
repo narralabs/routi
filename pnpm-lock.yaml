@@ -31,9 +31,6 @@ importers:
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
-      nodemailer:
-        specifier: ^10.0.13
-        version: 10.0.13
       openai:
         specifier: ^7.10.0
         version: 7.10.0(ws@8.21.3)(zod@4.5.4)
@@ -837,10 +834,6 @@ packages:
     peerDependenciesMeta:
       encoding:
         optional: true
-
-  nodemailer@10.0.13:
-    resolution: {integrity: sha512-SzG86OlvcW/NNhUFC6uROMwRTL4n7MswfQqC/T8mhkmnY1YVa23zUEMYi4ijSeXSl9GLz9ZeTJDUatEDuY5FeQ==}
-    engines: {node: '>=20.0.0'}
 
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
@@ -1700,8 +1693,6 @@ snapshots:
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
-
-  nodemailer@10.0.13: {}
 
   object-assign@4.1.1: {}
 

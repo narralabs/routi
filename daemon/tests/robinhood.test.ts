@@ -451,7 +451,7 @@ test('plugin roster routes approvals and keeps service and profile grants separa
   t.after(() => plugins.close())
   const conversation = f.store.listConversations().find(c => c.botId === f.bot.id)!
   const ctx = plugins.toolContext(f.bot.id, conversation.id)
-  assert.equal(ctx.external!.specs.length, 12, 'two entry points per service plus the two local Gmail send tools')
+  assert.equal(ctx.external!.specs.length, 10, 'two tools per service, not full remote schemas')
   assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar', 'google_drive', 'google_docs'])
   await ctx.requestPluginAccess!('gmail')
   const request = plugins.accessList('default')[0]!
@@ -607,7 +607,7 @@ test('Ask approves one exact call; a second call and local draft sending require
 test('approval rejects changed details rather than sending something different from the preview', async t => {
   const f = await connectedGmail(t)
   const approval = f.nextApproval()
-  const call = f.context.run('gmail_send_email', { to: ['reader@example.com'], body: 'Original', subject: 'Hello' })
+  const call = f.context.run('gmail_call_tool', { name: 'send_message', arguments: { to: ['reader@example.com'], body: 'Original', subject: 'Hello' } })
   const request = await approval
   await assert.rejects(f.plugin.respondAccess('default', request.id, true, { body: 'Changed' }), /cannot be changed/)
   assert.deepEqual(f.localCalls, [])
@@ -636,7 +636,7 @@ for (const changed of [false, true]) test(`saved draft preview is bound to the a
 test('email approval refreshes credentials that expired while the user was reviewing', async t => {
   const f = await connectedGmail(t)
   const approval = f.nextApproval()
-  const call = f.context.run('gmail_send_email', { to: ['test@example.com'], subject: 'Test', body: 'Test' })
+  const call = f.context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'draft' } })
   const request = await approval
   for (const [key, value] of f.saved) f.saved.set(key, JSON.stringify({ ...JSON.parse(value), expiresAt: 0 }))
   assert.equal(f.tokenCalls(), 1)
@@ -646,41 +646,10 @@ test('email approval refreshes credentials that expired while the user was revie
   assert.equal(f.localCalls.length, 1, 'send executes once after refresh')
 })
 
-test('new email sends only the reviewed details and cancellation creates no draft', async t => {
-  const f = await connectedGmail(t)
-  assert.ok(f.context.specs.some(tool => tool.name === 'gmail_send_email'))
-  const details = { to: ['reader@example.com'], subject: 'Hello', body: 'Original' }
-  const next = f.nextApproval()
-  const call = f.context.run('gmail_send_email', details)
-  const request = await next
-  assert.equal(request.action!.tool, 'gmail_send_email')
-  assert.deepEqual(f.localCalls, [])
-  await f.plugin.respondAccess('default', request.id, true)
-  assert.equal((await call).ok, true)
-  assert.deepEqual(f.localCalls, [details])
-  assert.deepEqual(f.calls, [], 'no remote create_draft call')
-  assert.deepEqual(f.plugin.accessList('default'), [])
-  const deniedApproval = f.nextApproval()
-  const denied = f.context.run('gmail_send_email', details)
-  await f.plugin.respondAccess('default', (await deniedApproval).id, false)
-  assert.equal((await denied).ok, false)
-  assert.equal(f.localCalls.length, 1)
-  assert.deepEqual(f.calls, [])
-  const revisionApproval = f.nextApproval()
-  const revised = { ...details, body: 'Revised through chat' }
-  const revision = f.context.run('gmail_send_email', revised)
-  const revisedRequest = await revisionApproval
-  assert.deepEqual(JSON.parse(revisedRequest.action!.arguments), revised)
-  await f.plugin.respondAccess('default', revisedRequest.id, true)
-  assert.equal((await revision).ok, true)
-  assert.deepEqual(f.localCalls, [details, revised])
-})
-
-test('Deny blocks direct and discovered tools, persists across restart, and does not change Google grants', async t => {
+test('Deny blocks tools, persists across restart, and does not change Google grants', async t => {
   const f = await connectedGmail(t)
   const granted = (await f.plugin.status('default')).grantedScopes
   f.plugin.setPermission('default', 'send', 'deny')
-  assert.equal((await f.context.run('gmail_send_email', { to: ['reader@example.com'], subject: 'Hi', body: 'Hi' })).ok, false)
   for (const name of ['send_message', 'gmail_send_draft']) {
     assert.equal((await f.context.run('gmail_call_tool', { name, arguments: { draftId: 'draft' } })).ok, false)
   }

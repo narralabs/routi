@@ -695,3 +695,6 @@ Enable `sheetsmcp.googleapis.com` and `sheets.googleapis.com`. Configure
 `spreadsheets` and `spreadsheets.readonly`, plus `openid email`, in Google OAuth
 and verification. Read-only consent requests only `spreadsheets.readonly` for
 spreadsheet access.
+
+Sheets edits default to Allow once Google grants write access. Users can choose
+Ask or Deny in Bot permissions; saved choices take precedence over the default.

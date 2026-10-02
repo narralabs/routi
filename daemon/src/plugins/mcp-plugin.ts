@@ -119,7 +119,7 @@ export class McpPlugin {
   }
 
   private rule(profileId: string, id: string): PermissionRule {
-    return (this.store.getSettings()[`plugin-permission:${profileId}:${this.definition.id}:${id}`] as PermissionRule | undefined) ?? (id === 'read' ? 'allow' : 'ask')
+    return (this.store.getSettings()[`plugin-permission:${profileId}:${this.definition.id}:${id}`] as PermissionRule | undefined) ?? this.definition.permissions?.find(group => group.id === id)?.defaultRule ?? (id === 'read' ? 'allow' : 'ask')
   }
 
   setPermission(profileId: string, id: string, rule: PermissionRule): void {

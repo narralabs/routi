@@ -152,7 +152,7 @@ export class AnthropicSubscriptionAdapter implements ProviderAdapter {
         mcpServers: {
           desktop: {
             type: 'http',
-            // Routi already discovers plugin tools lazily; keep its small entry points current.
+            // Load Routi's entry-point tools upfront; discover other plugin tools on demand.
             alwaysLoad: true,
             // Allow the ten-minute approval window plus tool execution.
             timeout: 11 * 60_000,

@@ -71,7 +71,7 @@ private struct PluginRow: View {
                 Button("Retry") { Task { await refresh(profileID: model.currentProfileID) } }
             }
         }
-        .task(id: model.currentProfileID) { await pollStatus() }
+        .task(id: "\(model.currentProfileID):\(model.pluginStatusRevision)") { await loadStatus() }
     }
 
     private var detail: some View {
@@ -230,7 +230,7 @@ private struct PluginRow: View {
             Text("This removes this profile’s saved login and bot access in Routi. \(plugin.name) may still show Routi as connected. To revoke authorization too, remove it in your account’s connected-app settings.")
         }
         .onChange(of: model.currentProfileID) { showingDisconnectAlert = false }
-        .task(id: model.currentProfileID) { await pollStatus() }
+        .task(id: "\(model.currentProfileID):\(model.pluginStatusRevision)") { await loadStatus() }
     }
 
     private func disconnect() {
@@ -266,7 +266,7 @@ private struct PluginRow: View {
         }.disabled(busy)
     }
 
-    @MainActor private func pollStatus() async {
+    @MainActor private func loadStatus() async {
         let profileID = model.currentProfileID
         if loadedProfileID != profileID {
             loadedProfileID = profileID
@@ -278,10 +278,7 @@ private struct PluginRow: View {
             loginURL = nil
             callbackURL = ""
         }
-        while !Task.isCancelled {
-            await refresh(profileID: profileID)
-            do { try await Task.sleep(for: .seconds(status?.connecting == true ? 2 : 10)) } catch { return }
-        }
+        await refresh(profileID: profileID)
     }
 
     @MainActor private func refresh(profileID: String) async {

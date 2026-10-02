@@ -126,6 +126,7 @@ export class McpPlugin {
     this.checkProfile(profileId)
     if (!this.definition.permissions?.some(group => group.id === id) || !['allow', 'ask', 'deny'].includes(rule)) throw new Error('Unknown plugin permission.')
     this.store.setSettings({ [`plugin-permission:${profileId}:${this.definition.id}:${id}`]: rule })
+    this.onAccessChanged(profileId)
     for (const request of this.accessList(profileId)) if (request.action) this.decisions.get(request.id)?.(false)
   }
 
@@ -232,14 +233,15 @@ export class McpPlugin {
       let url = ''
       const provider = this.provider(profileId, { redirectUrl }, { state, scope, redirect: value => { url = value.href } })
       const timer = setTimeout(() => {
-        this.cancel(profileId)
         this.errors.set(profileId, 'Login expired. Connect again.')
+        this.cancel(profileId)
       }, LOGIN_TIMEOUT)
       timer.unref()
       this.pending.set(profileId, { provider, state, server, timer, redirectUrl, accessId })
       try {
         await auth(provider, { serverUrl: this.definition.url, scope, fetchFn: networkFetch })
         if (!url) throw new Error(`${this.definition.name} did not provide a login URL.`)
+        this.onAccessChanged(profileId)
         return { url }
       } catch {
         this.cancel(profileId)
@@ -275,10 +277,10 @@ export class McpPlugin {
         }
       } catch {
         const request = pending.accessId ? this.access.get(pending.accessId) : undefined
-        if (request) { request.connecting = false; this.onAccessChanged(profileId) }
+        if (request) request.connecting = false
         this.errors.set(profileId, `${this.definition.name} login failed. Connect again.`)
         throw new Error(`${this.definition.name} login failed. Connect again.`)
-      }
+      } finally { this.onAccessChanged(profileId) }
     })
   }
 
@@ -287,7 +289,8 @@ export class McpPlugin {
     if (pending) {
       clearTimeout(pending.timer); pending.server.close(); this.pending.delete(profileId)
       const request = pending.accessId ? this.access.get(pending.accessId) : undefined
-      if (request) { request.connecting = false; this.onAccessChanged(profileId) }
+      if (request) request.connecting = false
+      this.onAccessChanged(profileId)
     }
   }
 
@@ -311,6 +314,7 @@ export class McpPlugin {
       this.revoke(profileId)
       await this.secrets.clearApiKey(this.definition.credentialProvider ?? `mcp:${this.definition.id}`, this.slot(profileId))
       this.errors.delete(profileId)
+      this.onAccessChanged(profileId)
     })
   }
 
@@ -323,6 +327,7 @@ export class McpPlugin {
       this.store.setPluginEnabled(this.definition.id, botId, enabled)
       if (!enabled) for (const request of this.accessList(profileId)) if (request.botId === botId && request.action) this.decisions.get(request.id)?.(false)
       this.changed(botId)
+      this.onAccessChanged(profileId)
     })
   }
 
@@ -435,6 +440,7 @@ export class McpPlugin {
               await this.secrets.clearApiKey(this.definition.credentialProvider ?? `mcp:${this.definition.id}`, this.slot(bot.profileId))
               this.revoke(bot.profileId)
               this.errors.set(bot.profileId, failure.message)
+              this.onAccessChanged(bot.profileId)
             }
             console.warn(`${this.definition.name} request failed`, { botId, stage, kind: failure.kind })
             const outcome = stage === 'call'

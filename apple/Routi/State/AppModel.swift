@@ -85,6 +85,7 @@ final class AppModel {
     /// Bots waiting on you, by bot id. A bot with one is paused until it is answered.
     var handovers: [String: Handover] = [:]
     var pluginAccessRequests: [PluginAccessRequest] = []
+    var pluginStatusRevision = 0
     /// Where the desktop's own pointer is, in its pixels. Absent until a frame says.
     var surfacePointer: CGPoint?
     @ObservationIgnored private var hostFrameTask: Task<Void, Never>?
@@ -162,6 +163,7 @@ final class AppModel {
             self.connection = state
             switch state {
             case .connected:
+                self.pluginStatusRevision += 1
                 self.isLoadingBots = true
                 self.errorMessage = nil
                 self.connectionFailed = false; self.isSettling = false
@@ -1452,6 +1454,7 @@ final class AppModel {
 
         case "plugin.access.updated":
             if event.payload["profileId"] as? String == currentProfileID {
+                pluginStatusRevision += 1
                 Task { await refreshPluginAccess() }
             }
 

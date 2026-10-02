@@ -356,7 +356,7 @@ export class McpPlugin {
           if (!this.store.pluginEnabled(this.definition.id, botId)) return { ok: false, output: 'Plugin access is disabled for this bot.', summary: 'Access disabled' }
           if (!group) return { ok: false, output: 'This tool has not been classified for Routi permissions and cannot run.', summary: 'Unsupported tool' }
           const saved = await this.load(bot.profileId)
-          if (!hasScope(group, saved?.tokens?.scope?.split(/\s+/) ?? [])) return { ok: false, output: 'This Google connection does not allow this action. Grant additional access in Plugins first.', summary: 'Google access required' }
+          if (!hasScope(group, saved?.tokens?.scope?.split(/\s+/) ?? [])) return { ok: false, output: 'This connection does not allow this action. Grant additional access in Plugins first.', summary: 'Additional access required' }
           const rule = this.rule(bot.profileId, group.id)
           if (rule === 'deny') return { ok: false, output: 'This action is denied by Bot permissions in Plugins.', summary: 'Action denied' }
           if (rule === 'ask') {
@@ -417,7 +417,7 @@ export class McpPlugin {
                 return { ok: true, output: JSON.stringify(tool), summary: `${this.definition.name} schema: ${tool.name}` }
               }
               return { ok: true, output: JSON.stringify({
-                instructions: `Pass an exact name to ${this.definition.id}_list_tools to get its argument schema, then use ${this.definition.id}_call_tool. Do not guess names or arguments.` + (this.definition.permissions ? ` Missing Google access: ask the person to open Plugins > ${this.definition.name} > Grant additional access. Denied by Bot permissions: ask them to change that setting. Do not use the browser or another connection to bypass these limits.` : ''),
+                instructions: `Pass an exact name to ${this.definition.id}_list_tools to get its argument schema, then use ${this.definition.id}_call_tool. Do not guess names or arguments.` + (this.definition.permissions ? ` Missing granted permissions: ask the person to open Plugins > ${this.definition.name} > Grant additional access. Denied by Bot permissions: ask them to change that setting. Do not use the browser or another connection to bypass these limits.` : ''),
                 ...(this.definition.permissions ? { permissions: this.definition.permissions.map(group => ({
                   name: group.label, granted: hasScope(group, granted ?? []), rule: this.rule(bot.profileId, group.id),
                 })) } : {}),

@@ -538,7 +538,7 @@ for (const definition of googleDefinitions()) test(`${definition.name} reports g
       { name: 'Read spreadsheets', granted: true, rule: 'allow' },
       { name: 'Edit spreadsheets', granted: false, rule: 'allow' },
     ])
-    assert.match(index.instructions, /Plugins > Google Sheets > Grant additional access/)
+    assert.match(index.instructions, /Missing granted permissions:.*Plugins > Google Sheets > Grant additional access/)
     assert.match(index.instructions, /Do not use the browser/)
     assert.equal((await context.run('google_sheets_call_tool', { name: 'get_values', arguments: {} })).ok, true)
     for (const name of definition.permissions![1]!.tools) {

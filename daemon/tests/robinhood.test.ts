@@ -403,6 +403,7 @@ for (const expiresAt of [0, undefined]) test(`local Gmail send refreshes ${expir
   f.setScope(definition.oauth!.scope)
   await f.plugin.finish('default', (await f.begin()).href)
   await f.plugin.enable('default', f.bot.id, true)
+  f.plugin.setPermission('default', 'send', 'allow')
   for (const [key, value] of f.saved) f.saved.set(key, JSON.stringify({ ...JSON.parse(value), expiresAt }))
   const context = f.plugin.context(f.bot.id)!
   for (let i = 0; i < 2; i++) assert.equal((await context.run('gmail_call_tool', { name: 'gmail_send_draft', arguments: { draftId: 'test' } })).ok, true)
@@ -728,6 +729,7 @@ test('Allow cannot grant missing Google access or bypass classification; reads s
 test('revoked Google login stops calls and asks the user to reconnect', async t => {
   const definition = googleDefinitions()[0]!
   const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  f.setScope(definition.oauth!.scope)
   await f.plugin.finish('default', (await f.begin()).href)
   await f.plugin.enable('default', f.bot.id, true)
   const context = f.plugin.context(f.bot.id)!
@@ -777,6 +779,7 @@ test('Gmail upgrade uses returned grants; cancelled consent preserves read acces
 test('temporary Google server errors do not disconnect a valid login', async t => {
   const definition = googleDefinitions()[0]!
   const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })
+  f.setScope(definition.oauth!.scope)
   await f.plugin.finish('default', (await f.begin()).href)
   await f.plugin.enable('default', f.bot.id, true)
   const context = f.plugin.context(f.bot.id)!

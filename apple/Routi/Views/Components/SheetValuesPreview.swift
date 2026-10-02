@@ -5,6 +5,8 @@ struct SheetValuesPreview: View {
     private let url: URL
     private let range: String
     private let rows: [[String]]
+    private let rowCount: Int
+    private let columnCount: Int
 
     init?(arguments: String) {
         guard let values = try? JSONSerialization.jsonObject(with: Data(arguments.utf8)) as? [String: Any],
@@ -16,7 +18,9 @@ struct SheetValuesPreview: View {
               let url = URL(string: "https://docs.google.com/spreadsheets/d/\(id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "")/edit") else { return nil }
         self.url = url
         self.range = range
-        self.rows = rows.map { $0.map { $0 is NSNull ? "Unchanged" : String(describing: $0) } }
+        self.rowCount = rows.count
+        self.columnCount = rows.map(\.count).max() ?? 0
+        self.rows = rows.prefix(20).map { $0.prefix(10).map { $0 is NSNull ? "Unchanged" : String(describing: $0) } }
     }
 
     var body: some View {
@@ -27,6 +31,10 @@ struct SheetValuesPreview: View {
                 Text(range).textSelection(.enabled)
             }
             Text("New values").font(.caption).foregroundStyle(.secondary)
+            if rowCount > 20 || columnCount > 10 {
+                Text("Showing the first \(rows.count) of \(rowCount) rows and up to \(min(columnCount, 10)) of \(columnCount) columns. Approval applies to the entire update.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             ScrollView([.horizontal, .vertical]) {
                 Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
                     ForEach(rows.indices, id: \.self) { row in

@@ -25,9 +25,10 @@ struct PluginAccessCard: View {
               action.tool == "update_values" else { return nil }
         return SheetValuesPreview(arguments: action.arguments)
     }
-    private var actionTitle: String? { sheetEdit == nil ? request.action?.title : "Update spreadsheet" }
 
     var body: some View {
+        let sheetEdit = self.sheetEdit
+        let actionTitle = sheetEdit == nil ? request.action?.title : "Update spreadsheet"
         VStack(alignment: .leading, spacing: 12) {
             Label(actionTitle.map { "\($0)?" } ?? "\(plugin.name) access", systemImage: "link")
                 .font(.headline)

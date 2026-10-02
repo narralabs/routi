@@ -540,15 +540,15 @@ for (const definition of googleDefinitions()) test(`${definition.name} reports g
     ])
     assert.match(index.instructions, /Plugins > Google Sheets > Grant additional access/)
     assert.match(index.instructions, /Do not use the browser/)
-    for (const rule of ['ask', 'deny'] as const) {
-      f.plugin.setPermission('default', 'write', rule)
-      assert.equal((await f.plugin.status('default')).permissions!.find(p => p.id === 'write')!.rule, rule)
-    }
     assert.equal((await context.run('google_sheets_call_tool', { name: 'get_values', arguments: {} })).ok, true)
     for (const name of definition.permissions![1]!.tools) {
       assert.equal((await context.run('google_sheets_call_tool', { name, arguments: {} })).ok, false)
     }
     assert.deepEqual(f.calls, ['get_values'], 'read-only Sheets cannot execute any edit tool')
+    for (const rule of ['ask', 'deny'] as const) {
+      f.plugin.setPermission('default', 'write', rule)
+      assert.equal((await f.plugin.status('default')).permissions!.find(p => p.id === 'write')!.rule, rule)
+    }
   }
   if (definition.id === 'gmail') {
     const context = f.plugin.context(f.bot.id)!

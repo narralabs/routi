@@ -11,6 +11,7 @@ struct ChatView: View {
     @Binding var showBotSidebar: Bool
 
     @State private var draft = ""
+    @State private var editingApproval = false
     @State private var showingSettings = false
     @FocusState private var composerFocused: Bool
     #if os(macOS)
@@ -37,6 +38,7 @@ struct ChatView: View {
             // then sits over the transcript. The name stays in the bar beside Back.
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .onPreferenceChange(ApprovalEditingKey.self) { editingApproval = $0 }
             .toolbar { toolbarContent }
             .sheet(isPresented: $showingSettings) {
                 BotSettingsSheet(bot: bot)
@@ -197,6 +199,7 @@ struct ChatView: View {
             onSend: send,
             onInterrupt: { Task { await model.interrupt() } }
         )
+        .disabled(editingApproval && model.connection == .connected)
     }
 
     /// Provider · Model · Effort, under the composer on the right — and the place to

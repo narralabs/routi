@@ -533,6 +533,13 @@ for (const definition of googleDefinitions()) test(`${definition.name} reports g
   await f.plugin.enable('default', f.bot.id, true)
   if (definition.id === 'google_sheets') {
     const context = f.plugin.context(f.bot.id)!
+    const index = JSON.parse((await context.run('google_sheets_list_tools', {})).output)
+    assert.deepEqual(index.permissions, [
+      { name: 'Read spreadsheets', granted: true, rule: 'allow' },
+      { name: 'Edit spreadsheets', granted: false, rule: 'ask' },
+    ])
+    assert.match(index.instructions, /Plugins > Google Sheets > Grant additional access/)
+    assert.match(index.instructions, /Do not use the browser/)
     assert.equal((await context.run('google_sheets_call_tool', { name: 'get_values', arguments: {} })).ok, true)
     for (const name of definition.permissions![1]!.tools) {
       assert.equal((await context.run('google_sheets_call_tool', { name, arguments: {} })).ok, false)

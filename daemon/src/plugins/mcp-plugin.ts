@@ -417,7 +417,10 @@ export class McpPlugin {
                 return { ok: true, output: JSON.stringify(tool), summary: `${this.definition.name} schema: ${tool.name}` }
               }
               return { ok: true, output: JSON.stringify({
-                instructions: `Pass an exact name to ${this.definition.id}_list_tools to get its argument schema, then use ${this.definition.id}_call_tool. Do not guess names or arguments.`,
+                instructions: `Pass an exact name to ${this.definition.id}_list_tools to get its argument schema, then use ${this.definition.id}_call_tool. Do not guess names or arguments.` + (this.definition.permissions ? ` Missing Google access: ask the person to open Plugins > ${this.definition.name} > Grant additional access. Denied by Bot permissions: ask them to change that setting. Do not use the browser or another connection to bypass these limits.` : ''),
+                ...(this.definition.permissions ? { permissions: this.definition.permissions.map(group => ({
+                  name: group.label, granted: hasScope(group, granted ?? []), rule: this.rule(bot.profileId, group.id),
+                })) } : {}),
                 tools: tools.map(tool => ({ name: tool.name, description: (tool.description ?? '').slice(0, 80) })),
               }), summary: `${tools.length} ${this.definition.name} tools` }
             }

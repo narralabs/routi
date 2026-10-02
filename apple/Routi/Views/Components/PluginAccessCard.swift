@@ -20,13 +20,23 @@ struct PluginAccessCard: View {
     private var plugin: PluginInfo { PluginInfo.find(request.pluginId ?? "robinhood") ?? PluginInfo.all[0] }
     private var botName: String { model.bots.first { $0.id == request.botId }?.name ?? "This bot" }
 
+    private var sheetEdit: SheetValuesPreview? {
+        guard request.pluginId == "google_sheets", let action = request.action,
+              action.tool == "update_values" else { return nil }
+        return SheetValuesPreview(arguments: action.arguments)
+    }
+
     var body: some View {
+        let sheetEdit = self.sheetEdit
+        let actionTitle = sheetEdit == nil ? request.action?.title : "Update spreadsheet"
         VStack(alignment: .leading, spacing: 12) {
-            Label(request.action.map { "\($0.title)?" } ?? "\(plugin.name) access", systemImage: "link")
+            Label(actionTitle.map { "\($0)?" } ?? "\(plugin.name) access", systemImage: "link")
                 .font(.headline)
             if let action = request.action {
                 Text("\(botName) · \(plugin.name)").foregroundStyle(.secondary)
-                if let details = action.details {
+                if let sheetEdit {
+                    sheetEdit
+                } else if let details = action.details {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
@@ -92,7 +102,7 @@ struct PluginAccessCard: View {
             } else {
             HStack {
                 if !request.connecting {
-                    Button((request.action?.isEmailSend == true ? "Send" : request.action?.title) ?? (request.connected ? "Allow" : "Connect")) {
+                    Button((sheetEdit != nil ? "Apply changes" : request.action?.isEmailSend == true ? "Send" : request.action?.title) ?? (request.connected ? "Allow" : "Connect")) {
                         perform {
                             let result = try await model.pluginAction(plugin.id, "access.respond", profileID: request.profileId, params: ["id": request.id, "allow": true])
                             if let text = result["url"] as? String, let url = URL(string: text) {

@@ -24,6 +24,11 @@ extension PluginInfo {
                 ("Read documents", ["documents.readonly", "documents", "drive.readonly", "drive"]),
                 ("Edit documents", ["documents", "drive"]),
             ]
+        case "google_sheets":
+            capabilities = [
+                ("Read spreadsheets", ["spreadsheets.readonly", "spreadsheets", "drive.readonly", "drive"]),
+                ("Edit spreadsheets", ["spreadsheets", "drive"]),
+            ]
         case "google_drive":
             capabilities = [
                 ("Read Drive files", ["drive.readonly", "drive"]),
@@ -40,6 +45,7 @@ extension PluginInfo {
         case "gmail": "Send email and manage drafts and messages"
         case "google_calendar": "Create, edit, and delete events"
         case "google_docs": "Edit document text and formatting"
+        case "google_sheets": "Edit spreadsheet values, formulas, and formatting"
         default: "Manage files used with Routi"
         }
     }
@@ -48,6 +54,7 @@ extension PluginInfo {
         switch id {
         case "gmail": ["Read email"]
         case "google_docs": ["Read documents"]
+        case "google_sheets": ["Read spreadsheets"]
         case "google_calendar": ["View calendars", "Check availability", "Read events"]
         case "google_drive": ["Read Drive files"]
         default: []

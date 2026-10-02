@@ -687,3 +687,14 @@ Enable `docsmcp.googleapis.com` and `docs.googleapis.com`. Configure `documents`
 and `documents.readonly`, plus `openid email`, in Google OAuth and verification.
 Docs has its own connection and bot grants; read-only consent requests only
 `documents.readonly` for document access.
+
+### Google Sheets
+
+Sheets uses `https://sheetsmcp.googleapis.com/mcp/v1` to read and edit spreadsheets.
+Enable `sheetsmcp.googleapis.com` and `sheets.googleapis.com`. Configure
+`spreadsheets` and `spreadsheets.readonly`, plus `openid email`, in Google OAuth
+and verification. Read-only consent requests only `spreadsheets.readonly` for
+spreadsheet access.
+
+Sheets edits default to Allow once Google grants write access. Users can choose
+Ask or Deny in Bot permissions; saved choices take precedence over the default.

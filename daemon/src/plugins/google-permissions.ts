@@ -1,5 +1,5 @@
 export type PermissionRule = 'allow' | 'ask' | 'deny'
-export type PermissionGroup = { id: string; label: string; scopes: string[]; tools: string[] }
+export type PermissionGroup = { id: string; label: string; scopes: string[]; tools: string[]; defaultRule?: PermissionRule }
 const group = (id: string, label: string, scopes: string[], tools: string[]): PermissionGroup => ({
   id, label, scopes: scopes.map(scope => `https://www.googleapis.com/auth/${scope}`), tools,
 })
@@ -22,6 +22,10 @@ export const googlePermissions: Record<string, PermissionGroup[]> = {
   google_docs: [
     group('read', 'Read documents', ['documents.readonly', 'documents', 'drive.readonly', 'drive'], ['read_doc']),
     group('write', 'Edit documents', ['documents', 'drive'], ['update_doc']),
+  ],
+  google_sheets: [
+    group('read', 'Read spreadsheets', ['spreadsheets.readonly', 'spreadsheets', 'drive.readonly', 'drive'], ['get_values', 'get_spreadsheet']),
+    { ...group('write', 'Edit spreadsheets', ['spreadsheets', 'drive'], ['update_spreadsheet', 'update_values', 'update_formulas', 'insert_dimension']), defaultRule: 'allow' },
   ],
 }
 

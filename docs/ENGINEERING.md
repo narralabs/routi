@@ -670,7 +670,11 @@ Drive uses Google’s hosted MCP with a separate connection and bot grants. Enab
 writes are limited to files created by or explicitly shared with the app.
 Include these scopes in the OAuth verification request.
 
-Google access shows the returned OAuth grants; additional access requires consent.
+Granted permissions show the returned OAuth scopes, not the requested selection.
+Initial connection offers read-only access; additional access requires Google
+consent. Reconnecting with fewer scopes does not revoke existing grants.
+Removing Google's Routi grant can affect other Google connections.
+
 Bot permissions apply per connection/profile: reads default to Allow, changes to
 Ask. Core enforces Allow/Ask/Deny for remote tools and local draft sending. Each
 approval covers one tool call with its displayed arguments; unknown tools are

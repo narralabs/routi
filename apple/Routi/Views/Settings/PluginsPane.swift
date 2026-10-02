@@ -143,7 +143,7 @@ private struct PluginRow: View {
                             .toggleStyle(.checkbox)
                             #endif
                             Text(status.connected
-                                 ? "Choose access to request. Existing Google permissions won’t be removed."
+                                 ? "Existing permissions won’t be removed."
                                  : "Choose access before continuing with Google.")
                                 .font(.caption).foregroundStyle(.secondary)
                             HStack(spacing: 12) {

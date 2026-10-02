@@ -26,6 +26,7 @@
     "@openai/codex": "^0.153.4",
     "@routi/protocol": "workspace:^",
     "better-sqlite3": "^13.0.3",
+    "nodemailer": "^10.0.13",
     "openai": "^7.10.0",
     "routi-relay": "github:laborosai/routi-relay#e0bc7585836d837ac3fdc81980bcd47f612c9878",
     "ws": "^8.21.3",

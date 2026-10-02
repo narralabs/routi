@@ -450,7 +450,8 @@ export class AuthManager {
     // whether a key comes along.
     if (mode !== 'api_key' && mode !== 'subscription') return
     if (mode === 'api_key' && !apiKey) return
-    if (mode === 'subscription' && !(await this.harnessSignedIn(provider, profileId))) return
+    // Restore saved connections even when a CLI's login check is temporarily unavailable.
+    // The CLI validates its credentials when the user runs a task.
 
     const opts = {
       cwd: this.sessionCwd,
@@ -472,17 +473,6 @@ export class AuthManager {
           ? new XaiSubscriptionAdapter(opts)
           : new OpenAiSubscriptionAdapter(opts),
     )
-  }
-
-  /** Whether the CLI behind a harness provider still has a live account login. */
-  private async harnessSignedIn(provider: string, profileId: string): Promise<boolean> {
-    const tools = this.toolsFor(profileId)
-    const cli = provider === 'anthropic-claude'
-      ? await tools.cli.status()
-      : provider === 'xai-grok'
-        ? await tools.grok.status()
-        : await tools.codex.status()
-    return cli.installed && cli.loggedIn
   }
 
   /** A key is proven against the real API before it is stored, and never stored if it fails. */

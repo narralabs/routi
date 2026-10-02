@@ -451,8 +451,8 @@ test('plugin roster routes approvals and keeps service and profile grants separa
   t.after(() => plugins.close())
   const conversation = f.store.listConversations().find(c => c.botId === f.bot.id)!
   const ctx = plugins.toolContext(f.bot.id, conversation.id)
-  assert.equal(ctx.external!.specs.length, 12, 'two entry points per service plus the two local Gmail send tools')
-  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar', 'google_drive', 'google_docs'])
+  assert.equal(ctx.external!.specs.length, 14, 'two entry points per service plus the two local Gmail send tools')
+  assert.deepEqual(ctx.pluginIds, ['robinhood', 'gmail', 'google_calendar', 'google_drive', 'google_docs', 'google_sheets'])
   await ctx.requestPluginAccess!('gmail')
   const request = plugins.accessList('default')[0]!
   assert.equal(request.pluginId, 'gmail')
@@ -531,6 +531,14 @@ for (const definition of googleDefinitions()) test(`${definition.name} reports g
   await f.plugin.finish('default', f.callbackFor(login.href).href)
   assert.deepEqual((await f.plugin.status('default')).grantedScopes, [granted])
   await f.plugin.enable('default', f.bot.id, true)
+  if (definition.id === 'google_sheets') {
+    const context = f.plugin.context(f.bot.id)!
+    assert.equal((await context.run('google_sheets_call_tool', { name: 'get_values', arguments: {} })).ok, true)
+    for (const name of definition.permissions![1]!.tools) {
+      assert.equal((await context.run('google_sheets_call_tool', { name, arguments: {} })).ok, false)
+    }
+    assert.deepEqual(f.calls, ['get_values'], 'read-only Sheets cannot execute any edit tool')
+  }
   if (definition.id === 'gmail') {
     const context = f.plugin.context(f.bot.id)!
     const index = await context.run('gmail_list_tools', {})

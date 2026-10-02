@@ -23,6 +23,10 @@ export const googlePermissions: Record<string, PermissionGroup[]> = {
     group('read', 'Read documents', ['documents.readonly', 'documents', 'drive.readonly', 'drive'], ['read_doc']),
     group('write', 'Edit documents', ['documents', 'drive'], ['update_doc']),
   ],
+  google_sheets: [
+    group('read', 'Read spreadsheets', ['spreadsheets.readonly', 'spreadsheets', 'drive.readonly', 'drive'], ['get_values', 'get_spreadsheet']),
+    group('write', 'Edit spreadsheets', ['spreadsheets', 'drive'], ['update_spreadsheet', 'update_values', 'update_formulas', 'insert_dimension']),
+  ],
 }
 
 export function hasScope(group: PermissionGroup, scopes: string[]): boolean {

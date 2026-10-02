@@ -52,8 +52,12 @@ test('Claude tool round-trips preserve earlier text live and in storage, and res
   store.ensureDefaultProfile()
   const { bot, conversation } = store.createBot({ name: 'Screenshot Bot', provider: 'anthropic-claude' })
   let queryCount = 0
-  const adapter = new AnthropicSubscriptionAdapter({ cwd: '/tmp', mcpBaseUrl: 'http://127.0.0.1:7172' }, ({ prompt }) => {
+  const adapter = new AnthropicSubscriptionAdapter({ cwd: '/tmp', mcpBaseUrl: 'http://127.0.0.1:7172' }, ({ prompt, options }) => {
     queryCount++
+    assert.deepEqual(options?.mcpServers?.desktop, {
+      type: 'http', alwaysLoad: true, timeout: 11 * 60_000,
+      url: `http://127.0.0.1:7172/mcp/${bot.id}/${conversation.id}`,
+    })
     assert.notEqual(typeof prompt, 'string')
     const input = prompt as AsyncIterable<unknown>
     const messages = (async function* () {

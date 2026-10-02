@@ -791,6 +791,32 @@ test('temporary Google server errors do not disconnect a valid login', async t =
   assert.deepEqual(status.botIds, [f.bot.id])
 })
 
+test('browser OAuth completion and disconnect notify the app without status polling', async t => {
+  const f = await fixture(t)
+  const updates: string[] = []
+  f.plugin.onAccessChanged = profileId => updates.push(profileId)
+  const callback = await f.begin()
+  assert.ok(updates.length > 0)
+  assert.equal((await f.plugin.status('default')).connecting, true)
+  updates.length = 0
+  assert.equal((await fetch(callback)).status, 200)
+  assert.deepEqual(updates, ['default'])
+  assert.equal((await f.plugin.status('default')).connected, true)
+  assert.equal((await f.plugin.status('default')).connecting, false)
+
+  updates.length = 0
+  await f.plugin.disconnect('default')
+  assert.ok(updates.length > 0)
+  assert.equal((await f.plugin.status('default')).connected, false)
+
+  const declined = await f.begin()
+  declined.searchParams.set('error', 'access_denied')
+  updates.length = 0
+  assert.equal((await fetch(declined)).status, 400)
+  assert.deepEqual(updates, ['default'])
+  assert.match((await f.plugin.status('default')).error!, /login failed/)
+})
+
 test('Gmail can request read-only access again after the user declines every service permission', async t => {
   const definition = googleDefinitions()[0]!
   const f = await fixture(t, { ...definition, accountEmail: undefined, oauth: { ...definition.oauth!, client: { client_id: 'google-test' } } })

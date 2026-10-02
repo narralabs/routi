@@ -111,9 +111,9 @@ private struct PluginRow: View {
                         }
                     }
                     HStack {
-                        Button(status.connected ? (status.supportsReadOnly == true ? "Change permissions" : "Reconnect") : "Connect") {
+                        Button(status.connected ? (status.supportsReadOnly == true ? "Grant additional access" : "Reconnect") : "Connect") {
                             if status.supportsReadOnly == true {
-                                requestedReadOnly = !status.connected || !plugin.hasWriteAccess(status.grantedScopes ?? [])
+                                requestedReadOnly = true
                                 choosingPermissions.toggle()
                             }
                             else { connect() }
@@ -143,7 +143,7 @@ private struct PluginRow: View {
                             .toggleStyle(.checkbox)
                             #endif
                             Text(status.connected
-                                 ? "Continue with Google to apply your selection. Granted permissions above show your current access."
+                                 ? "Existing permissions won’t be removed."
                                  : "Choose access before continuing with Google.")
                                 .font(.caption).foregroundStyle(.secondary)
                             HStack(spacing: 12) {

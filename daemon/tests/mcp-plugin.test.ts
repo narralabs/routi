@@ -582,10 +582,13 @@ test('Slides blocks read-only edits, upgrades access, and enforces Ask and Deny'
   const context = f.plugin.context(f.bot.id, undefined, false, conversation.id)!
   assert.equal((await f.plugin.status('default')).permissions!.find(permission => permission.id === 'write')!.rule, 'ask')
   const edit = () => context.run('google_slides_call_tool', { name: 'update_presentation', arguments: { presentationId: 'test' } })
-  assert.equal((await context.run('google_slides_call_tool', { name: 'read_presentation', arguments: { presentationId: 'test' } })).ok, true)
+  const reads = ['read_presentation', 'read_slide_page', 'read_slide_page_thumbnail']
+  for (const name of reads) {
+    assert.equal((await context.run('google_slides_call_tool', { name, arguments: { presentationId: 'test' } })).ok, true)
+  }
   f.plugin.setPermission('default', 'write', 'allow')
   assert.equal((await edit()).ok, false, 'Allow cannot bypass read-only Google access')
-  assert.deepEqual(f.calls, ['read_presentation'])
+  assert.deepEqual(f.calls, reads)
 
   const upgrade = await f.plugin.connect('default')
   assert.equal(new URL(upgrade.url).searchParams.get('scope'), definition.oauth!.scope)
@@ -601,12 +604,12 @@ test('Slides blocks read-only edits, upgrades access, and enforces Ask and Deny'
   })
   const pending = edit()
   const request = await approval
-  assert.deepEqual(f.calls, ['read_presentation'], 'Ask waits before executing the edit')
+  assert.deepEqual(f.calls, reads, 'Ask waits before executing the edit')
   await f.plugin.respondAccess('default', request.id, true)
   assert.equal((await pending).ok, true)
   f.plugin.setPermission('default', 'write', 'deny')
   assert.equal((await edit()).ok, false)
-  assert.deepEqual(f.calls, ['read_presentation', 'update_presentation'])
+  assert.deepEqual(f.calls, [...reads, 'update_presentation'])
   await f.plugin.disconnect('default')
   assert.equal((await context.run('google_slides_list_tools', {})).ok, false)
 })

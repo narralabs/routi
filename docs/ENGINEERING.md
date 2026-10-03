@@ -627,7 +627,7 @@ profile. Routi does not replay failed tool calls; an uncertain order outcome mus
 checked before another order is attempted. Disconnect does not cancel existing
 orders or revoke Robinhood's server-side authorization.
 
-`daemon/tests/robinhood.test.ts` uses a local fake OAuth/MCP server: no accounts,
+`daemon/tests/mcp-plugin.test.ts` uses a local fake OAuth/MCP server: no accounts,
 model tokens, or live trades. Real account authorization remains a manual check.
 
 

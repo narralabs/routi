@@ -627,7 +627,7 @@ profile. Routi does not replay failed tool calls; an uncertain order outcome mus
 checked before another order is attempted. Disconnect does not cancel existing
 orders or revoke Robinhood's server-side authorization.
 
-`daemon/tests/robinhood.test.ts` uses a local fake OAuth/MCP server: no accounts,
+`daemon/tests/mcp-plugin.test.ts` uses a local fake OAuth/MCP server: no accounts,
 model tokens, or live trades. Real account authorization remains a manual check.
 
 
@@ -698,3 +698,11 @@ spreadsheet access.
 
 Sheets edits default to Allow once Google grants write access. Users can choose
 Ask or Deny in Bot permissions; saved choices take precedence over the default.
+
+### Google Slides
+
+Slides uses `https://slidesmcp.googleapis.com/mcp/v1` to read and edit presentations.
+Enable `slidesmcp.googleapis.com` and `slides.googleapis.com`. Configure
+`presentations` and `presentations.readonly`, plus `openid email`, in Google OAuth
+and verification. Read-only consent requests only `presentations.readonly` for
+presentation access. Edits default to Ask in Bot permissions.

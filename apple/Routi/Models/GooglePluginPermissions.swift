@@ -29,6 +29,11 @@ extension PluginInfo {
                 ("Read spreadsheets", ["spreadsheets.readonly", "spreadsheets", "drive.readonly", "drive"]),
                 ("Edit spreadsheets", ["spreadsheets", "drive"]),
             ]
+        case "google_slides":
+            capabilities = [
+                ("Read presentations", ["presentations.readonly", "presentations", "drive.readonly", "drive"]),
+                ("Edit presentations", ["presentations", "drive"]),
+            ]
         case "google_drive":
             capabilities = [
                 ("Read Drive files", ["drive.readonly", "drive"]),
@@ -46,6 +51,7 @@ extension PluginInfo {
         case "google_calendar": "Create, edit, and delete events"
         case "google_docs": "Edit document text and formatting"
         case "google_sheets": "Edit spreadsheet values, formulas, and formatting"
+        case "google_slides": "Edit slides, text, and layouts"
         default: "Manage files used with Routi"
         }
     }
@@ -55,6 +61,7 @@ extension PluginInfo {
         case "gmail": ["Read email"]
         case "google_docs": ["Read documents"]
         case "google_sheets": ["Read spreadsheets"]
+        case "google_slides": ["Read presentations"]
         case "google_calendar": ["View calendars", "Check availability", "Read events"]
         case "google_drive": ["Read Drive files"]
         default: []
